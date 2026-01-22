@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Smart Todo App",
-  description: "Intelligent todo app that learns from your Slack, Monday.com, and Google Drive",
+  title: "Knots - Smart Task Manager",
+  description: "Your intelligent task manager that learns from your workflow",
 };
 
 export default function RootLayout({
