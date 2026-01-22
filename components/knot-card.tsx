@@ -15,7 +15,7 @@ export interface KnotCardProps {
   onDelete: (id: string) => void
   isDragging?: boolean
   isOverlay?: boolean
-  dragHandleProps?: React.HTMLAttributes<HTMLButtonElement>
+  dragHandleProps?: React.HTMLAttributes<HTMLDivElement>
 }
 
 export default function KnotCard({
@@ -33,25 +33,26 @@ export default function KnotCard({
 
   return (
     <div
+      {...dragHandleProps}
       className={cn(
         "group flex items-start gap-3 rounded-lg bg-card p-4 transition-[background-color,opacity,transform,box-shadow] duration-200 ease-[cubic-bezier(0.2,0,0,1)]",
         !isOverlay && "animate-in fade-in duration-300",
         !isCompleted && "hover:bg-accent-hover",
         isCompleted && "bg-accent-subtle opacity-75",
         isDragging && "opacity-40",
-        isOverlay && "shadow-md"
+        isOverlay && "shadow-md cursor-grabbing",
+        !isOverlay && "cursor-grab active:cursor-grabbing touch-none"
       )}
     >
-      <button
-        {...dragHandleProps}
+      <div
         className={cn(
-          "mt-0.5 shrink-0 cursor-grab rounded p-0.5 text-muted-foreground/30 transition-[opacity,color] duration-100 ease-out hover:text-muted-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-          isOverlay && "cursor-grabbing text-muted-foreground"
+          "mt-0.5 shrink-0 rounded p-0.5 text-muted-foreground/30 transition-[opacity,color] duration-100 ease-out",
+          isOverlay && "text-muted-foreground"
         )}
-        aria-label="Drag to reorder"
+        aria-hidden="true"
       >
         <GripVertical className="h-4 w-4" />
-      </button>
+      </div>
       <Checkbox
         id={`knot-${id}`}
         checked={isCompleted}
