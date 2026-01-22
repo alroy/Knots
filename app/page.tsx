@@ -1,119 +1,85 @@
-'use client'
+"use client"
 
-import { useState } from 'react'
-import KnotCard from '@/components/knot-card'
+import { useState } from "react"
+import KnotCard from "@/components/knot-card" // Import KnotCard component
+import { SortableKnotList } from "@/components/sortable-knot-list"
 
 interface Knot {
   id: string
   title: string
   description: string
-  status: 'active' | 'completed'
+  status: "active" | "completed"
 }
 
-export default function Home() {
-  const [knots, setKnots] = useState<Knot[]>([
-    {
-      id: '1',
-      title: 'Review Q1 budget proposal',
-      description: 'Check the finance team\'s budget proposal for next quarter and provide feedback by EOD',
-      status: 'active'
-    },
-    {
-      id: '2',
-      title: 'Update project documentation',
-      description: 'Add new API endpoints to the developer documentation',
-      status: 'active'
-    },
-    {
-      id: '3',
-      title: 'Schedule team standup',
-      description: 'Find a time that works for everyone next week',
-      status: 'completed'
-    },
-    {
-      id: '4',
-      title: 'Respond to customer inquiry',
-      description: 'Customer is asking about integration options with their CRM system',
-      status: 'active'
-    }
-  ])
+const initialKnots: Knot[] = [
+  {
+    id: "1",
+    title: "Learn the Bowline Knot",
+    description: "Master the king of knots - essential for sailing and rescue operations",
+    status: "completed",
+  },
+  {
+    id: "2",
+    title: "Practice the Figure Eight",
+    description: "A stopper knot commonly used in climbing and sailing",
+    status: "active",
+  },
+  {
+    id: "3",
+    title: "Study the Clove Hitch",
+    description: "Quick and easy knot for securing a rope to a post or pole",
+    status: "active",
+  },
+  {
+    id: "4",
+    title: "Master the Sheet Bend",
+    description: "Perfect for joining two ropes of different diameters together",
+    status: "active",
+  },
+]
+
+export default function Page() {
+  const [knots, setKnots] = useState<Knot[]>(initialKnots)
 
   const handleToggle = (id: string) => {
-    setKnots(knots.map(knot =>
-      knot.id === id
-        ? { ...knot, status: knot.status === 'active' ? 'completed' : 'active' }
-        : knot
-    ))
+    setKnots((prev) =>
+      prev.map((knot) =>
+        knot.id === id
+          ? { ...knot, status: knot.status === "active" ? "completed" : "active" }
+          : knot
+      )
+    )
   }
 
   const handleDelete = (id: string) => {
-    setKnots(knots.filter(knot => knot.id !== id))
+    setKnots((prev) => prev.filter((knot) => knot.id !== id))
   }
 
-  const activeKnots = knots.filter(k => k.status === 'active')
-  const completedKnots = knots.filter(k => k.status === 'completed')
+  const handleReorder = (reorderedKnots: Knot[]) => {
+    setKnots(reorderedKnots)
+  }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-950 py-12 px-4">
-      <div className="max-w-3xl mx-auto">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-2">
-            Knots
-          </h1>
-          <p className="text-gray-600 dark:text-gray-400">
-            Your intelligent task manager
+    <main className="min-h-screen bg-background px-4 py-12">
+      <div className="mx-auto max-w-xl">
+        <h1 className="mb-2 text-2xl font-bold text-foreground">My Knots</h1>
+        <p className="mb-8 text-muted-foreground">
+          What you meant to come back to.
+        </p>
+
+        {knots.length > 0 ? (
+          <SortableKnotList
+            knots={knots}
+            onReorder={handleReorder}
+            onToggle={handleToggle}
+            onDelete={handleDelete}
+          />
+        ) : (
+          <p className="py-8 text-center text-muted-foreground">
+            No knots to track. Add some to get started!
           </p>
-        </div>
-
-        {/* Active Knots */}
-        <div className="mb-8">
-          <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
-            Active ({activeKnots.length})
-          </h2>
-          <div className="flex flex-col gap-3">
-            {activeKnots.length > 0 ? (
-              activeKnots.map(knot => (
-                <KnotCard
-                  key={knot.id}
-                  id={knot.id}
-                  title={knot.title}
-                  description={knot.description}
-                  status={knot.status}
-                  onToggle={handleToggle}
-                  onDelete={handleDelete}
-                />
-              ))
-            ) : (
-              <p className="text-gray-500 dark:text-gray-400 text-center py-8">
-                No active knots. Great job! 🎉
-              </p>
-            )}
-          </div>
-        </div>
-
-        {/* Completed Knots */}
-        {completedKnots.length > 0 && (
-          <div>
-            <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
-              Completed ({completedKnots.length})
-            </h2>
-            <div className="flex flex-col gap-3">
-              {completedKnots.map(knot => (
-                <KnotCard
-                  key={knot.id}
-                  id={knot.id}
-                  title={knot.title}
-                  description={knot.description}
-                  status={knot.status}
-                  onToggle={handleToggle}
-                  onDelete={handleDelete}
-                />
-              ))}
-            </div>
-          </div>
         )}
       </div>
-    </div>
+    </main>
   )
 }
