@@ -8,7 +8,14 @@ export async function GET(request: Request) {
 
   if (code) {
     const supabase = await createClient()
-    await supabase.auth.exchangeCodeForSession(code)
+    const { data, error } = await supabase.auth.exchangeCodeForSession(code)
+
+    if (error) {
+      console.error('[Auth Callback] Error exchanging code:', error)
+      return NextResponse.redirect(`${origin}/?error=${error.message}`)
+    }
+
+    console.log('[Auth Callback] Session exchanged successfully for:', data.user?.email)
   }
 
   // Redirect to home page after sign in

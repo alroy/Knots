@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useState } from 'react'
 import { User } from '@supabase/supabase-js'
-import { supabase } from '@/lib/supabase'
+import { createClient } from '@/lib/supabase-browser'
 
 interface AuthContextType {
   user: User | null
@@ -22,8 +22,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isAuthorized, setIsAuthorized] = useState(false)
 
   useEffect(() => {
+    const supabase = createClient()
+
     // Check active session
     supabase.auth.getSession().then(({ data: { session } }) => {
+      console.log('[Auth Context] Session check:', session ? 'User logged in' : 'No session')
+      console.log('[Auth Context] User email:', session?.user?.email)
       const currentUser = session?.user ?? null
       setUser(currentUser)
       setIsAuthorized(currentUser?.email === ALLOWED_EMAIL)
@@ -44,6 +48,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const signInWithGoogle = async () => {
+    const supabase = createClient()
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
@@ -56,6 +61,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const signOut = async () => {
+    const supabase = createClient()
     const { error } = await supabase.auth.signOut()
     if (error) {
       console.error('Error signing out:', error)
