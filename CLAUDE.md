@@ -48,6 +48,7 @@ Main page with Supabase integration:
 - Implements CRUD operations with optimistic updates
 - Error rollback on database failures
 - Drag-and-drop reordering
+- Real-time sync via Supabase Realtime (changes appear instantly across devices)
 
 ### `/components/knot-form.tsx`
 Collapsible form with custom UX:
@@ -93,6 +94,7 @@ Retry up to 4 times with exponential backoff (2s, 4s, 8s, 16s) on network failur
 
 ## Current State
 - ✅ Supabase integration complete (CRUD operations)
+- ✅ Real-time sync across devices via Supabase Realtime
 - ✅ Collapsible form with knot icon button
 - ✅ Drag-and-drop functionality
 - ✅ Refined oklch color palette with hover states
@@ -102,6 +104,7 @@ Retry up to 4 times with exponential backoff (2s, 4s, 8s, 16s) on network failur
 ## Important Notes
 - Always use optimistic updates for better UX
 - Include error rollback on database failures
+- Real-time sync uses Supabase Realtime subscriptions (listens to INSERT, UPDATE, DELETE)
 - Maintain oklch color consistency across components
 - Button component supports size prop for different variants
 - Focus states use 1px ring with 20% opacity

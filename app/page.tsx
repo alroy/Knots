@@ -22,6 +22,60 @@ export default function Page() {
     loadKnots()
   }, [])
 
+  // Subscribe to real-time changes
+  useEffect(() => {
+    const channel = supabase
+      .channel('tasks-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'tasks',
+        },
+        (payload) => {
+          if (payload.eventType === 'INSERT') {
+            const newTask = payload.new as any
+            const newKnot: Knot = {
+              id: newTask.id,
+              title: newTask.title,
+              description: newTask.description || '',
+              status: newTask.status,
+            }
+
+            // Add new knot if it doesn't already exist (avoid duplicates from optimistic updates)
+            setKnots((prev) => {
+              if (prev.some((k) => k.id === newKnot.id)) return prev
+              return [newKnot, ...prev]
+            })
+          } else if (payload.eventType === 'UPDATE') {
+            const updatedTask = payload.new as any
+            setKnots((prev) =>
+              prev.map((k) =>
+                k.id === updatedTask.id
+                  ? {
+                      ...k,
+                      title: updatedTask.title,
+                      description: updatedTask.description || '',
+                      status: updatedTask.status,
+                    }
+                  : k
+              )
+            )
+          } else if (payload.eventType === 'DELETE') {
+            const deletedTask = payload.old as any
+            setKnots((prev) => prev.filter((k) => k.id !== deletedTask.id))
+          }
+        }
+      )
+      .subscribe()
+
+    // Cleanup subscription on unmount
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [])
+
   const loadKnots = async () => {
     try {
       const { data, error } = await supabase
