@@ -3,6 +3,7 @@
 import { useState } from "react"
 import KnotCard from "@/components/knot-card" // Import KnotCard component
 import { SortableKnotList } from "@/components/sortable-knot-list"
+import { KnotForm } from "@/components/knot-form"
 
 interface Knot {
   id: string
@@ -59,6 +60,16 @@ export default function Page() {
     setKnots(reorderedKnots)
   }
 
+  const handleAddKnot = (data: { title: string; description: string }) => {
+    const newKnot: Knot = {
+      id: Date.now().toString(),
+      title: data.title,
+      description: data.description,
+      status: "active",
+    }
+    setKnots((prev) => [newKnot, ...prev])
+  }
+
   return (
     <main className="min-h-screen bg-background px-4 py-12">
       <div className="mx-auto max-w-xl">
@@ -66,6 +77,10 @@ export default function Page() {
         <p className="mb-8 text-muted-foreground">
           What you meant to come back to.
         </p>
+
+        <div className="mb-12">
+          <KnotForm onSubmit={handleAddKnot} />
+        </div>
 
         {knots.length > 0 ? (
           <SortableKnotList
