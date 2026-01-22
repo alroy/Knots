@@ -7,27 +7,23 @@ export async function GET(request: NextRequest) {
   const code = requestUrl.searchParams.get('code')
   const origin = requestUrl.origin
 
-  const response = NextResponse.redirect(`${origin}/`)
+  let response = NextResponse.redirect(`${origin}/`)
 
   if (code) {
     const cookieStore = await cookies()
+
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
       {
         cookies: {
           getAll() {
-            return cookieStore.getAll()
+            return request.cookies.getAll()
           },
           setAll(cookiesToSet) {
-            try {
-              cookiesToSet.forEach(({ name, value, options }) => {
-                cookieStore.set(name, value, options)
-                response.cookies.set(name, value, options)
-              })
-            } catch (error) {
-              console.error('[Auth Callback] Cookie error:', error)
-            }
+            cookiesToSet.forEach(({ name, value, options }) => {
+              response.cookies.set(name, value, options)
+            })
           },
         },
       }
@@ -37,8 +33,7 @@ export async function GET(request: NextRequest) {
 
     if (error) {
       console.error('[Auth Callback] Error exchanging code:', error)
-      const errorResponse = NextResponse.redirect(`${origin}/?error=${error.message}`)
-      return errorResponse
+      return NextResponse.redirect(`${origin}/?error=${error.message}`)
     }
 
     console.log('[Auth Callback] Session exchanged successfully for:', data.user?.email)
