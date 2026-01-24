@@ -26,18 +26,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // Check active session
     supabase.auth.getSession().then(({ data: { session } }) => {
-      console.log('[Auth Context] Session check:', session ? 'User logged in' : 'No session')
+      console.log('[Auth Context] ==========================================')
+      console.log('[Auth Context] Initial session check')
+      console.log('[Auth Context] Session exists:', !!session)
       console.log('[Auth Context] User email:', session?.user?.email)
+      console.log('[Auth Context] User ID:', session?.user?.id)
+      console.log('[Auth Context] Allowed email:', ALLOWED_EMAIL)
+
       const currentUser = session?.user ?? null
+      const userEmail = currentUser?.email
+      const authorized = userEmail === ALLOWED_EMAIL
+
+      console.log('[Auth Context] Is authorized:', authorized)
+      console.log('[Auth Context] Email match:', userEmail === ALLOWED_EMAIL)
+      console.log('[Auth Context] ==========================================')
+
       setUser(currentUser)
-      setIsAuthorized(currentUser?.email === ALLOWED_EMAIL)
+      setIsAuthorized(authorized)
       setLoading(false)
     })
 
     // Listen for auth changes
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log('[Auth Context] Auth state changed:', event)
+      console.log('[Auth Context] Session exists:', !!session)
+      console.log('[Auth Context] User email:', session?.user?.email)
+
       const currentUser = session?.user ?? null
       setUser(currentUser)
       setIsAuthorized(currentUser?.email === ALLOWED_EMAIL)
