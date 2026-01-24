@@ -65,8 +65,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (error) {
         console.error('[Auth] Error signing in with Google:', error)
         alert(`Sign-in error: ${error.message}`)
+      } else if (data?.url) {
+        console.log('[Auth] Redirecting to:', data.url)
+        window.location.href = data.url
       } else {
-        console.log('[Auth] OAuth initiated successfully, should redirect...')
+        console.error('[Auth] No URL returned from OAuth')
+        alert('No redirect URL returned from authentication')
       }
     } catch (err) {
       console.error('[Auth] Unexpected error:', err)
