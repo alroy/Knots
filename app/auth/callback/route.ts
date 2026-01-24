@@ -32,6 +32,12 @@ export async function GET(request: NextRequest) {
           console.log('[Auth Callback] Setting', cookiesToSet.length, 'cookies on response')
           cookiesToSet.forEach(({ name, value, options }) => {
             console.log('[Auth Callback]   - Cookie:', name)
+            console.log('[Auth Callback]     Options:', JSON.stringify(options))
+            console.log('[Auth Callback]     Domain:', options?.domain || 'not set')
+            console.log('[Auth Callback]     Path:', options?.path || '/')
+            console.log('[Auth Callback]     SameSite:', options?.sameSite || 'default')
+            console.log('[Auth Callback]     HttpOnly:', options?.httpOnly || false)
+            console.log('[Auth Callback]     Secure:', options?.secure || false)
             // CRITICAL: Set cookies on the NextResponse object
             response.cookies.set(name, value, options)
           })
@@ -49,7 +55,14 @@ export async function GET(request: NextRequest) {
   }
 
   console.log('[Auth Callback] ✓ Session exchanged successfully!')
-  console.log('[Auth Callback] ✓ Cookies set on response')
+
+  // Verify cookies on response
+  const responseCookies = response.cookies.getAll()
+  console.log('[Auth Callback] ✓ Response has', responseCookies.length, 'cookies')
+  responseCookies.forEach(cookie => {
+    console.log('[Auth Callback]     - Response cookie:', cookie.name, 'length:', cookie.value.length)
+  })
+
   console.log('[Auth Callback] ✓ Redirecting to:', redirectUrl)
 
   // Return the response with cookies attached
