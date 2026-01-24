@@ -1,17 +1,16 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
-import { cookies } from 'next/headers'
 
 export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url)
   const code = requestUrl.searchParams.get('code')
   const origin = requestUrl.origin
 
+  console.log('[Auth Callback] Processing callback with code:', !!code)
+
   let response = NextResponse.redirect(`${origin}/`)
 
   if (code) {
-    const cookieStore = await cookies()
-
     // Use placeholder values during build if env vars are missing
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co'
     const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-key'
