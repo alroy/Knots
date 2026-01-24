@@ -46,8 +46,8 @@ export const config = {
      * - _next/static (static files)
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
-     * - public files (public folder)
-     * - auth/callback (OAuth callback - handles its own cookie setting)
+     * - public files (images, svgs, etc.)
+     * - auth/callback (OAuth callback handles its own cookie setting)
      */
     '/((?!_next/static|_next/image|favicon.ico|auth/callback|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
