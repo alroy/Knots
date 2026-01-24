@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { cookies } from 'next/headers'
 
 export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url)
@@ -22,9 +23,9 @@ export async function GET(request: NextRequest) {
 
   console.log('[Auth Callback] Supabase URL:', url)
 
-  // CRITICAL: Create the response object FIRST, before creating Supabase client
-  // Cookies MUST be set on this response object to be sent back to the browser
-  let response = NextResponse.redirect(`${origin}/`)
+  // CRITICAL: In Route Handlers, use cookies() API and Next.js will automatically
+  // attach the cookies to the response you return
+  const cookieStore = await cookies()
 
   const supabase = createServerClient(
     url,
@@ -32,15 +33,20 @@ export async function GET(request: NextRequest) {
     {
       cookies: {
         getAll() {
-          return request.cookies.getAll()
+          return cookieStore.getAll()
         },
         setAll(cookiesToSet) {
-          console.log('[Auth Callback] Setting', cookiesToSet.length, 'cookies on response')
-          cookiesToSet.forEach(({ name, value, options }) => {
-            // CRITICAL: Set cookies on the RESPONSE object, not the request
-            response.cookies.set(name, value, options)
-            console.log('[Auth Callback]   - Cookie:', name, 'maxAge:', options?.maxAge)
-          })
+          console.log('[Auth Callback] Setting', cookiesToSet.length, 'cookies via cookies() API')
+          try {
+            cookiesToSet.forEach(({ name, value, options }) => {
+              console.log('[Auth Callback]   - Cookie:', name, 'maxAge:', options?.maxAge)
+              cookieStore.set(name, value, options)
+            })
+          } catch (error) {
+            // The `setAll` method was called from a Server Component.
+            // This can be ignored if you have middleware refreshing user sessions.
+            console.error('[Auth Callback] Error setting cookies:', error)
+          }
         },
       },
     }
@@ -63,11 +69,11 @@ export async function GET(request: NextRequest) {
     console.log('[Auth Callback] ✓ Session exchanged successfully!')
     console.log('[Auth Callback] ✓ User email:', data.user?.email)
     console.log('[Auth Callback] ✓ Session expires:', new Date(data.session.expires_at! * 1000).toISOString())
-    console.log('[Auth Callback] ✓ Returning response with session cookies')
+    console.log('[Auth Callback] ✓ Redirecting to home page')
     console.log('[Auth Callback] ==========================================')
 
-    // Return the response object that has the session cookies set on it
-    return response
+    // Next.js automatically attaches cookies set via cookies() to this response
+    return NextResponse.redirect(`${origin}/`)
   } catch (err) {
     console.error('[Auth Callback] ✗ Unexpected error:', err)
     return NextResponse.redirect(`${origin}/?error=unexpected_error`)
