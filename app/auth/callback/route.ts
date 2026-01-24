@@ -1,19 +1,21 @@
 import { createServerClient } from '@supabase/ssr'
+import { cookies } from 'next/headers'
 import { NextResponse, type NextRequest } from 'next/server'
 
 export async function GET(request: NextRequest) {
-  const requestUrl = new URL(request.url)
-  const code = requestUrl.searchParams.get('code')
-  const origin = requestUrl.origin
+  const { searchParams, origin } = new URL(request.url)
+  const code = searchParams.get('code')
+  const next = searchParams.get('next') ?? '/'
 
   console.log('[Auth Callback] ==========================================')
   console.log('[Auth Callback] Processing OAuth callback')
   console.log('[Auth Callback] Has code:', !!code)
   console.log('[Auth Callback] Origin:', origin)
+  console.log('[Auth Callback] Next:', next)
 
   if (!code) {
     console.error('[Auth Callback] ✗ No code provided in callback')
-    return NextResponse.redirect(`${origin}/?error=no_code`)
+    return NextResponse.redirect(`${origin}/?error=no_code`, { status: 302 })
   }
 
   // Use placeholder values during build if env vars are missing
@@ -22,34 +24,26 @@ export async function GET(request: NextRequest) {
 
   console.log('[Auth Callback] Supabase URL:', url)
 
-  // Create response object that will be used to set cookies
-  let response = NextResponse.redirect(`${origin}/`)
+  // Create the redirect response FIRST - this is critical for cookie setting
+  const redirectUrl = `${origin}${next}`
+  const response = NextResponse.redirect(redirectUrl, { status: 302 })
 
-  const supabase = createServerClient(
-    url,
-    key,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll()
-        },
-        setAll(cookiesToSet) {
-          console.log('[Auth Callback] Setting', cookiesToSet.length, 'cookies on response object')
-          cookiesToSet.forEach(({ name, value, options }) => {
-            console.log('[Auth Callback]   - Setting cookie:', name)
-            console.log('[Auth Callback]     - maxAge:', options?.maxAge)
-            console.log('[Auth Callback]     - path:', options?.path)
-            console.log('[Auth Callback]     - sameSite:', options?.sameSite)
-            console.log('[Auth Callback]     - httpOnly:', options?.httpOnly)
-
-            // CRITICAL FIX: Only set cookies on response with Supabase's original options
-            // Do NOT override options or set on request - this causes Set-Cookie header issues
-            response.cookies.set(name, value, options)
-          })
-        },
+  // Create Supabase client that sets cookies on the response object
+  const supabase = createServerClient(url, key, {
+    cookies: {
+      getAll() {
+        return request.cookies.getAll()
       },
-    }
-  )
+      setAll(cookiesToSet) {
+        console.log('[Auth Callback] Setting', cookiesToSet.length, 'cookies on response')
+        cookiesToSet.forEach(({ name, value, options }) => {
+          console.log('[Auth Callback]   - Cookie:', name, 'httpOnly:', options?.httpOnly, 'sameSite:', options?.sameSite)
+          // Set cookies on the response object, not the cookie store
+          response.cookies.set(name, value, options)
+        })
+      },
+    },
+  })
 
   try {
     console.log('[Auth Callback] Exchanging code for session...')
@@ -57,34 +51,32 @@ export async function GET(request: NextRequest) {
 
     if (error) {
       console.error('[Auth Callback] ✗ Error exchanging code:', error.message)
-      console.error('[Auth Callback] ✗ Error details:', error)
-      return NextResponse.redirect(`${origin}/?error=${encodeURIComponent(error.message)}`)
+      return NextResponse.redirect(`${origin}/?error=${encodeURIComponent(error.message)}`, { status: 302 })
     }
 
     if (!data.session) {
-      console.error('[Auth Callback] ✗ No session returned after code exchange')
-      return NextResponse.redirect(`${origin}/?error=no_session`)
+      console.error('[Auth Callback] ✗ No session returned')
+      return NextResponse.redirect(`${origin}/?error=no_session`, { status: 302 })
     }
 
     console.log('[Auth Callback] ✓ Session exchanged successfully!')
     console.log('[Auth Callback] ✓ User email:', data.user?.email)
-    console.log('[Auth Callback] ✓ Access token (first 20 chars):', data.session.access_token.substring(0, 20))
-    console.log('[Auth Callback] ✓ Refresh token exists:', !!data.session.refresh_token)
     console.log('[Auth Callback] ✓ Session expires:', new Date(data.session.expires_at! * 1000).toISOString())
 
-    // Log all cookies that will be sent
+    // Log cookies that were set on the response
     const responseCookies = response.cookies.getAll()
-    console.log('[Auth Callback] ✓ Total cookies on response:', responseCookies.length)
+    console.log('[Auth Callback] ✓ Response has', responseCookies.length, 'cookies')
     responseCookies.forEach(cookie => {
-      console.log('[Auth Callback]   - Response cookie:', cookie.name, 'length:', cookie.value.length)
+      console.log('[Auth Callback]   - Response cookie:', cookie.name)
     })
 
-    console.log('[Auth Callback] ✓ Redirecting to home page')
+    console.log('[Auth Callback] ✓ Redirecting to:', redirectUrl)
     console.log('[Auth Callback] ==========================================')
 
+    // Return the response with cookies
     return response
   } catch (err) {
     console.error('[Auth Callback] ✗ Unexpected error:', err)
-    return NextResponse.redirect(`${origin}/?error=unexpected_error`)
+    return NextResponse.redirect(`${origin}/?error=unexpected_error`, { status: 302 })
   }
 }
