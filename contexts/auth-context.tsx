@@ -19,18 +19,11 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 const ALLOWED_EMAIL = 'gil.alroy@gmail.com'
 
-// Check for recovery mode immediately (before React hydration clears the hash)
-function checkInitialRecoveryMode(): boolean {
-  if (typeof window === 'undefined') return false
-  const hash = window.location.hash
-  return hash.includes('type=recovery')
-}
-
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
   const [isAuthorized, setIsAuthorized] = useState(false)
-  const [isPasswordRecovery, setIsPasswordRecovery] = useState(checkInitialRecoveryMode)
+  const [isPasswordRecovery, setIsPasswordRecovery] = useState(false)
 
   useEffect(() => {
     const supabase = createClient()

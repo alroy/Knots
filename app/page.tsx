@@ -215,14 +215,14 @@ export default function Page() {
     )
   }
 
-  // Show password reset form if in recovery mode
-  if (isPasswordRecovery) {
-    return <ResetPassword onComplete={clearPasswordRecovery} />
-  }
-
   // Show sign-in page if not authenticated
   if (!user) {
     return <SignIn />
+  }
+
+  // Show password reset form if in recovery mode (must have session first)
+  if (isPasswordRecovery) {
+    return <ResetPassword onComplete={clearPasswordRecovery} />
   }
 
   // Show unauthorized page if user email is not whitelisted
