@@ -19,23 +19,43 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 const ALLOWED_EMAIL = 'gil.alroy@gmail.com'
 
+// Check for recovery mode immediately (before React hydration clears the hash)
+function checkInitialRecoveryMode(): boolean {
+  if (typeof window === 'undefined') return false
+  const hash = window.location.hash
+  return hash.includes('type=recovery')
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
   const [isAuthorized, setIsAuthorized] = useState(false)
-  const [isPasswordRecovery, setIsPasswordRecovery] = useState(false)
+  const [isPasswordRecovery, setIsPasswordRecovery] = useState(checkInitialRecoveryMode)
 
   useEffect(() => {
     const supabase = createClient()
 
     // Handle auth tokens from URL (magic link or password recovery)
     const handleAuthFromUrl = async () => {
+      // Check query params
       const params = new URLSearchParams(window.location.search)
       const code = params.get('code')
       const type = params.get('type')
 
-      // Check if this is a recovery flow before exchanging
-      const isRecovery = type === 'recovery'
+      // Also check hash fragment (Supabase sometimes uses this)
+      const hashParams = new URLSearchParams(window.location.hash.substring(1))
+      const hashType = hashParams.get('type')
+      const accessToken = hashParams.get('access_token')
+
+      // Detect recovery from either query param or hash
+      const isRecovery = type === 'recovery' || hashType === 'recovery'
+
+      // Handle hash-based auth (older Supabase flow)
+      if (accessToken && hashType === 'recovery') {
+        setIsPasswordRecovery(true)
+        window.history.replaceState({}, '', window.location.pathname)
+        return
+      }
 
       if (code) {
         // Exchange code for session client-side

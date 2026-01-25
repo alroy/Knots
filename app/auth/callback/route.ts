@@ -42,22 +42,12 @@ export async function GET(request: NextRequest) {
     return response
   }
 
-  // Handle code exchange
+  // Handle code exchange - always forward to client
+  // This allows onAuthStateChange to detect PASSWORD_RECOVERY events
   if (code) {
-    // For password recovery, forward to client-side handler
-    // so it can detect recovery mode before exchanging
-    if (type === 'recovery') {
-      return NextResponse.redirect(`${origin}/?code=${code}&type=recovery`)
-    }
-
-    // For other flows, exchange on server
-    const { error } = await supabase.auth.exchangeCodeForSession(code)
-
-    if (error) {
-      return NextResponse.redirect(`${origin}/?error=${encodeURIComponent(error.message)}`)
-    }
-
-    return response
+    const redirectParams = new URLSearchParams({ code })
+    if (type) redirectParams.set('type', type)
+    return NextResponse.redirect(`${origin}/?${redirectParams.toString()}`)
   }
 
   // No valid auth parameters
