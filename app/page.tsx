@@ -19,7 +19,7 @@ interface Knot {
 }
 
 export default function Page() {
-  const { user, loading: authLoading, isAuthorized, isPasswordRecovery, clearPasswordRecovery } = useAuth()
+  const { user, loading: authLoading, isAuthorized, isPasswordRecovery, pendingRecovery, clearPasswordRecovery } = useAuth()
   const [knots, setKnots] = useState<Knot[]>([])
   const [loading, setLoading] = useState(true)
   const supabase = createClient()
@@ -202,8 +202,8 @@ export default function Page() {
     }
   }
 
-  // Show loading state while checking authentication
-  if (authLoading) {
+  // Show loading state while checking authentication or waiting for recovery session
+  if (authLoading || pendingRecovery) {
     return (
       <main className="min-h-screen bg-background px-4 py-12">
         <div className="mx-auto max-w-xl">

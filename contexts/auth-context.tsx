@@ -8,6 +8,7 @@ interface AuthContextType {
   user: User | null
   loading: boolean
   isPasswordRecovery: boolean
+  pendingRecovery: boolean
   sendMagicLink: (email: string) => Promise<{ success: boolean; error?: string }>
   signInWithPassword: (email: string, password: string) => Promise<{ success: boolean; error?: string }>
   signOut: () => Promise<void>
@@ -19,11 +20,20 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 const ALLOWED_EMAIL = 'gil.alroy@gmail.com'
 
+// Check if URL indicates recovery mode (prevents showing login page while waiting for session)
+function hasRecoveryInUrl(): boolean {
+  if (typeof window === 'undefined') return false
+  return window.location.hash.includes('type=recovery') ||
+         window.location.search.includes('type=recovery')
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
   const [isAuthorized, setIsAuthorized] = useState(false)
   const [isPasswordRecovery, setIsPasswordRecovery] = useState(false)
+  // Track if we're waiting for recovery session to be established
+  const [pendingRecovery, setPendingRecovery] = useState(hasRecoveryInUrl)
 
   useEffect(() => {
     const supabase = createClient()
@@ -57,6 +67,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(false)
     })
 
+    // Timeout fallback: clear pendingRecovery after 5 seconds if no auth event fires
+    const recoveryTimeout = setTimeout(() => {
+      setPendingRecovery(false)
+    }, 5000)
+
     // Listen for auth changes
     const {
       data: { subscription },
@@ -69,6 +84,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Detect password recovery mode
       if (event === 'PASSWORD_RECOVERY') {
         setIsPasswordRecovery(true)
+        setPendingRecovery(false)
+      }
+
+      // Clear pending recovery once any auth event fires (session established or failed)
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
+        setPendingRecovery(false)
       }
 
       // Clean up URL hash after Supabase processes it
@@ -77,7 +98,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     })
 
-    return () => subscription.unsubscribe()
+    return () => {
+      subscription.unsubscribe()
+      clearTimeout(recoveryTimeout)
+    }
   }, [])
 
   const sendMagicLink = async (email: string): Promise<{ success: boolean; error?: string }> => {
@@ -140,7 +164,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, isPasswordRecovery, sendMagicLink, signInWithPassword, signOut, clearPasswordRecovery, isAuthorized }}>
+    <AuthContext.Provider value={{ user, loading, isPasswordRecovery, pendingRecovery, sendMagicLink, signInWithPassword, signOut, clearPasswordRecovery, isAuthorized }}>
       {children}
     </AuthContext.Provider>
   )
