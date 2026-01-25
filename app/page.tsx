@@ -257,10 +257,6 @@ export default function Page() {
           What you meant to come back to.
         </p>
 
-        <div className="mb-12">
-          <KnotForm onSubmit={handleAddKnot} />
-        </div>
-
         {knots.length > 0 ? (
           <SortableKnotList
             knots={knots}
@@ -274,6 +270,9 @@ export default function Page() {
           </p>
         )}
       </div>
+
+      {/* FAB and modal form */}
+      <KnotForm onSubmit={handleAddKnot} />
     </main>
   )
 }
