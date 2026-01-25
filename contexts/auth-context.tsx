@@ -28,22 +28,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const supabase = createClient()
 
-    // Handle magic link token from URL (client-side)
-    const handleMagicLink = async () => {
+    // Handle auth tokens from URL (magic link or password recovery)
+    const handleAuthFromUrl = async () => {
       const params = new URLSearchParams(window.location.search)
       const code = params.get('code')
+      const type = params.get('type')
+
+      // Check if this is a recovery flow before exchanging
+      const isRecovery = type === 'recovery'
 
       if (code) {
         // Exchange code for session client-side
         const { error } = await supabase.auth.exchangeCodeForSession(code)
         if (!error) {
+          // Set recovery mode if this was a password reset
+          if (isRecovery) {
+            setIsPasswordRecovery(true)
+          }
           // Clean up URL
           window.history.replaceState({}, '', window.location.pathname)
         }
       }
     }
 
-    handleMagicLink()
+    handleAuthFromUrl()
 
     // Check active session
     supabase.auth.getSession().then(({ data: { session } }) => {
