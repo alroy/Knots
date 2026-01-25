@@ -9,6 +9,7 @@ import { useAuth } from "@/contexts/auth-context"
 import { SignIn } from "@/components/auth/sign-in"
 import { Unauthorized } from "@/components/auth/unauthorized"
 import { AuthHeader } from "@/components/auth/auth-header"
+import { ResetPassword } from "@/components/auth/reset-password"
 
 interface Knot {
   id: string
@@ -18,7 +19,7 @@ interface Knot {
 }
 
 export default function Page() {
-  const { user, loading: authLoading, isAuthorized } = useAuth()
+  const { user, loading: authLoading, isAuthorized, isPasswordRecovery, clearPasswordRecovery } = useAuth()
   const [knots, setKnots] = useState<Knot[]>([])
   const [loading, setLoading] = useState(true)
   const supabase = createClient()
@@ -212,6 +213,11 @@ export default function Page() {
         </div>
       </main>
     )
+  }
+
+  // Show password reset form if in recovery mode
+  if (isPasswordRecovery) {
+    return <ResetPassword onComplete={clearPasswordRecovery} />
   }
 
   // Show sign-in page if not authenticated

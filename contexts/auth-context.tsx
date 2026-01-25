@@ -7,9 +7,11 @@ import { createClient } from '@/lib/supabase-browser'
 interface AuthContextType {
   user: User | null
   loading: boolean
+  isPasswordRecovery: boolean
   sendMagicLink: (email: string) => Promise<{ success: boolean; error?: string }>
   signInWithPassword: (email: string, password: string) => Promise<{ success: boolean; error?: string }>
   signOut: () => Promise<void>
+  clearPasswordRecovery: () => void
   isAuthorized: boolean
 }
 
@@ -21,6 +23,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
   const [isAuthorized, setIsAuthorized] = useState(false)
+  const [isPasswordRecovery, setIsPasswordRecovery] = useState(false)
 
   useEffect(() => {
     const supabase = createClient()
@@ -60,6 +63,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(currentUser)
       setIsAuthorized(currentUser?.email === ALLOWED_EMAIL)
       setLoading(false)
+
+      // Detect password recovery mode
+      if (event === 'PASSWORD_RECOVERY') {
+        setIsPasswordRecovery(true)
+      }
     })
 
     return () => subscription.unsubscribe()
@@ -120,8 +128,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await supabase.auth.signOut()
   }
 
+  const clearPasswordRecovery = () => {
+    setIsPasswordRecovery(false)
+  }
+
   return (
-    <AuthContext.Provider value={{ user, loading, sendMagicLink, signInWithPassword, signOut, isAuthorized }}>
+    <AuthContext.Provider value={{ user, loading, isPasswordRecovery, sendMagicLink, signInWithPassword, signOut, clearPasswordRecovery, isAuthorized }}>
       {children}
     </AuthContext.Provider>
   )
