@@ -62,73 +62,91 @@ export function KnotForm({ onSubmit }: KnotFormProps) {
     }
   }
 
-  if (!isOpen) {
-    return (
+  return (
+    <>
+      {/* FAB Button - Fixed at bottom right */}
       <Button
         type="button"
         onClick={() => setIsOpen(true)}
         size="icon"
-        className="h-10 w-10 rounded-full"
+        className="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-lg z-30"
         aria-label="Tie a new knot"
       >
-        <KnotIcon className="h-5 w-5" />
+        <KnotIcon className="h-6 w-6" />
       </Button>
-    )
-  }
 
-  return (
-    <form onSubmit={handleSubmit} className="w-full max-w-md">
-      <div className="space-y-2 mb-5">
-        <Label htmlFor="title" className="text-sm text-muted-foreground">
-          Title
-        </Label>
-        <Input
-          ref={titleInputRef}
-          id="title"
-          type="text"
-          placeholder="What needs to be untangled?"
-          value={title}
-          onChange={handleTitleChange}
-          aria-invalid={touched && !!error}
-          aria-describedby={touched && error ? "title-error" : undefined}
-          className="h-10 bg-card border-border/60 shadow-none"
-        />
-        {touched && error && (
-          <p id="title-error" className="text-sm text-muted-foreground">
-            {error}
-          </p>
-        )}
-      </div>
+      {/* Modal Backdrop */}
+      <div
+        className={`fixed inset-0 bg-black/50 z-40 transition-opacity duration-300 ${
+          isOpen ? "opacity-100" : "opacity-0 pointer-events-none"
+        }`}
+        onClick={() => setIsOpen(false)}
+        aria-hidden="true"
+      />
 
-      <div className="space-y-2 mb-6">
-        <Label htmlFor="description" className="text-sm text-muted-foreground">
-          Description <span className="text-muted-foreground/60">(optional)</span>
-        </Label>
-        <Textarea
-          id="description"
-          placeholder="Add details..."
-          rows={3}
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          className="bg-card border-border/60 shadow-none resize-none"
-        />
-      </div>
+      {/* Modal Form */}
+      <div
+        className={`fixed inset-x-4 top-1/2 -translate-y-1/2 mx-auto max-w-md bg-background rounded-lg shadow-xl z-50 p-6 transition-all duration-300 ${
+          isOpen ? "opacity-100 scale-100" : "opacity-0 scale-95 pointer-events-none"
+        }`}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Add new knot"
+      >
+        <form onSubmit={handleSubmit}>
+          <div className="space-y-2 mb-5">
+            <Label htmlFor="title" className="text-sm text-muted-foreground">
+              Title
+            </Label>
+            <Input
+              ref={titleInputRef}
+              id="title"
+              type="text"
+              placeholder="What needs to be untangled?"
+              value={title}
+              onChange={handleTitleChange}
+              aria-invalid={touched && !!error}
+              aria-describedby={touched && error ? "title-error" : undefined}
+              className="h-10 bg-card border-border/60 shadow-none"
+            />
+            {touched && error && (
+              <p id="title-error" className="text-sm text-muted-foreground">
+                {error}
+              </p>
+            )}
+          </div>
 
-      <div className="flex items-center gap-4">
-        <Button
-          type="submit"
-          className="w-full sm:w-auto px-5 h-9 font-medium active:scale-[0.98] transition-transform duration-75"
-        >
-          Tie Knot
-        </Button>
-        <button
-          type="button"
-          onClick={() => setIsOpen(false)}
-          className="text-muted-foreground hover:text-foreground text-sm transition-colors duration-100"
-        >
-          Cancel
-        </button>
+          <div className="space-y-2 mb-6">
+            <Label htmlFor="description" className="text-sm text-muted-foreground">
+              Description <span className="text-muted-foreground/60">(optional)</span>
+            </Label>
+            <Textarea
+              id="description"
+              placeholder="Add details..."
+              rows={3}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              className="bg-card border-border/60 shadow-none resize-none"
+            />
+          </div>
+
+          <div className="flex items-center gap-4">
+            <Button
+              type="submit"
+              className="w-full sm:w-auto px-5 h-9 font-medium active:scale-[0.98] transition-transform duration-75"
+            >
+              Tie Knot
+            </Button>
+            <button
+              type="button"
+              onClick={() => setIsOpen(false)}
+              className="text-muted-foreground hover:text-foreground text-sm transition-colors duration-100"
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
       </div>
-    </form>
+    </>
   )
 }

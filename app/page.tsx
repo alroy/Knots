@@ -8,7 +8,7 @@ import { createClient } from "@/lib/supabase-browser"
 import { useAuth } from "@/contexts/auth-context"
 import { SignIn } from "@/components/auth/sign-in"
 import { Unauthorized } from "@/components/auth/unauthorized"
-import { AuthHeader } from "@/components/auth/auth-header"
+import { HamburgerMenu } from "@/components/hamburger-menu"
 import { ResetPassword } from "@/components/auth/reset-password"
 
 interface Knot {
@@ -235,7 +235,9 @@ export default function Page() {
     return (
       <main className="min-h-screen bg-background px-4 py-12">
         <div className="mx-auto max-w-xl">
-          <AuthHeader />
+          <div className="flex justify-end mb-6">
+            <HamburgerMenu />
+          </div>
           <div className="flex items-center justify-center py-12">
             <p className="text-muted-foreground">Loading your knots...</p>
           </div>
@@ -247,15 +249,13 @@ export default function Page() {
   return (
     <main className="min-h-screen bg-background px-4 py-12">
       <div className="mx-auto max-w-xl">
-        <AuthHeader />
+        <div className="flex justify-end mb-6">
+          <HamburgerMenu />
+        </div>
         <h1 className="mb-2 text-2xl font-bold text-foreground">My Knots</h1>
         <p className="mb-8 text-muted-foreground">
           What you meant to come back to.
         </p>
-
-        <div className="mb-12">
-          <KnotForm onSubmit={handleAddKnot} />
-        </div>
 
         {knots.length > 0 ? (
           <SortableKnotList
@@ -270,6 +270,9 @@ export default function Page() {
           </p>
         )}
       </div>
+
+      {/* FAB and modal form */}
+      <KnotForm onSubmit={handleAddKnot} />
     </main>
   )
 }
