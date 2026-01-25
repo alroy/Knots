@@ -26,15 +26,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isPasswordRecovery, setIsPasswordRecovery] = useState(false)
 
   useEffect(() => {
-    const supabase = createClient()
-
-    // Check if URL indicates recovery mode
+    // Check URL BEFORE creating Supabase client (which might clear the hash)
     const urlHasRecovery = window.location.hash.includes('type=recovery') ||
                            window.location.search.includes('type=recovery')
 
     if (urlHasRecovery) {
       setIsPasswordRecovery(true)
     }
+
+    const supabase = createClient()
 
     // Handle code-based auth (PKCE flow) from URL
     const handleCodeFromUrl = async () => {
