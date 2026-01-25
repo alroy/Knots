@@ -27,33 +27,53 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     // Check URL BEFORE creating Supabase client (which might clear the hash)
-    const urlHasRecovery = window.location.hash.includes('type=recovery') ||
-                           window.location.search.includes('type=recovery')
+    const hashParams = new URLSearchParams(window.location.hash.substring(1))
+    const accessToken = hashParams.get('access_token')
+    const refreshToken = hashParams.get('refresh_token')
+    const hashType = hashParams.get('type')
 
-    if (urlHasRecovery) {
+    const queryParams = new URLSearchParams(window.location.search)
+    const code = queryParams.get('code')
+    const queryType = queryParams.get('type')
+
+    const isRecoveryFromHash = hashType === 'recovery' && accessToken
+    const isRecoveryFromQuery = queryType === 'recovery' && code
+
+    if (isRecoveryFromHash || isRecoveryFromQuery) {
       setIsPasswordRecovery(true)
     }
 
     const supabase = createClient()
 
-    // Handle code-based auth (PKCE flow) from URL
-    const handleCodeFromUrl = async () => {
-      const params = new URLSearchParams(window.location.search)
-      const code = params.get('code')
-      const type = params.get('type')
-
-      if (code) {
-        const { error } = await supabase.auth.exchangeCodeForSession(code)
+    // Handle hash-based recovery (implicit flow) - manually set session
+    const handleHashRecovery = async () => {
+      if (isRecoveryFromHash && accessToken) {
+        const { error } = await supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken || '',
+        })
         if (!error) {
-          if (type === 'recovery') {
-            setIsPasswordRecovery(true)
-          }
           window.history.replaceState({}, '', window.location.pathname)
         }
       }
     }
 
-    handleCodeFromUrl()
+    // Handle code-based auth (PKCE flow) from URL
+    const handleCodeFromUrl = async () => {
+      if (code) {
+        const { error } = await supabase.auth.exchangeCodeForSession(code)
+        if (!error) {
+          window.history.replaceState({}, '', window.location.pathname)
+        }
+      }
+    }
+
+    // Run the appropriate handler
+    if (isRecoveryFromHash) {
+      handleHashRecovery()
+    } else if (code) {
+      handleCodeFromUrl()
+    }
 
     // Check active session
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -64,8 +84,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setIsAuthorized(authorized)
 
       // Only stop loading if NOT waiting for recovery session
-      // If URL has recovery hash, wait for onAuthStateChange to fire
-      if (!urlHasRecovery || currentUser) {
+      if (!(isRecoveryFromHash || isRecoveryFromQuery) || currentUser) {
         setLoading(false)
       }
     })
