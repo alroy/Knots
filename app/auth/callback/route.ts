@@ -42,8 +42,15 @@ export async function GET(request: NextRequest) {
     return response
   }
 
-  // Handle OAuth code exchange (fallback)
+  // Handle code exchange
   if (code) {
+    // For password recovery, forward to client-side handler
+    // so it can detect recovery mode before exchanging
+    if (type === 'recovery') {
+      return NextResponse.redirect(`${origin}/?code=${code}&type=recovery`)
+    }
+
+    // For other flows, exchange on server
     const { error } = await supabase.auth.exchangeCodeForSession(code)
 
     if (error) {
