@@ -117,6 +117,7 @@ Retry up to 4 times with exponential backoff (2s, 4s, 8s, 16s) on network failur
 - ✅ Optimistic UI updates with error handling
 - ✅ All CSS variables defined for card styling
 - ✅ Unit tests for cross-tab sync state updates
+- ✅ Safari PWA duplicate item fix (create and reorder)
 
 ## Important Notes
 - Always use optimistic updates for better UX
@@ -128,6 +129,15 @@ Retry up to 4 times with exponential backoff (2s, 4s, 8s, 16s) on network failur
 - Button component supports size prop for different variants
 - Focus states use 1px ring with 20% opacity
 - Cards use accent-hover and accent-subtle variables for states
+
+## Safari PWA Considerations
+Safari PWA (Add to Home Screen) has unique lifecycle behavior that can cause race conditions between optimistic updates and real-time subscriptions. The app uses three refs to prevent duplicate items:
+
+- **`locallyCreatedIds`**: Tracks IDs of items created via `handleAddKnot`. Real-time INSERT events skip items in this set.
+- **`locallyModifiedIds`**: Tracks IDs of items being toggled. Real-time UPDATE events skip items in this set.
+- **`isBatchOperation`**: Flag set during reorder operations. ALL real-time events are ignored while true. Cleared after 1 second delay to ensure all events from our updates are received.
+
+This pattern should be followed for any new operations that modify state and trigger real-time events.
 
 ## Testing
 Run tests with: `npm test`
