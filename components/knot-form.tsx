@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
+import { useSafariPWAFix } from "@/hooks/use-safari-pwa-fix"
 
 function KnotIcon({ className }: { className?: string }) {
   return (
@@ -29,6 +30,14 @@ export function KnotForm({ onSubmit }: KnotFormProps) {
   const [error, setError] = React.useState("")
   const [touched, setTouched] = React.useState(false)
   const titleInputRef = React.useRef<HTMLInputElement>(null)
+
+  // Close modal when app resumes from Safari PWA background
+  // to prevent stale modal/overlay state
+  const handleResume = React.useCallback(() => {
+    setIsOpen(false)
+  }, [])
+
+  useSafariPWAFix({ onResume: handleResume })
 
   React.useEffect(() => {
     if (isOpen) {
@@ -62,6 +71,13 @@ export function KnotForm({ onSubmit }: KnotFormProps) {
     }
   }
 
+  // Inline styles for hardware acceleration on iOS Safari PWA
+  const fixedStyle: React.CSSProperties = {
+    transform: "translateZ(0)",
+    WebkitBackfaceVisibility: "hidden",
+    backfaceVisibility: "hidden",
+  }
+
   return (
     <>
       {/* FAB Button - Fixed at bottom right */}
@@ -70,6 +86,7 @@ export function KnotForm({ onSubmit }: KnotFormProps) {
         onClick={() => setIsOpen(true)}
         size="icon"
         className="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-lg z-30"
+        style={fixedStyle}
         aria-label="Tie a new knot"
       >
         <KnotIcon className="h-6 w-6" />
@@ -80,6 +97,7 @@ export function KnotForm({ onSubmit }: KnotFormProps) {
         className={`fixed inset-0 bg-black/50 z-40 transition-opacity duration-300 ${
           isOpen ? "opacity-100" : "opacity-0 pointer-events-none"
         }`}
+        style={fixedStyle}
         onClick={() => setIsOpen(false)}
         aria-hidden="true"
       />
@@ -89,6 +107,7 @@ export function KnotForm({ onSubmit }: KnotFormProps) {
         className={`fixed inset-x-4 top-1/2 -translate-y-1/2 mx-auto max-w-md bg-background rounded-lg shadow-xl z-50 p-6 transition-all duration-300 ${
           isOpen ? "opacity-100 scale-100" : "opacity-0 scale-95 pointer-events-none"
         }`}
+        style={fixedStyle}
         role="dialog"
         aria-modal="true"
         aria-label="Add new knot"

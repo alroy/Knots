@@ -1,18 +1,34 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useCallback } from "react"
 import { useAuth } from "@/contexts/auth-context"
 import { Button } from "@/components/ui/button"
+import { useSafariPWAFix } from "@/hooks/use-safari-pwa-fix"
 
 export function HamburgerMenu() {
   const { user, signOut } = useAuth()
   const [isOpen, setIsOpen] = useState(false)
+
+  // Close menu when app resumes from Safari PWA background
+  // to prevent stale overlay/drawer state
+  const handleResume = useCallback(() => {
+    setIsOpen(false)
+  }, [])
+
+  useSafariPWAFix({ onResume: handleResume })
 
   if (!user) return null
 
   const handleSignOut = () => {
     signOut()
     setIsOpen(false)
+  }
+
+  // Inline styles for hardware acceleration on iOS Safari PWA
+  const fixedStyle: React.CSSProperties = {
+    transform: "translateZ(0)",
+    WebkitBackfaceVisibility: "hidden",
+    backfaceVisibility: "hidden",
   }
 
   return (
@@ -34,6 +50,7 @@ export function HamburgerMenu() {
         className={`fixed inset-0 bg-black/50 z-40 transition-opacity duration-300 ${
           isOpen ? "opacity-100" : "opacity-0 pointer-events-none"
         }`}
+        style={fixedStyle}
         onClick={() => setIsOpen(false)}
         aria-hidden="true"
       />
@@ -43,6 +60,7 @@ export function HamburgerMenu() {
         className={`fixed top-0 right-0 h-full w-80 bg-background shadow-xl z-50 transform transition-transform duration-300 ease-in-out ${
           isOpen ? "translate-x-0" : "translate-x-full"
         }`}
+        style={fixedStyle}
         role="dialog"
         aria-modal="true"
         aria-label="User menu"

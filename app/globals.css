@@ -129,3 +129,45 @@
     @apply bg-background text-foreground;
   }
 }
+
+/*
+ * Safari PWA (Progressive Web App) Fixes
+ *
+ * When added to iOS home screen, Safari can suspend/resume the app
+ * causing fixed positioned elements and transforms to become stale.
+ * These styles ensure proper layer compositing and positioning.
+ */
+
+/* Hardware acceleration for fixed/absolute positioned elements */
+.fixed {
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+}
+
+/* Ensure modals and overlays maintain their z-index stacking context */
+[role="dialog"] {
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
+}
+
+/* Prevent Safari PWA from incorrectly collapsing layers */
+@supports (-webkit-touch-callout: none) {
+  /* iOS Safari specific styles */
+  .fixed,
+  [style*="transform"] {
+    -webkit-perspective: 1000px;
+    perspective: 1000px;
+  }
+}
+
+/* Safe area insets for iOS devices with notches */
+@supports (padding-top: env(safe-area-inset-top)) {
+  body {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+}
