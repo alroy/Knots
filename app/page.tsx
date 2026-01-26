@@ -25,10 +25,14 @@ export default function Page() {
   const [loading, setLoading] = useState(true)
   const supabase = createClient()
 
-  // Track IDs of items created locally to prevent duplicates from real-time subscription
-  // This fixes a race condition in Safari PWA where both local state update and
-  // real-time subscription can add the same item before React batches the updates
+  // Track IDs of items being modified locally to prevent conflicts with real-time subscription
+  // This fixes race conditions in Safari PWA where both local state update and
+  // real-time subscription can process the same item before React batches the updates
   const locallyCreatedIds = useRef<Set<string>>(new Set())
+  const locallyModifiedIds = useRef<Set<string>>(new Set())
+
+  // Track if we're currently doing a batch operation (like reorder)
+  const isBatchOperation = useRef(false)
 
   // Load knots from Supabase on mount
   useEffect(() => {
@@ -52,6 +56,12 @@ export default function Page() {
           filter: `user_id=eq.${user.id}`,
         },
         (payload) => {
+          // Skip all real-time events during batch operations (like reorder)
+          // This prevents Safari PWA from processing our own UPDATE events
+          if (isBatchOperation.current) {
+            return
+          }
+
           if (payload.eventType === 'INSERT') {
             const newTask = payload.new as any
 
@@ -81,6 +91,13 @@ export default function Page() {
             })
           } else if (payload.eventType === 'UPDATE') {
             const updatedTask = payload.new as any
+
+            // Skip if this item is being modified locally
+            if (locallyModifiedIds.current.has(updatedTask.id)) {
+              locallyModifiedIds.current.delete(updatedTask.id)
+              return
+            }
+
             setKnots((prev) => {
               const updated = prev.map((k) =>
                 k.id === updatedTask.id
@@ -144,6 +161,9 @@ export default function Page() {
 
     const newStatus = knot.status === 'active' ? 'completed' : 'active'
 
+    // Mark as locally modified to ignore real-time UPDATE event
+    locallyModifiedIds.current.add(id)
+
     // Optimistic update (preserve position)
     setKnots((prev) =>
       prev.map((k) =>
@@ -164,6 +184,7 @@ export default function Page() {
     } catch (error) {
       console.error('Error toggling knot:', error)
       // Revert on error (preserve position)
+      locallyModifiedIds.current.delete(id)
       setKnots((prev) =>
         prev.map((k) =>
           k.id === id ? { ...k, status: knot.status } : k
@@ -193,6 +214,10 @@ export default function Page() {
   const handleReorder = async (reorderedKnots: Knot[]) => {
     // Store previous state for rollback
     const previousKnots = knots
+
+    // Mark as batch operation to ignore real-time events for our own updates
+    // This prevents Safari PWA from duplicating items when processing UPDATE events
+    isBatchOperation.current = true
 
     // Update positions based on new order
     const knotsWithPositions = reorderedKnots.map((knot, index) => ({
@@ -224,6 +249,12 @@ export default function Page() {
       console.error('Error reordering knots:', error)
       // Rollback on error
       setKnots(previousKnots)
+    } finally {
+      // Clear batch operation flag after a delay to ensure all real-time events
+      // from our updates have been received and ignored
+      setTimeout(() => {
+        isBatchOperation.current = false
+      }, 1000)
     }
   }
 
