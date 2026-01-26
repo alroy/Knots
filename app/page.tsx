@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import KnotCard from "@/components/knot-card" // Import KnotCard component
 import { SortableKnotList } from "@/components/sortable-knot-list"
 import { KnotForm } from "@/components/knot-form"
@@ -24,6 +24,11 @@ export default function Page() {
   const [knots, setKnots] = useState<Knot[]>([])
   const [loading, setLoading] = useState(true)
   const supabase = createClient()
+
+  // Track IDs of items created locally to prevent duplicates from real-time subscription
+  // This fixes a race condition in Safari PWA where both local state update and
+  // real-time subscription can add the same item before React batches the updates
+  const locallyCreatedIds = useRef<Set<string>>(new Set())
 
   // Load knots from Supabase on mount
   useEffect(() => {
@@ -49,6 +54,15 @@ export default function Page() {
         (payload) => {
           if (payload.eventType === 'INSERT') {
             const newTask = payload.new as any
+
+            // Skip if this item was created locally (already added via handleAddKnot)
+            // This prevents duplicates in Safari PWA where the real-time event
+            // can arrive before React finishes batching the local state update
+            if (locallyCreatedIds.current.has(newTask.id)) {
+              locallyCreatedIds.current.delete(newTask.id)
+              return
+            }
+
             const newKnot: Knot = {
               id: newTask.id,
               title: newTask.title,
@@ -57,7 +71,7 @@ export default function Page() {
               position: newTask.position ?? 0,
             }
 
-            // Add new knot if it doesn't already exist (avoid duplicates from optimistic updates)
+            // Add new knot if it doesn't already exist (cross-tab sync)
             // Insert at correct position and re-sort
             setKnots((prev) => {
               if (prev.some((k) => k.id === newKnot.id)) return prev
@@ -238,6 +252,10 @@ export default function Page() {
         status: newTask.status,
         position: newTask.position ?? 0,
       }
+
+      // Mark as locally created BEFORE updating state
+      // This prevents the real-time subscription from adding a duplicate
+      locallyCreatedIds.current.add(newKnot.id)
 
       // Add at top and shift other positions (server trigger handles DB side)
       setKnots((prev) => {
