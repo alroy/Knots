@@ -19,8 +19,11 @@ Table: `tasks`
 - `title` (text)
 - `description` (text, nullable)
 - `status` ('active' | 'completed')
+- `position` (integer) - For persistent ordering, 0 = top
 - `created_at` (timestamp)
 - `completed_at` (timestamp, nullable)
+
+**Required for cross-tab sync:** Run `supabase-migration-cross-tab-sync.sql` to add `position` column and set `REPLICA IDENTITY FULL`.
 
 ## Design System
 
@@ -105,19 +108,30 @@ Retry up to 4 times with exponential backoff (2s, 4s, 8s, 16s) on network failur
 
 ## Current State
 - ✅ Supabase integration complete (CRUD operations)
-- ✅ Real-time sync across devices via Supabase Realtime
+- ✅ Real-time sync across devices via Supabase Realtime (create, update, delete, reorder)
+- ✅ Cross-tab sync for all operations including reorder
 - ✅ KnotForm as FAB with modal overlay
 - ✅ Hamburger menu with slide-out drawer for user profile
-- ✅ Drag-and-drop functionality
+- ✅ Drag-and-drop functionality with persistent ordering
 - ✅ Refined oklch color palette with hover states
 - ✅ Optimistic UI updates with error handling
 - ✅ All CSS variables defined for card styling
+- ✅ Unit tests for cross-tab sync state updates
 
 ## Important Notes
 - Always use optimistic updates for better UX
 - Include error rollback on database failures
 - Real-time sync uses Supabase Realtime subscriptions (listens to INSERT, UPDATE, DELETE)
+- Cross-tab sync works by persisting position to database and receiving UPDATE events
+- REPLICA IDENTITY FULL is required for DELETE events to include user_id for filtering
 - Maintain oklch color consistency across components
 - Button component supports size prop for different variants
 - Focus states use 1px ring with 20% opacity
 - Cards use accent-hover and accent-subtle variables for states
+
+## Testing
+Run tests with: `npm test`
+Tests include:
+- Cross-tab sync state updates for INSERT, UPDATE, DELETE events
+- Reorder operations and position management
+- Rapid sequential operations handling

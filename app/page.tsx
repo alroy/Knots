@@ -16,6 +16,7 @@ interface Knot {
   title: string
   description: string
   status: "active" | "completed"
+  position: number
 }
 
 export default function Page() {
@@ -53,27 +54,34 @@ export default function Page() {
               title: newTask.title,
               description: newTask.description || '',
               status: newTask.status,
+              position: newTask.position ?? 0,
             }
 
             // Add new knot if it doesn't already exist (avoid duplicates from optimistic updates)
+            // Insert at correct position and re-sort
             setKnots((prev) => {
               if (prev.some((k) => k.id === newKnot.id)) return prev
-              return [newKnot, ...prev]
+              // Update positions of existing knots (they were shifted by the server trigger)
+              const updated = prev.map(k => ({ ...k, position: k.position + 1 }))
+              return [newKnot, ...updated].sort((a, b) => a.position - b.position)
             })
           } else if (payload.eventType === 'UPDATE') {
             const updatedTask = payload.new as any
-            setKnots((prev) =>
-              prev.map((k) =>
+            setKnots((prev) => {
+              const updated = prev.map((k) =>
                 k.id === updatedTask.id
                   ? {
                       ...k,
                       title: updatedTask.title,
                       description: updatedTask.description || '',
                       status: updatedTask.status,
+                      position: updatedTask.position ?? k.position,
                     }
                   : k
               )
-            )
+              // Re-sort by position to handle reorder updates
+              return updated.sort((a, b) => a.position - b.position)
+            })
           } else if (payload.eventType === 'DELETE') {
             const deletedTask = payload.old as any
             setKnots((prev) => prev.filter((k) => k.id !== deletedTask.id))
@@ -96,7 +104,7 @@ export default function Page() {
         .from('tasks')
         .select('*')
         .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
+        .order('position', { ascending: true })
 
       if (error) throw error
 
@@ -105,6 +113,7 @@ export default function Page() {
         title: task.title,
         description: task.description || '',
         status: task.status as 'active' | 'completed',
+        position: task.position ?? 0,
       }))
 
       setKnots(formattedKnots)
@@ -121,7 +130,7 @@ export default function Page() {
 
     const newStatus = knot.status === 'active' ? 'completed' : 'active'
 
-    // Optimistic update
+    // Optimistic update (preserve position)
     setKnots((prev) =>
       prev.map((k) =>
         k.id === id ? { ...k, status: newStatus } : k
@@ -140,7 +149,7 @@ export default function Page() {
       if (error) throw error
     } catch (error) {
       console.error('Error toggling knot:', error)
-      // Revert on error
+      // Revert on error (preserve position)
       setKnots((prev) =>
         prev.map((k) =>
           k.id === id ? { ...k, status: knot.status } : k
@@ -167,9 +176,41 @@ export default function Page() {
     }
   }
 
-  const handleReorder = (reorderedKnots: Knot[]) => {
-    setKnots(reorderedKnots)
-    // TODO: Persist order to database if needed
+  const handleReorder = async (reorderedKnots: Knot[]) => {
+    // Store previous state for rollback
+    const previousKnots = knots
+
+    // Update positions based on new order
+    const knotsWithPositions = reorderedKnots.map((knot, index) => ({
+      ...knot,
+      position: index,
+    }))
+
+    // Optimistic update
+    setKnots(knotsWithPositions)
+
+    try {
+      // Persist all position changes to database
+      // Use Promise.all to update all positions efficiently
+      const updates = knotsWithPositions.map((knot) =>
+        supabase
+          .from('tasks')
+          .update({ position: knot.position })
+          .eq('id', knot.id)
+      )
+
+      const results = await Promise.all(updates)
+
+      // Check for any errors
+      const errors = results.filter((r) => r.error)
+      if (errors.length > 0) {
+        throw new Error(`Failed to update ${errors.length} task positions`)
+      }
+    } catch (error) {
+      console.error('Error reordering knots:', error)
+      // Rollback on error
+      setKnots(previousKnots)
+    }
   }
 
   const handleAddKnot = async (data: { title: string; description: string }) => {
@@ -183,6 +224,7 @@ export default function Page() {
           description: data.description,
           status: 'active',
           user_id: user.id,
+          position: 0, // New tasks go to top
         })
         .select()
         .single()
@@ -194,9 +236,14 @@ export default function Page() {
         title: newTask.title,
         description: newTask.description || '',
         status: newTask.status,
+        position: newTask.position ?? 0,
       }
 
-      setKnots((prev) => [newKnot, ...prev])
+      // Add at top and shift other positions (server trigger handles DB side)
+      setKnots((prev) => {
+        const shifted = prev.map(k => ({ ...k, position: k.position + 1 }))
+        return [newKnot, ...shifted]
+      })
     } catch (error) {
       console.error('Error adding knot:', error)
     }
