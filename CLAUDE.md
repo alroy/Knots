@@ -76,6 +76,15 @@ Drag-and-drop list using @dnd-kit:
 - SortableContext for reordering
 - Handles drag events and animations
 - Integrates with knot card components
+- Uses Safari PWA fix hook to reset transforms on app resume
+
+### `/hooks/use-safari-pwa-fix.ts`
+Hook to handle iOS Safari PWA visibility issues:
+- Detects when app resumes from background (visibilitychange, pageshow events)
+- Resets stale CSS transforms from dnd-kit
+- Forces layout recalculation to fix positioning
+- Provides `isIOSPWA()` detection utility
+- Used by sortable-knot-list, knot-form, and hamburger-menu
 
 ### `/components/ui/`
 Reusable UI components:
@@ -117,6 +126,7 @@ Retry up to 4 times with exponential backoff (2s, 4s, 8s, 16s) on network failur
 - ✅ Optimistic UI updates with error handling
 - ✅ All CSS variables defined for card styling
 - ✅ Unit tests for cross-tab sync state updates
+- ✅ Safari PWA fix for stale transforms and positioning on app resume
 
 ## Important Notes
 - Always use optimistic updates for better UX
@@ -128,6 +138,8 @@ Retry up to 4 times with exponential backoff (2s, 4s, 8s, 16s) on network failur
 - Button component supports size prop for different variants
 - Focus states use 1px ring with 20% opacity
 - Cards use accent-hover and accent-subtle variables for states
+- Safari PWA: Use `useSafariPWAFix` hook for components with fixed positioning or transforms
+- Safari PWA: Fixed elements need `translateZ(0)` and `backface-visibility: hidden` for stability
 
 ## Testing
 Run tests with: `npm test`
@@ -135,3 +147,4 @@ Tests include:
 - Cross-tab sync state updates for INSERT, UPDATE, DELETE events
 - Reorder operations and position management
 - Rapid sequential operations handling
+- Safari PWA visibility change handling and transform reset logic
