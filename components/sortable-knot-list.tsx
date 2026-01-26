@@ -28,6 +28,7 @@ interface Knot {
   title: string;
   description: string;
   status: "active" | "completed";
+  position: number;
 }
 
 interface SortableKnotListProps {
