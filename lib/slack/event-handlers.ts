@@ -166,6 +166,18 @@ export async function processSlackEvent(
 ): Promise<ProcessEventResult> {
   const { team_id, event_id, event_time, event } = eventPayload
 
+  console.log('[Slack] Processing event:', {
+    team_id,
+    event_id,
+    event_type: event.type,
+    channel: event.channel,
+    channel_type: event.channel_type,
+    user: event.user,
+    text_preview: event.text?.substring(0, 50),
+    has_bot_id: !!event.bot_id,
+    subtype: event.subtype,
+  })
+
   // Step 1: Try to insert into ingest table (dedupe check)
   const { error: ingestError } = await supabase
     .from('slack_event_ingest')
@@ -180,11 +192,12 @@ export async function processSlackEvent(
 
   // If unique constraint violation, this is a duplicate
   if (ingestError?.code === '23505') {
+    console.log('[Slack] Duplicate event, skipping:', event_id)
     return { status: 'duplicate', reason: 'event_already_processed' }
   }
 
   if (ingestError) {
-    console.error('Failed to insert event ingest:', ingestError)
+    console.error('[Slack] Failed to insert event ingest:', ingestError)
     return { status: 'failed', error: ingestError.message }
   }
 
@@ -195,12 +208,20 @@ export async function processSlackEvent(
     .eq('team_id', team_id)
     .is('revoked_at', null)
 
+  console.log('[Slack] Found connections for team:', {
+    team_id,
+    connection_count: connections?.length ?? 0,
+    connections: connections?.map(c => ({ user_id: c.user_id, slack_user_id: c.slack_user_id })),
+  })
+
   if (connError) {
+    console.error('[Slack] Error fetching connections:', connError)
     await updateIngestStatus(supabase, team_id, event_id, 'failed', undefined, connError.message)
     return { status: 'failed', error: connError.message }
   }
 
   if (!connections || connections.length === 0) {
+    console.log('[Slack] No active connections for team:', team_id)
     await updateIngestStatus(supabase, team_id, event_id, 'ignored', undefined, 'no_active_connection')
     return { status: 'ignored', reason: 'no_active_connection' }
   }
@@ -210,7 +231,17 @@ export async function processSlackEvent(
     const { user_id, slack_user_id } = connection
     const check = shouldCreateTask(event, slack_user_id)
 
+    console.log('[Slack] shouldCreateTask result:', {
+      slack_user_id,
+      user_id,
+      shouldCreate: check.shouldCreate,
+      reason: check.reason,
+      isDM: check.isDM,
+      isMention: check.isMention,
+    })
+
     if (!check.shouldCreate) {
+      console.log('[Slack] Skipping task creation for connection:', { slack_user_id, reason: check.reason })
       continue
     }
 
@@ -221,6 +252,8 @@ export async function processSlackEvent(
       undefined, // Could resolve sender name with additional API call
       check.isDM ? 'dm' : 'mention'
     )
+
+    console.log('[Slack] Creating task:', { user_id, title, description_length: description.length })
 
     // Get current max position to put task at top
     const { data: existingTasks } = await supabase
@@ -254,9 +287,12 @@ export async function processSlackEvent(
       .single()
 
     if (taskError) {
+      console.error('[Slack] Failed to create task:', taskError)
       await updateIngestStatus(supabase, team_id, event_id, 'failed', undefined, taskError.message)
       return { status: 'failed', error: taskError.message }
     }
+
+    console.log('[Slack] Task created successfully:', { task_id: newTask.id, user_id })
 
     // Step 5: Update ingest record with task_id
     await updateIngestStatus(supabase, team_id, event_id, 'processed', newTask.id)
@@ -265,6 +301,7 @@ export async function processSlackEvent(
   }
 
   // No matching connection found for DM/mention
+  console.log('[Slack] No matching user found for DM/mention in team:', team_id)
   await updateIngestStatus(supabase, team_id, event_id, 'ignored', undefined, 'no_matching_user')
   return { status: 'ignored', reason: 'no_matching_user' }
 }
