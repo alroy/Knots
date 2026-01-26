@@ -1,9 +1,8 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
-import KnotCard from "@/components/knot-card" // Import KnotCard component
+import { useState, useEffect, useRef, useCallback } from "react"
 import { SortableKnotList } from "@/components/sortable-knot-list"
-import { KnotForm } from "@/components/knot-form"
+import { KnotForm, type EditTask } from "@/components/knot-form"
 import { createClient } from "@/lib/supabase-browser"
 import { useAuth } from "@/contexts/auth-context"
 import { SignIn } from "@/components/auth/sign-in"
@@ -23,6 +22,7 @@ export default function Page() {
   const { user, loading: authLoading, isAuthorized, isPasswordRecovery, clearPasswordRecovery } = useAuth()
   const [knots, setKnots] = useState<Knot[]>([])
   const [loading, setLoading] = useState(true)
+  const [editTask, setEditTask] = useState<EditTask | null>(null)
   const supabase = createClient()
 
   // Track IDs of items being modified locally to prevent conflicts with real-time subscription
@@ -298,6 +298,67 @@ export default function Page() {
     }
   }
 
+  // Handle opening the edit modal for a task
+  const handleEdit = useCallback((id: string) => {
+    const knot = knots.find((k) => k.id === id)
+    if (knot) {
+      setEditTask({
+        id: knot.id,
+        title: knot.title,
+        description: knot.description,
+      })
+    }
+  }, [knots])
+
+  // Handle closing the edit modal
+  const handleEditClose = useCallback(() => {
+    setEditTask(null)
+  }, [])
+
+  // Handle updating a task (called from KnotForm in edit mode)
+  // Returns true on success, false on error (to keep modal open for retry)
+  const handleUpdateKnot = useCallback(async (id: string, data: { title: string; description: string }): Promise<boolean> => {
+    const knot = knots.find((k) => k.id === id)
+    if (!knot) return false
+
+    // Mark as locally modified to ignore real-time UPDATE event
+    locallyModifiedIds.current.add(id)
+
+    // Optimistic update
+    setKnots((prev) =>
+      prev.map((k) =>
+        k.id === id
+          ? { ...k, title: data.title, description: data.description }
+          : k
+      )
+    )
+
+    try {
+      const { error } = await supabase
+        .from('tasks')
+        .update({
+          title: data.title,
+          description: data.description,
+        })
+        .eq('id', id)
+
+      if (error) throw error
+      return true
+    } catch (error) {
+      console.error('Error updating knot:', error)
+      // Revert on error
+      locallyModifiedIds.current.delete(id)
+      setKnots((prev) =>
+        prev.map((k) =>
+          k.id === id
+            ? { ...k, title: knot.title, description: knot.description }
+            : k
+        )
+      )
+      return false
+    }
+  }, [knots, supabase])
+
   // Show loading state while checking authentication
   if (authLoading) {
     return (
@@ -359,6 +420,7 @@ export default function Page() {
             onReorder={handleReorder}
             onToggle={handleToggle}
             onDelete={handleDelete}
+            onEdit={handleEdit}
           />
         ) : (
           <p className="py-8 text-center text-muted-foreground">
@@ -367,8 +429,13 @@ export default function Page() {
         )}
       </div>
 
-      {/* FAB and modal form */}
-      <KnotForm onSubmit={handleAddKnot} />
+      {/* FAB and modal form (handles both create and edit modes) */}
+      <KnotForm
+        onSubmit={handleAddKnot}
+        onUpdate={handleUpdateKnot}
+        editTask={editTask}
+        onEditClose={handleEditClose}
+      />
     </main>
   )
 }

@@ -13,9 +13,12 @@ export interface KnotCardProps {
   status: "active" | "completed"
   onToggle: (id: string) => void
   onDelete: (id: string) => void
+  onEdit?: (id: string) => void
   isDragging?: boolean
   isOverlay?: boolean
   dragHandleProps?: React.HTMLAttributes<HTMLDivElement>
+  /** Whether dragging is active in the list (used to suppress edit clicks) */
+  isListDragging?: boolean
 }
 
 export default function KnotCard({
@@ -25,15 +28,36 @@ export default function KnotCard({
   status,
   onToggle,
   onDelete,
+  onEdit,
   isDragging = false,
   isOverlay = false,
   dragHandleProps,
+  isListDragging = false,
 }: KnotCardProps) {
   const isCompleted = status === "completed"
 
+  // Handle click on card content area to open edit modal
+  const handleContentClick = () => {
+    // Prevent edit if currently dragging or recently finished dragging
+    if (isListDragging || isDragging || isOverlay) {
+      return
+    }
+
+    // Don't trigger edit on overlay or if no onEdit handler
+    if (!onEdit) return
+
+    onEdit(id)
+  }
+
+
+  // Prevent delete button clicks from bubbling to card
+  const handleDeleteClick = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    onDelete(id)
+  }
+
   return (
     <div
-      {...dragHandleProps}
       className={cn(
         "group flex items-start gap-3 rounded-lg bg-card p-4 transition-[background-color,opacity,transform,box-shadow] duration-200 ease-[cubic-bezier(0.2,0,0,1)]",
         !isOverlay && "animate-in fade-in duration-300",
@@ -41,49 +65,80 @@ export default function KnotCard({
         isCompleted && "bg-accent-subtle opacity-75",
         isDragging && "opacity-40",
         isOverlay && "shadow-md cursor-grabbing",
-        !isOverlay && "cursor-grab active:cursor-grabbing touch-none"
       )}
     >
+      {/* Drag handle - separate from content to not trigger edit */}
       <div
+        {...dragHandleProps}
         className={cn(
           "mt-0.5 shrink-0 rounded p-0.5 text-muted-foreground/30 transition-[opacity,color] duration-100 ease-out",
-          isOverlay && "text-muted-foreground"
+          isOverlay && "text-muted-foreground",
+          !isOverlay && "cursor-grab active:cursor-grabbing touch-none"
         )}
         aria-hidden="true"
+        style={{ touchAction: "none" }}
       >
         <GripVertical className="h-4 w-4" />
       </div>
-      <Checkbox
-        id={`knot-${id}`}
-        checked={isCompleted}
-        onCheckedChange={() => onToggle(id)}
-        className="mt-0.5 shrink-0"
-      />
 
-      <div className="min-w-0 flex-1">
-        <label
-          htmlFor={`knot-${id}`}
+      {/* Checkbox - sibling to content area, clicks won't trigger edit */}
+      <div style={{ touchAction: "manipulation" }}>
+        <Checkbox
+          id={`knot-${id}`}
+          checked={isCompleted}
+          onCheckedChange={() => onToggle(id)}
+          className="mt-0.5 shrink-0"
+        />
+      </div>
+
+      {/* Content area - tappable for edit */}
+      <div
+        className="min-w-0 flex-1 cursor-pointer"
+        onClick={handleContentClick}
+        onPointerUp={(e) => {
+          // Use pointerUp as backup for iOS Safari
+          // Only trigger if not a drag gesture
+          if (e.pointerType === 'touch' && !isListDragging && !isDragging && !isOverlay && onEdit) {
+            // Small check - if click also fires, it will be a no-op due to modal state
+          }
+        }}
+        style={{ touchAction: "manipulation" }}
+        role="button"
+        tabIndex={onEdit ? 0 : undefined}
+        onKeyDown={(e) => {
+          if (onEdit && (e.key === 'Enter' || e.key === ' ')) {
+            e.preventDefault()
+            onEdit(id)
+          }
+        }}
+        aria-label={onEdit ? `Edit ${title}` : undefined}
+      >
+        <span
           className={cn(
-            "block cursor-pointer text-base font-semibold text-foreground transition-[color,opacity] duration-200 ease-[cubic-bezier(0.2,0,0,1)]",
+            "block text-base font-semibold text-foreground transition-[color,opacity] duration-200 ease-[cubic-bezier(0.2,0,0,1)]",
             isCompleted && "text-muted-foreground line-through decoration-muted-foreground/50"
           )}
         >
           {title}
-        </label>
-        <p
-          className={cn(
-            "mt-1 text-sm text-muted-foreground transition-[color,opacity] duration-200 ease-[cubic-bezier(0.2,0,0,1)]",
-            isCompleted && "text-muted-foreground/70"
-          )}
-        >
-          {description}
-        </p>
+        </span>
+        {description && (
+          <p
+            className={cn(
+              "mt-1 text-sm text-muted-foreground transition-[color,opacity] duration-200 ease-[cubic-bezier(0.2,0,0,1)]",
+              isCompleted && "text-muted-foreground/70"
+            )}
+          >
+            {description}
+          </p>
+        )}
       </div>
 
+      {/* Delete button - clicks should not trigger edit */}
       <button
-        onClick={() => onDelete(id)}
+        onClick={handleDeleteClick}
         aria-label={`Delete ${title}`}
         className="shrink-0 rounded-md p-1.5 text-muted-foreground/50 opacity-100 transition-opacity duration-100 ease-out hover:text-destructive focus:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:opacity-0 sm:group-hover:opacity-100"
+        style={{ touchAction: "manipulation" }}
       >
         <Trash2 className="h-4 w-4" />
       </button>

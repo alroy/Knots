@@ -20,8 +20,8 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { useState, useCallback } from "react";
-import KnotCard, { type KnotCardProps } from "./knot-card";
+import { useState, useCallback, useRef, useEffect } from "react";
+import KnotCard from "./knot-card";
 import { useSafariPWAFix } from "@/hooks/use-safari-pwa-fix";
 
 interface Knot {
@@ -37,15 +37,19 @@ interface SortableKnotListProps {
   onReorder: (knots: Knot[]) => void;
   onToggle: (id: string) => void;
   onDelete: (id: string) => void;
+  onEdit?: (id: string) => void;
 }
 
 interface SortableKnotItemProps {
   knot: Knot;
   onToggle: (id: string) => void;
   onDelete: (id: string) => void;
+  onEdit?: (id: string) => void;
+  /** True when any item in the list is being dragged */
+  isListDragging: boolean;
 }
 
-function SortableKnotItem({ knot, onToggle, onDelete }: SortableKnotItemProps) {
+function SortableKnotItem({ knot, onToggle, onDelete, onEdit, isListDragging }: SortableKnotItemProps) {
   const {
     attributes,
     listeners,
@@ -79,7 +83,9 @@ function SortableKnotItem({ knot, onToggle, onDelete }: SortableKnotItemProps) {
         status={knot.status}
         onToggle={onToggle}
         onDelete={onDelete}
+        onEdit={onEdit}
         isDragging={isDragging}
+        isListDragging={isListDragging}
         dragHandleProps={{ ...attributes, ...listeners }}
       />
     </div>
@@ -91,17 +97,37 @@ export function SortableKnotList({
   onReorder,
   onToggle,
   onDelete,
+  onEdit,
 }: SortableKnotListProps) {
   const [activeId, setActiveId] = useState<string | null>(null);
   // Key to force re-render when Safari PWA resumes from background
   const [refreshKey, setRefreshKey] = useState(0);
   const activeKnot = knots.find((k) => k.id === activeId);
 
+  // Track whether dragging is active for suppressing edit clicks
+  // Uses both active state and a cooldown timer to prevent ghost clicks on iOS
+  const [isDragging, setIsDragging] = useState(false);
+  const dragCooldownRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Cleanup cooldown timer on unmount
+  useEffect(() => {
+    return () => {
+      if (dragCooldownRef.current) {
+        clearTimeout(dragCooldownRef.current);
+      }
+    };
+  }, []);
+
   // Handle Safari PWA visibility issues - reset transforms and force refresh
   // when app resumes from background
   const handleResume = useCallback(() => {
     // Cancel any active drag operation that might have stale state
     setActiveId(null);
+    setIsDragging(false);
+    if (dragCooldownRef.current) {
+      clearTimeout(dragCooldownRef.current);
+      dragCooldownRef.current = null;
+    }
     // Increment refresh key to force React to re-render the sortable items
     // This ensures all transforms are recalculated from scratch
     setRefreshKey((k) => k + 1);
@@ -131,11 +157,24 @@ export function SortableKnotList({
 
   function handleDragStart(event: DragStartEvent) {
     setActiveId(event.active.id as string);
+    setIsDragging(true);
+    // Clear any pending cooldown
+    if (dragCooldownRef.current) {
+      clearTimeout(dragCooldownRef.current);
+      dragCooldownRef.current = null;
+    }
   }
 
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
     setActiveId(null);
+
+    // Keep isDragging true for 200ms after drag ends to prevent ghost clicks on iOS
+    // This handles the "tap after drag" issue where iOS may fire a click event
+    dragCooldownRef.current = setTimeout(() => {
+      setIsDragging(false);
+      dragCooldownRef.current = null;
+    }, 200);
 
     if (over && active.id !== over.id) {
       const oldIndex = knots.findIndex((k) => k.id === active.id);
@@ -144,12 +183,22 @@ export function SortableKnotList({
     }
   }
 
+  function handleDragCancel() {
+    setActiveId(null);
+    // Same cooldown for cancelled drags
+    dragCooldownRef.current = setTimeout(() => {
+      setIsDragging(false);
+      dragCooldownRef.current = null;
+    }, 200);
+  }
+
   return (
     <DndContext
       sensors={sensors}
       collisionDetection={closestCenter}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
+      onDragCancel={handleDragCancel}
     >
       <SortableContext items={knots} strategy={verticalListSortingStrategy}>
         {/* Key changes on Safari PWA resume to force fresh transform calculations */}
@@ -160,6 +209,8 @@ export function SortableKnotList({
               knot={knot}
               onToggle={onToggle}
               onDelete={onDelete}
+              onEdit={onEdit}
+              isListDragging={isDragging}
             />
           ))}
         </div>

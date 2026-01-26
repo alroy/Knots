@@ -19,33 +19,77 @@ function KnotIcon({ className }: { className?: string }) {
   )
 }
 
-interface KnotFormProps {
-  onSubmit: (data: { title: string; description: string }) => void
+// Type for edit mode task data
+export interface EditTask {
+  id: string
+  title: string
+  description: string
 }
 
-export function KnotForm({ onSubmit }: KnotFormProps) {
-  const [isOpen, setIsOpen] = React.useState(false)
+interface KnotFormProps {
+  onSubmit: (data: { title: string; description: string }) => void
+  onUpdate?: (id: string, data: { title: string; description: string }) => Promise<boolean>
+  editTask?: EditTask | null
+  onEditClose?: () => void
+}
+
+export function KnotForm({ onSubmit, onUpdate, editTask, onEditClose }: KnotFormProps) {
+  const [isCreateOpen, setIsCreateOpen] = React.useState(false)
   const [title, setTitle] = React.useState("")
   const [description, setDescription] = React.useState("")
   const [error, setError] = React.useState("")
   const [touched, setTouched] = React.useState(false)
+  const [isSubmitting, setIsSubmitting] = React.useState(false)
   const titleInputRef = React.useRef<HTMLInputElement>(null)
+
+  // Determine if we're in edit mode based on editTask prop
+  const isEditMode = !!editTask
+  const isOpen = isEditMode || isCreateOpen
+
+  // When editTask changes, populate form fields
+  React.useEffect(() => {
+    if (editTask) {
+      setTitle(editTask.title)
+      setDescription(editTask.description)
+      setError("")
+      setTouched(false)
+    }
+  }, [editTask])
 
   // Close modal when app resumes from Safari PWA background
   // to prevent stale modal/overlay state
   const handleResume = React.useCallback(() => {
-    setIsOpen(false)
-  }, [])
+    setIsCreateOpen(false)
+    if (onEditClose) onEditClose()
+  }, [onEditClose])
 
   useSafariPWAFix({ onResume: handleResume })
 
+  // iOS-safe autofocus with timeout (50-150ms delay for reliability)
   React.useEffect(() => {
     if (isOpen) {
-      titleInputRef.current?.focus()
+      const timeoutId = setTimeout(() => {
+        titleInputRef.current?.focus()
+      }, 100)
+      return () => clearTimeout(timeoutId)
     }
   }, [isOpen])
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleClose = () => {
+    if (isEditMode) {
+      onEditClose?.()
+    } else {
+      setIsCreateOpen(false)
+    }
+    // Reset form state after closing
+    setTitle("")
+    setDescription("")
+    setError("")
+    setTouched(false)
+    setIsSubmitting(false)
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setTouched(true)
 
@@ -56,12 +100,29 @@ export function KnotForm({ onSubmit }: KnotFormProps) {
       return
     }
 
-    onSubmit({ title: trimmedTitle, description: description.trim() })
-    setTitle("")
-    setDescription("")
-    setError("")
-    setTouched(false)
-    setIsOpen(false)
+    if (isEditMode && onUpdate && editTask) {
+      // Edit mode: call update function
+      setIsSubmitting(true)
+      try {
+        const success = await onUpdate(editTask.id, {
+          title: trimmedTitle,
+          description: description.trim(),
+        })
+        if (success) {
+          handleClose()
+        }
+        // If not successful, keep modal open - error state is handled by onUpdate
+      } catch {
+        // Keep modal open on error, preserve user input
+        setError("Failed to save. Please try again.")
+      } finally {
+        setIsSubmitting(false)
+      }
+    } else {
+      // Create mode: call original onSubmit
+      onSubmit({ title: trimmedTitle, description: description.trim() })
+      handleClose()
+    }
   }
 
   const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -80,91 +141,120 @@ export function KnotForm({ onSubmit }: KnotFormProps) {
 
   return (
     <>
-      {/* FAB Button - Fixed at bottom right */}
-      <Button
-        type="button"
-        onClick={() => setIsOpen(true)}
-        size="icon"
-        className="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-lg z-30"
-        style={fixedStyle}
-        aria-label="Tie a new knot"
-      >
-        <KnotIcon className="h-6 w-6" />
-      </Button>
+      {/* FAB Button - Fixed at bottom right (only show when not in edit mode) */}
+      {!isEditMode && (
+        <Button
+          type="button"
+          onClick={() => setIsCreateOpen(true)}
+          size="icon"
+          className="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-lg z-30"
+          style={{ ...fixedStyle, touchAction: "manipulation" }}
+          aria-label="Tie a new knot"
+        >
+          <KnotIcon className="h-6 w-6" />
+        </Button>
+      )}
 
-      {/* Modal Backdrop */}
+      {/* Modal Backdrop - scrollable container for iOS keyboard */}
       <div
-        className={`fixed inset-0 bg-black/50 z-40 transition-opacity duration-300 ${
+        className={`fixed inset-0 bg-black/50 z-40 transition-opacity duration-300 overflow-y-auto ${
           isOpen ? "opacity-100" : "opacity-0 pointer-events-none"
         }`}
-        style={fixedStyle}
-        onClick={() => setIsOpen(false)}
+        style={{
+          ...fixedStyle,
+          // iOS viewport safety - use dvh with svh fallback
+          maxHeight: "100dvh",
+        }}
+        onClick={handleClose}
         aria-hidden="true"
-      />
+      >
+        {/* Spacer for centering on scroll */}
+        <div className="min-h-full flex items-center justify-center p-4">
+          {/* Empty div to prevent backdrop click from closing when clicking inside modal */}
+        </div>
+      </div>
 
-      {/* Modal Form */}
+      {/* Modal Form - positioned for iOS keyboard scroll */}
       <div
-        className={`fixed inset-x-4 top-1/2 -translate-y-1/2 mx-auto max-w-md bg-background rounded-lg shadow-xl z-50 p-6 transition-all duration-300 ${
+        className={`fixed inset-x-4 z-50 mx-auto max-w-md transition-all duration-300 ${
           isOpen ? "opacity-100 scale-100" : "opacity-0 scale-95 pointer-events-none"
         }`}
-        style={fixedStyle}
+        style={{
+          ...fixedStyle,
+          // Position for iOS keyboard - use top positioning with transform
+          // This allows the modal to be scrolled into view when keyboard opens
+          top: "50%",
+          transform: isOpen ? "translateY(-50%) translateZ(0)" : "translateY(-50%) scale(0.95) translateZ(0)",
+          // Ensure modal doesn't exceed viewport
+          maxHeight: "calc(100dvh - 2rem)",
+          overflowY: "auto",
+        }}
         role="dialog"
         aria-modal="true"
-        aria-label="Add new knot"
+        aria-label={isEditMode ? "Edit knot" : "Add new knot"}
+        onClick={(e) => e.stopPropagation()}
       >
-        <form onSubmit={handleSubmit}>
-          <div className="space-y-2 mb-5">
-            <Label htmlFor="title" className="text-sm text-muted-foreground">
-              Title
-            </Label>
-            <Input
-              ref={titleInputRef}
-              id="title"
-              type="text"
-              placeholder="What needs to be untangled?"
-              value={title}
-              onChange={handleTitleChange}
-              aria-invalid={touched && !!error}
-              aria-describedby={touched && error ? "title-error" : undefined}
-              className="h-10 bg-card border-border/60 shadow-none"
-            />
-            {touched && error && (
-              <p id="title-error" className="text-sm text-muted-foreground">
-                {error}
-              </p>
-            )}
-          </div>
+        <div className="bg-background rounded-lg shadow-xl p-6">
+          <form onSubmit={handleSubmit}>
+            <div className="space-y-2 mb-5">
+              <Label htmlFor="title" className="text-sm text-muted-foreground">
+                Title
+              </Label>
+              <Input
+                ref={titleInputRef}
+                id="title"
+                type="text"
+                placeholder="What needs to be untangled?"
+                value={title}
+                onChange={handleTitleChange}
+                aria-invalid={touched && !!error}
+                aria-describedby={touched && error ? "title-error" : undefined}
+                className="h-10 bg-card border-border/60 shadow-none"
+                style={{ touchAction: "manipulation" }}
+              />
+              {touched && error && (
+                <p id="title-error" className="text-sm text-destructive">
+                  {error}
+                </p>
+              )}
+            </div>
 
-          <div className="space-y-2 mb-6">
-            <Label htmlFor="description" className="text-sm text-muted-foreground">
-              Description <span className="text-muted-foreground/60">(optional)</span>
-            </Label>
-            <Textarea
-              id="description"
-              placeholder="Add details..."
-              rows={3}
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              className="bg-card border-border/60 shadow-none resize-none"
-            />
-          </div>
+            <div className="space-y-2 mb-6">
+              <Label htmlFor="description" className="text-sm text-muted-foreground">
+                Description <span className="text-muted-foreground/60">(optional)</span>
+              </Label>
+              <Textarea
+                id="description"
+                placeholder="Add details..."
+                rows={3}
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                className="bg-card border-border/60 shadow-none resize-none"
+                style={{ touchAction: "manipulation" }}
+              />
+            </div>
 
-          <div className="flex items-center gap-4">
-            <Button
-              type="submit"
-              className="w-full sm:w-auto px-5 h-9 font-medium active:scale-[0.98] transition-transform duration-75"
-            >
-              Tie Knot
-            </Button>
-            <button
-              type="button"
-              onClick={() => setIsOpen(false)}
-              className="text-muted-foreground hover:text-foreground text-sm transition-colors duration-100"
-            >
-              Cancel
-            </button>
-          </div>
-        </form>
+            <div className="flex items-center gap-4">
+              <Button
+                type="submit"
+                disabled={isSubmitting}
+                className="w-full sm:w-auto px-5 h-9 font-medium active:scale-[0.98] transition-transform duration-75"
+                style={{ touchAction: "manipulation" }}
+              >
+                {isSubmitting ? "Saving..." : isEditMode ? "Save changes" : "Tie Knot"}
+              </Button>
+              <button
+                type="button"
+                onClick={handleClose}
+                disabled={isSubmitting}
+                className="text-muted-foreground hover:text-foreground text-sm transition-colors duration-100"
+                style={{ touchAction: "manipulation" }}
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
+        </div>
       </div>
     </>
   )
