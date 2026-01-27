@@ -1,5 +1,6 @@
 import { SupabaseClient } from '@supabase/supabase-js'
 import { normalizeSlackText, deriveTitleFromSlackMessage } from './text-utils'
+import { resolveUserMentions, SlackUserMap } from './api'
 
 /**
  * Slack task metadata structure stored in tasks.metadata column
@@ -20,6 +21,8 @@ export interface SlackTaskMetadata {
   raw: {
     slack_text: string
   }
+  /** Map of Slack user IDs to display names for rendering mentions */
+  user_map?: SlackUserMap
 }
 
 /**
@@ -116,19 +119,19 @@ export function shouldCreateTask(
  * Extract task title from Slack message text
  * Uses the text-utils deriveTitleFromSlackMessage for consistent normalization
  */
-export function extractTaskTitle(text: string, maxLength = 120): string {
-  return deriveTitleFromSlackMessage(text, maxLength)
+export function extractTaskTitle(text: string, userMap?: SlackUserMap, maxLength = 120): string {
+  return deriveTitleFromSlackMessage(text, maxLength, userMap)
 }
 
 /**
  * Format task description from Slack message
  * Returns only the normalized message text - Slack context is stored in metadata
  */
-export function formatTaskDescription(text: string): string {
+export function formatTaskDescription(text: string, userMap?: SlackUserMap): string {
   const maxTextLength = 2000
 
   // Normalize Slack tokens for cleaner description
-  const normalized = normalizeSlackText(text)
+  const normalized = normalizeSlackText(text, userMap)
 
   // Truncate if needed
   if (normalized.length > maxTextLength) {
@@ -147,7 +150,8 @@ export function buildSlackMetadata(
   subtype: 'dm' | 'mention',
   senderUserId?: string,
   senderDisplayName?: string,
-  permalink?: string
+  permalink?: string,
+  userMap?: SlackUserMap
 ): SlackTaskMetadata {
   const metadata: SlackTaskMetadata = {
     source: {
@@ -175,6 +179,11 @@ export function buildSlackMetadata(
     if (senderDisplayName) {
       metadata.source.author.display_name = senderDisplayName
     }
+  }
+
+  // Add user map for resolving mentions in UI
+  if (userMap && Object.keys(userMap).length > 0) {
+    metadata.user_map = userMap
   }
 
   return metadata
@@ -221,10 +230,10 @@ export async function processSlackEvent(
     return { status: 'failed', error: ingestError.message }
   }
 
-  // Step 2: Find active Slack connection for this team
+  // Step 2: Find active Slack connection for this team (include access_token for API calls)
   const { data: connections, error: connError } = await supabase
     .from('slack_connections')
-    .select('user_id, slack_user_id')
+    .select('user_id, slack_user_id, access_token')
     .eq('team_id', team_id)
     .is('revoked_at', null)
 
@@ -240,16 +249,46 @@ export async function processSlackEvent(
 
   // Step 3: Check each connection for DM or mention
   for (const connection of connections) {
-    const { user_id, slack_user_id } = connection
+    const { user_id, slack_user_id, access_token } = connection
     const check = shouldCreateTask(event, slack_user_id)
 
     if (!check.shouldCreate) {
       continue
     }
 
-    // Step 4: Create task for this user
-    const title = extractTaskTitle(event.text || '')
-    const description = formatTaskDescription(event.text || '')
+    // Step 4: Resolve user mentions to display names
+    let userMap: SlackUserMap = {}
+    let senderDisplayName: string | undefined
+
+    if (access_token && event.text) {
+      try {
+        // Resolve all mentioned users in parallel
+        userMap = await resolveUserMentions(access_token, event.text)
+
+        // Get sender's display name if they're in the user map, otherwise fetch
+        if (event.user) {
+          if (userMap[event.user]) {
+            senderDisplayName = userMap[event.user]
+          } else {
+            // Sender wasn't mentioned, fetch their info separately
+            const { fetchSlackUser } = await import('./api')
+            const senderInfo = await fetchSlackUser(access_token, event.user)
+            if (senderInfo?.display_name) {
+              senderDisplayName = senderInfo.display_name
+              // Add to user map for consistency
+              userMap[event.user] = senderDisplayName
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Failed to resolve user mentions:', error)
+        // Continue with empty user map - will show @user fallback
+      }
+    }
+
+    // Step 5: Create task for this user
+    const title = extractTaskTitle(event.text || '', userMap)
+    const description = formatTaskDescription(event.text || '', userMap)
     const subtype = check.isDM ? 'dm' : 'mention'
 
     // Build metadata for Slack context (stored separately from description)
@@ -258,8 +297,9 @@ export async function processSlackEvent(
       team_id,
       subtype,
       event.user, // sender's Slack user ID
-      undefined,  // display name (could resolve with additional API call)
-      undefined   // permalink (could generate with additional API call)
+      senderDisplayName,
+      undefined, // permalink (could generate with additional API call)
+      userMap
     )
 
     // Get current max position to put task at top

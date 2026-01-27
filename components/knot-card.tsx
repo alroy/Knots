@@ -6,7 +6,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { SlackBadge } from "@/components/ui/slack-badge"
 import { GripVertical, Trash2 } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { TaskMetadata, isSlackMetadata } from "@/lib/types"
+import { TaskMetadata, SlackTaskMetadata, isSlackMetadata } from "@/lib/types"
 import {
   prepareTaskForListView,
   detectSlackTask,
@@ -45,9 +45,11 @@ export default function KnotCard({
   const isCompleted = status === "completed"
 
   // Prepare display text - normalize Slack tokens and truncate for list view
+  // Pass user_map from metadata if available for resolving @mentions to real names
   const displayText = useMemo(() => {
-    return prepareTaskForListView(title, description)
-  }, [title, description])
+    const userMap = isSlackMetadata(metadata) ? (metadata as SlackTaskMetadata).user_map : undefined
+    return prepareTaskForListView(title, description, userMap)
+  }, [title, description, metadata])
 
   // Determine Slack context - from metadata (new tasks) or legacy detection (old tasks)
   const slackContext = useMemo(() => {
