@@ -3,6 +3,11 @@
  */
 
 /**
+ * Map of Slack user IDs to display names
+ */
+export type SlackUserMap = Record<string, string>
+
+/**
  * Slack task metadata structure stored in tasks.metadata column
  */
 export interface SlackTaskMetadata {
@@ -21,6 +26,8 @@ export interface SlackTaskMetadata {
   raw: {
     slack_text: string
   }
+  /** Map of Slack user IDs to display names for rendering mentions */
+  user_map?: SlackUserMap
 }
 
 /**
