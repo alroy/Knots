@@ -106,6 +106,44 @@ Retry up to 4 times with exponential backoff (2s, 4s, 8s, 16s) on network failur
 2. Create PR via GitHub: `https://github.com/alroy/To-Do/compare/main...<branch-name>`
 3. Merge to main triggers auto-deployment to Vercel
 
+## Slack Integration
+
+Tasks can be created automatically from Slack DMs and @mentions.
+
+### Key Files
+- `/app/api/slack/events/route.ts` - Webhook endpoint for Slack events
+- `/app/api/slack/oauth/start/route.ts` - OAuth flow start
+- `/app/api/slack/oauth/callback/route.ts` - OAuth callback handler
+- `/lib/slack/event-handlers.ts` - Event processing logic
+- `/lib/slack/verify-signature.ts` - Signature verification
+- `/components/settings/slack-settings.tsx` - Connect/disconnect UI
+
+### Database Tables
+- `slack_connections` - OAuth tokens and user mappings
+- `slack_event_ingest` - Event audit log and deduplication
+
+### Setup Requirements
+1. Run `supabase-migration-slack.sql` to create tables
+2. **Critical:** Update the `set_user_id` trigger to allow explicit user_id (required for service role inserts):
+```sql
+CREATE OR REPLACE FUNCTION set_user_id()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.user_id IS NULL THEN
+    NEW.user_id = auth.uid();
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+```
+3. In Slack App settings, enable **App Home → Messages Tab** to allow DMs to the bot
+4. Set environment variables: `SLACK_FEATURE_ENABLED`, `SLACK_CLIENT_ID`, `SLACK_CLIENT_SECRET`, `SLACK_SIGNING_SECRET`
+
+### How It Works
+- DMs to the bot → Creates task automatically
+- @mentions of connected user in channels → Creates task
+- Events are deduplicated via `slack_event_ingest` table
+
 ## Current State
 - ✅ Supabase integration complete (CRUD operations)
 - ✅ Real-time sync across devices via Supabase Realtime (create, update, delete, reorder)
@@ -117,6 +155,7 @@ Retry up to 4 times with exponential backoff (2s, 4s, 8s, 16s) on network failur
 - ✅ Optimistic UI updates with error handling
 - ✅ All CSS variables defined for card styling
 - ✅ Unit tests for cross-tab sync state updates
+- ✅ Slack integration for task creation from DMs and mentions
 
 ## Important Notes
 - Always use optimistic updates for better UX
