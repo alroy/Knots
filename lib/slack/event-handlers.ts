@@ -302,25 +302,9 @@ export async function processSlackEvent(
       userMap
     )
 
-    // Get current max position to put task at top
-    const { data: existingTasks } = await supabase
-      .from('tasks')
-      .select('position')
-      .eq('user_id', user_id)
-      .order('position', { ascending: true })
-      .limit(1)
-
-    const newPosition = 0
-
-    // Shift existing tasks down (best effort - RPC may not exist)
-    if (existingTasks && existingTasks.length > 0) {
-      try {
-        await supabase.rpc('increment_task_positions', { p_user_id: user_id })
-      } catch {
-        // RPC doesn't exist, positions will be managed by the main app
-      }
-    }
-
+    // Insert task at position 0 (top of list)
+    // The database trigger (set_task_position_trigger) automatically shifts
+    // existing tasks' positions when a new task is inserted at position 0
     const { data: newTask, error: taskError } = await supabase
       .from('tasks')
       .insert({
@@ -328,7 +312,7 @@ export async function processSlackEvent(
         description,
         status: 'active',
         user_id,
-        position: newPosition,
+        position: 0,
         metadata,
       })
       .select('id')

@@ -85,12 +85,29 @@ export default function Page() {
             }
 
             // Add new knot if it doesn't already exist (cross-tab sync)
-            // Insert at correct position and re-sort
+            // Handle position updates smartly to avoid race conditions:
+            // - Database trigger shifts existing tasks' positions (generates UPDATE events)
+            // - If UPDATE events arrive before INSERT, positions are already correct
+            // - If INSERT arrives first, we need to shift positions locally
             setKnots((prev) => {
               if (prev.some((k) => k.id === newKnot.id)) return prev
-              // Update positions of existing knots (they were shifted by the server trigger)
-              const updated = prev.map(k => ({ ...k, position: k.position + 1 }))
-              return [newKnot, ...updated].sort((a, b) => a.position - b.position)
+
+              // Check if any existing task has the same position as the new task
+              // If so, UPDATE events haven't arrived yet, so we need to shift locally
+              const hasPositionConflict = prev.some(k => k.position === newKnot.position)
+
+              if (hasPositionConflict) {
+                // Shift existing tasks that have position >= newKnot.position
+                const updated = prev.map(k =>
+                  k.position >= newKnot.position
+                    ? { ...k, position: k.position + 1 }
+                    : k
+                )
+                return [newKnot, ...updated].sort((a, b) => a.position - b.position)
+              } else {
+                // No conflict - positions are already correct from UPDATE events
+                return [...prev, newKnot].sort((a, b) => a.position - b.position)
+              }
             })
           } else if (payload.eventType === 'UPDATE') {
             const updatedTask = payload.new as any
