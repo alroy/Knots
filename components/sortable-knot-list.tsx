@@ -32,6 +32,7 @@ interface Knot {
   status: "active" | "completed";
   position: number;
   metadata?: TaskMetadata;
+  createdAt: string;
 }
 
 interface SortableKnotListProps {
@@ -84,6 +85,7 @@ function SortableKnotItem({ knot, onToggle, onDelete, onEdit, isListDragging }: 
         description={knot.description}
         status={knot.status}
         metadata={knot.metadata}
+        createdAt={knot.createdAt}
         onToggle={onToggle}
         onDelete={onDelete}
         onEdit={onEdit}
@@ -226,6 +228,7 @@ export function SortableKnotList({
             description={activeKnot.description}
             status={activeKnot.status}
             metadata={activeKnot.metadata}
+            createdAt={activeKnot.createdAt}
             onToggle={() => {}}
             onDelete={() => {}}
             isOverlay

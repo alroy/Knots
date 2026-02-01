@@ -5,7 +5,7 @@ import React, { useMemo } from "react"
 import { Checkbox } from "@/components/ui/checkbox"
 import { SlackBadge } from "@/components/ui/slack-badge"
 import { GripVertical, Trash2 } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { cn, formatRelativeTime } from "@/lib/utils"
 import { TaskMetadata, SlackTaskMetadata, isSlackMetadata } from "@/lib/types"
 import {
   prepareTaskForListView,
@@ -18,6 +18,7 @@ export interface KnotCardProps {
   description: string
   status: "active" | "completed"
   metadata?: TaskMetadata
+  createdAt: string
   onToggle: (id: string) => void
   onDelete: (id: string) => void
   onEdit?: (id: string) => void
@@ -34,6 +35,7 @@ export default function KnotCard({
   description,
   status,
   metadata,
+  createdAt,
   onToggle,
   onDelete,
   onEdit,
@@ -161,6 +163,14 @@ export default function KnotCard({
           )}
         >
           {displayText.title}
+        </span>
+        <span
+          className={cn(
+            "block text-xs text-muted-foreground transition-[color,opacity] duration-200 ease-[cubic-bezier(0.2,0,0,1)]",
+            isCompleted && "text-muted-foreground/70"
+          )}
+        >
+          {formatRelativeTime(createdAt)}
         </span>
         {displayText.description && (
           <p

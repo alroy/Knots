@@ -18,6 +18,7 @@ interface Knot {
   status: "active" | "completed"
   position: number
   metadata?: TaskMetadata
+  createdAt: string
 }
 
 export default function Page() {
@@ -82,6 +83,7 @@ export default function Page() {
               status: newTask.status,
               position: newTask.position ?? 0,
               metadata: newTask.metadata || undefined,
+              createdAt: newTask.created_at,
             }
 
             // Add new knot if it doesn't already exist (cross-tab sync)
@@ -167,6 +169,7 @@ export default function Page() {
         status: task.status as 'active' | 'completed',
         position: task.position ?? 0,
         metadata: task.metadata || undefined,
+        createdAt: task.created_at,
       }))
 
       setKnots(formattedKnots)
@@ -305,6 +308,7 @@ export default function Page() {
         status: newTask.status,
         position: newTask.position ?? 0,
         metadata: newTask.metadata || undefined,
+        createdAt: newTask.created_at,
       }
 
       // Mark as locally created BEFORE updating state
