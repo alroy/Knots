@@ -32,7 +32,7 @@ interface Knot {
   status: "active" | "completed";
   position: number;
   metadata?: TaskMetadata;
-  createdAt: string;
+  createdAt?: string;
 }
 
 interface SortableKnotListProps {

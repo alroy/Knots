@@ -18,7 +18,7 @@ export interface KnotCardProps {
   description: string
   status: "active" | "completed"
   metadata?: TaskMetadata
-  createdAt: string
+  createdAt?: string
   onToggle: (id: string) => void
   onDelete: (id: string) => void
   onEdit?: (id: string) => void
@@ -52,6 +52,9 @@ export default function KnotCard({
     const userMap = isSlackMetadata(metadata) ? (metadata as SlackTaskMetadata).user_map : undefined
     return prepareTaskForListView(title, description, userMap)
   }, [title, description, metadata])
+
+  // Format timestamp for display
+  const formattedTime = useMemo(() => formatRelativeTime(createdAt), [createdAt])
 
   // Determine Slack context - from metadata (new tasks) or legacy detection (old tasks)
   const slackContext = useMemo(() => {
@@ -164,14 +167,16 @@ export default function KnotCard({
         >
           {displayText.title}
         </span>
-        <span
-          className={cn(
-            "block text-xs text-muted-foreground transition-[color,opacity] duration-200 ease-[cubic-bezier(0.2,0,0,1)]",
-            isCompleted && "text-muted-foreground/70"
-          )}
-        >
-          {formatRelativeTime(createdAt)}
-        </span>
+        {formattedTime && (
+          <span
+            className={cn(
+              "block text-xs text-muted-foreground transition-[color,opacity] duration-200 ease-[cubic-bezier(0.2,0,0,1)]",
+              isCompleted && "text-muted-foreground/70"
+            )}
+          >
+            {formattedTime}
+          </span>
+        )}
         {displayText.description && (
           <p
             className={cn(

@@ -8,9 +8,16 @@ export function cn(...inputs: ClassValue[]) {
 /**
  * Format a timestamp as relative time (e.g., "just now", "10 min ago", "yesterday")
  * After 7 days, switches to absolute date (e.g., "Jan 24")
+ * Returns null if timestamp is invalid
  */
-export function formatRelativeTime(timestamp: string | Date): string {
+export function formatRelativeTime(timestamp: string | Date | null | undefined): string | null {
+  if (!timestamp) return null
+
   const date = typeof timestamp === 'string' ? new Date(timestamp) : timestamp
+
+  // Check for invalid date
+  if (isNaN(date.getTime())) return null
+
   const now = new Date()
   const diffMs = now.getTime() - date.getTime()
   const diffSeconds = Math.floor(diffMs / 1000)
