@@ -167,16 +167,14 @@ export default function KnotCard({
         >
           {displayText.title}
         </span>
-        {formattedTime && (
-          <span
-            className={cn(
-              "block text-xs text-muted-foreground transition-[color,opacity] duration-200 ease-[cubic-bezier(0.2,0,0,1)]",
-              isCompleted && "text-muted-foreground/70"
-            )}
-          >
-            {formattedTime}
-          </span>
-        )}
+        <span
+          className={cn(
+            "block text-xs text-muted-foreground transition-[color,opacity] duration-200 ease-[cubic-bezier(0.2,0,0,1)]",
+            isCompleted && "text-muted-foreground/70"
+          )}
+        >
+          {formattedTime || 'just now'}
+        </span>
         {displayText.description && (
           <p
             className={cn(
