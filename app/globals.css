@@ -171,3 +171,56 @@
     padding-right: env(safe-area-inset-right);
   }
 }
+
+/*
+ * Desktop Content Column Layout
+ * Creates a centered reading surface with controlled max-width
+ */
+.content-column {
+  --content-max-width: 680px;
+  --content-gutter: 1rem;
+
+  max-width: var(--content-max-width);
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: var(--content-gutter);
+  padding-right: var(--content-gutter);
+  width: 100%;
+  position: relative;
+}
+
+/* Desktop breakpoint - wider gutters and proper spacing */
+@media (min-width: 768px) {
+  .content-column {
+    --content-gutter: 1.5rem;
+  }
+}
+
+/* Large screens - scale gutters with viewport */
+@media (min-width: 1024px) {
+  .content-column {
+    --content-gutter: 2rem;
+  }
+}
+
+/*
+ * Desktop Drag Handle Affordances
+ * Optimized for pointer precision on desktop
+ */
+@media (min-width: 768px) {
+  /* Show drag handle only on hover/focus on desktop */
+  .drag-handle-desktop {
+    opacity: 0;
+    transition: opacity 150ms ease-out, color 100ms ease-out;
+  }
+
+  .group:hover .drag-handle-desktop,
+  .group:focus-within .drag-handle-desktop {
+    opacity: 1;
+  }
+
+  /* Increase contrast on hover */
+  .drag-handle-desktop:hover {
+    color: var(--muted-foreground);
+  }
+}

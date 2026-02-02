@@ -9,6 +9,7 @@ import { useSafariPWAFix } from "@/hooks/use-safari-pwa-fix"
 import { TaskMetadata, isSlackMetadata } from "@/lib/types"
 import { prepareDescriptionForEdit, detectSlackTask } from "@/lib/slack/text-utils"
 import { ExternalLink } from "lucide-react"
+import type { ContentColumnRef } from "@/app/page"
 
 function KnotIcon({ className }: { className?: string }) {
   return (
@@ -35,16 +36,49 @@ interface KnotFormProps {
   onUpdate?: (id: string, data: { title: string; description: string }) => Promise<boolean>
   editTask?: EditTask | null
   onEditClose?: () => void
+  /** Reference to content column for desktop FAB positioning */
+  contentColumnRef?: ContentColumnRef
 }
 
-export function KnotForm({ onSubmit, onUpdate, editTask, onEditClose }: KnotFormProps) {
+export function KnotForm({ onSubmit, onUpdate, editTask, onEditClose, contentColumnRef }: KnotFormProps) {
   const [isCreateOpen, setIsCreateOpen] = React.useState(false)
   const [title, setTitle] = React.useState("")
   const [description, setDescription] = React.useState("")
   const [error, setError] = React.useState("")
   const [touched, setTouched] = React.useState(false)
   const [isSubmitting, setIsSubmitting] = React.useState(false)
+  const [isHovering, setIsHovering] = React.useState(false)
   const titleInputRef = React.useRef<HTMLInputElement>(null)
+  const fabRef = React.useRef<HTMLDivElement>(null)
+
+  // Track FAB position relative to content column on desktop
+  const [fabPosition, setFabPosition] = React.useState<{ right: number } | null>(null)
+
+  // Calculate FAB position relative to content column on desktop
+  React.useEffect(() => {
+    const updateFabPosition = () => {
+      if (!contentColumnRef?.current) {
+        setFabPosition(null)
+        return
+      }
+
+      const isDesktop = window.matchMedia('(min-width: 768px)').matches
+      if (!isDesktop) {
+        setFabPosition(null)
+        return
+      }
+
+      const columnRect = contentColumnRef.current.getBoundingClientRect()
+      const viewportWidth = window.innerWidth
+      // Position FAB 20px from the right edge of the content column
+      const rightOffset = viewportWidth - columnRect.right + 20
+      setFabPosition({ right: rightOffset })
+    }
+
+    updateFabPosition()
+    window.addEventListener('resize', updateFabPosition)
+    return () => window.removeEventListener('resize', updateFabPosition)
+  }, [contentColumnRef])
 
   // Determine if we're in edit mode based on editTask prop
   const isEditMode = !!editTask
@@ -174,17 +208,41 @@ export function KnotForm({ onSubmit, onUpdate, editTask, onEditClose }: KnotForm
   return (
     <>
       {/* FAB Button - Fixed at bottom right (only show when not in edit mode) */}
+      {/* On desktop: positioned relative to content column, smaller size, hover label */}
       {!isEditMode && (
-        <Button
-          type="button"
-          onClick={() => setIsCreateOpen(true)}
-          size="icon"
-          className="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-lg z-30"
-          style={{ ...fixedStyle, touchAction: "manipulation" }}
-          aria-label="Tie a new knot"
+        <div
+          ref={fabRef}
+          className="fixed bottom-6 z-30 flex items-center gap-3"
+          style={{
+            ...fixedStyle,
+            right: fabPosition?.right ?? 24,
+            transition: 'right 150ms ease-out',
+          }}
+          onMouseEnter={() => setIsHovering(true)}
+          onMouseLeave={() => setIsHovering(false)}
         >
-          <KnotIcon className="h-6 w-6" />
-        </Button>
+          {/* Hover label - desktop only */}
+          <span
+            className={`
+              hidden md:block text-sm font-medium text-muted-foreground
+              transition-all duration-200 ease-out whitespace-nowrap
+              ${isHovering ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-2'}
+            `}
+            aria-hidden="true"
+          >
+            New knot
+          </span>
+          <Button
+            type="button"
+            onClick={() => setIsCreateOpen(true)}
+            size="icon"
+            className="h-14 w-14 md:h-12 md:w-12 rounded-full shadow-lg"
+            style={{ touchAction: "manipulation" }}
+            aria-label="Tie a new knot"
+          >
+            <KnotIcon className="h-6 w-6 md:h-5 md:w-5" />
+          </Button>
+        </div>
       )}
 
       {/* Modal Backdrop - scrollable container for iOS keyboard */}
