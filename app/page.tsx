@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef, useCallback } from "react"
+import { useState, useEffect, useRef, useCallback, RefObject } from "react"
 import { SortableKnotList } from "@/components/sortable-knot-list"
 import { KnotForm, type EditTask } from "@/components/knot-form"
 import { createClient } from "@/lib/supabase-browser"
@@ -10,6 +10,9 @@ import { Unauthorized } from "@/components/auth/unauthorized"
 import { HamburgerMenu } from "@/components/hamburger-menu"
 import { ResetPassword } from "@/components/auth/reset-password"
 import { TaskMetadata } from "@/lib/types"
+
+// Export content column ref type for FAB positioning
+export type ContentColumnRef = RefObject<HTMLDivElement | null>
 
 interface Knot {
   id: string
@@ -387,11 +390,14 @@ export default function Page() {
     }
   }, [knots, supabase])
 
+  // Reference to content column for FAB positioning on desktop
+  const contentColumnRef = useRef<HTMLDivElement>(null)
+
   // Show loading state while checking authentication
   if (authLoading) {
     return (
-      <main className="min-h-screen bg-background px-4 py-12">
-        <div className="mx-auto max-w-xl">
+      <main className="min-h-screen bg-background py-12">
+        <div className="content-column">
           <div className="flex items-center justify-center py-12">
             <p className="text-muted-foreground">Loading...</p>
           </div>
@@ -418,8 +424,8 @@ export default function Page() {
   // Show loading state while fetching knots
   if (loading) {
     return (
-      <main className="min-h-screen bg-background px-4 py-12">
-        <div className="mx-auto max-w-xl">
+      <main className="min-h-screen bg-background py-12">
+        <div className="content-column">
           <div className="flex justify-end mb-6">
             <HamburgerMenu />
           </div>
@@ -432,15 +438,17 @@ export default function Page() {
   }
 
   return (
-    <main className="min-h-screen bg-background px-4 py-12">
-      <div className="mx-auto max-w-xl">
+    <main className="min-h-screen bg-background py-12">
+      <div ref={contentColumnRef} className="content-column">
         <div className="flex justify-end mb-6">
           <HamburgerMenu />
         </div>
-        <h1 className="mb-2 text-2xl font-bold text-foreground">My Knots</h1>
-        <p className="mb-8 text-muted-foreground">
-          What you meant to come back to.
-        </p>
+        <header className="mb-10 md:mb-12">
+          <h1 className="mb-2 text-2xl font-bold text-foreground">My Knots</h1>
+          <p className="text-muted-foreground">
+            What you meant to come back to.
+          </p>
+        </header>
 
         {knots.length > 0 ? (
           <SortableKnotList
@@ -463,6 +471,7 @@ export default function Page() {
         onUpdate={handleUpdateKnot}
         editTask={editTask}
         onEditClose={handleEditClose}
+        contentColumnRef={contentColumnRef}
       />
     </main>
   )

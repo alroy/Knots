@@ -114,17 +114,20 @@ export default function KnotCard({
       )}
     >
       {/* Drag handle - separate from content to not trigger edit */}
+      {/* Desktop: hidden until hover/focus, smaller hit area */}
+      {/* Mobile: always visible for touch discoverability */}
       <div
         {...dragHandleProps}
         className={cn(
           "mt-0.5 shrink-0 rounded p-0.5 text-muted-foreground/30 transition-[opacity,color] duration-100 ease-out",
           isOverlay && "text-muted-foreground",
-          !isOverlay && "cursor-grab active:cursor-grabbing touch-none"
+          !isOverlay && "cursor-grab active:cursor-grabbing touch-none",
+          !isOverlay && "drag-handle-desktop md:p-0.5 md:hover:text-muted-foreground"
         )}
         aria-hidden="true"
         style={{ touchAction: "none" }}
       >
-        <GripVertical className="h-4 w-4" />
+        <GripVertical className="h-4 w-4 md:h-3.5 md:w-3.5" />
       </div>
 
       {/* Checkbox - sibling to content area, clicks won't trigger edit */}
