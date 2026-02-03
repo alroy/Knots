@@ -22,8 +22,18 @@ Table: `tasks`
 - `position` (integer) - For persistent ordering, 0 = top
 - `created_at` (timestamp)
 - `completed_at` (timestamp, nullable)
+- `source_type` (text, nullable) - Source of task (e.g., 'slack')
+- `source_id` (text, nullable) - Unique ID for deduplication
+- `source_url` (text, nullable) - Permalink to source
+- `llm_confidence` (real, nullable) - LLM confidence score (0-1)
+- `llm_why` (text, nullable) - LLM reasoning for logs
+- `ingest_trigger` (text, nullable) - How task was ingested (e.g., 'mention')
 
-**Required for cross-tab sync:** Run `supabase-migration-cross-tab-sync.sql` to add `position` column and set `REPLICA IDENTITY FULL`.
+**Unique constraint:** `(user_id, source_type, source_id)` prevents duplicate tasks from same source.
+
+**Required migrations:**
+- `supabase-migration-cross-tab-sync.sql` - Position column and REPLICA IDENTITY FULL
+- `supabase-migration-task-provenance.sql` - Source tracking columns and ingest log table
 
 ## Design System
 
@@ -141,6 +151,9 @@ Retry up to 4 times with exponential backoff (2s, 4s, 8s, 16s) on network failur
 - ✅ Task timestamps with relative time display
 - ✅ New tasks appear first in list (position 0)
 - ✅ Slack-created tasks appear in real-time without refresh
+- ✅ Slack mention ingestion with heuristic + LLM pipeline
+- ✅ Actionability scoring to filter non-actionable mentions
+- ✅ Task deduplication based on source_id
 
 ## Important Notes
 - Always use optimistic updates for better UX
@@ -155,9 +168,52 @@ Retry up to 4 times with exponential backoff (2s, 4s, 8s, 16s) on network failur
 - New tasks always appear at top of list (position 0), database trigger handles position shifting
 - Slack-created tasks trigger real-time INSERT events and appear without page refresh
 
+## Slack Mention Ingestion Pipeline
+
+### Overview
+The app uses a heuristic + LLM pipeline to intelligently determine which Slack mentions should become tasks.
+
+### Pipeline Flow
+1. **Normalize** - Raw Slack event → `SlackIngestMessage`
+2. **Ensure Permalink** - Fetch via Slack API if not present
+3. **Heuristic Score** - Compute actionability score (0-1)
+4. **Decision Gate** - Skip LLM if score < 0.35
+5. **LLM Classification** - Claude classifies if mention is a task
+6. **Confidence Check** - Apply threshold based on actionability score
+7. **Task Creation** - Insert with deduplication
+
+### Actionability Scoring
+Strong positive signals (direct asks, ownership, deadlines):
+- "can you review", "please fix", "assigned to you", "by EOD"
+
+Strong negative signals (informational routing):
+- "FYI", "for visibility", "looping you in", "heads up"
+
+### Thresholds
+- `score < 0.35`: Drop without LLM call
+- `0.35 <= score < 0.60`: Require LLM confidence >= 0.75
+- `score >= 0.60`: Require LLM confidence >= 0.65
+
+### Key Files
+- `lib/slack/ingest/types.ts` - Data contracts and thresholds
+- `lib/slack/ingest/normalize.ts` - Payload normalization
+- `lib/slack/ingest/actionability.ts` - Heuristic scoring
+- `lib/slack/ingest/classify.ts` - LLM classification
+- `lib/slack/ingest/create-task.ts` - Task creation with dedupe
+- `app/api/ingest/slack-mention/route.ts` - API endpoint
+
+### Environment Variables
+```
+ANTHROPIC_API_KEY=your-key        # Required for LLM classification
+STORE_RAW_SLACK_TEXT=false        # Optional: store raw message text
+```
+
 ## Testing
 Run tests with: `npm test`
 Tests include:
 - Cross-tab sync state updates for INSERT, UPDATE, DELETE events
 - Reorder operations and position management
 - Rapid sequential operations handling
+- Slack actionability heuristic scoring
+- LLM JSON schema validation and fallback
+- Task deduplication logic
