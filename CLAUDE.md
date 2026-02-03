@@ -200,7 +200,8 @@ Strong negative signals (informational routing):
 - `lib/slack/ingest/actionability.ts` - Heuristic scoring
 - `lib/slack/ingest/classify.ts` - LLM classification
 - `lib/slack/ingest/create-task.ts` - Task creation with dedupe
-- `app/api/ingest/slack-mention/route.ts` - API endpoint
+- `lib/slack/event-handlers.ts` - Main integration (calls LLM pipeline for mentions)
+- `app/api/slack/events/route.ts` - Slack webhook endpoint
 
 ### Setup Requirements
 1. **Database Migration** - Run `supabase-migration-task-provenance.sql` in Supabase SQL Editor
@@ -209,7 +210,11 @@ Strong negative signals (informational routing):
    ANTHROPIC_API_KEY=your-key        # Required for LLM classification
    STORE_RAW_SLACK_TEXT=false        # Optional: store raw message text
    ```
-3. **API Endpoint** - Point Slack events to `/api/ingest/slack-mention` (or use existing `/api/slack/events` which still works for basic ingestion)
+
+### How It Works
+- **DMs** → Always create tasks (no filtering)
+- **Mentions with ANTHROPIC_API_KEY** → Heuristic + LLM filtering (only actionable mentions become tasks)
+- **Mentions without ANTHROPIC_API_KEY** → Falls back to old behavior (creates tasks for all mentions)
 
 ## Testing
 Run tests with: `npm test`
