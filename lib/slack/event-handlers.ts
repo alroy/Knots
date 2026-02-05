@@ -261,17 +261,10 @@ async function processMentionWithLLM(
         const userInfo = await fetchSlackUser(accessToken, event.user)
         if (userInfo?.display_name) {
           normalized.user_name = userInfo.display_name
-        } else {
-          // Fallback: use Slack user ID to verify code path is running
-          normalized.user_name = `user:${event.user}`
         }
-      } catch (error) {
-        // Fallback on error: use Slack user ID with error marker
-        normalized.user_name = `error:${event.user}`
+      } catch {
+        // Continue without user name - UI will show "Unknown via Slack"
       }
-    } else {
-      // Fallback when no token/user: mark as missing
-      normalized.user_name = event.user ? `no-token:${event.user}` : 'no-user'
     }
 
     // Compute actionability score

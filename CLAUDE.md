@@ -95,7 +95,7 @@ Reusable UI components:
 - `input.tsx` - Text input with consistent styling
 - `textarea.tsx` - Multi-line text input
 - `label.tsx` - Form labels
-- `slack-badge.tsx` - Slack source row for task cards (icon + "From [name]" link)
+- `slack-badge.tsx` - Slack source row for task cards (icon + "[name] via Slack" link)
 
 ### `/lib/supabase.ts`
 Supabase client configuration for database operations.
