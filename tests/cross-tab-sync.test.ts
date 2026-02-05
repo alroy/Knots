@@ -6,6 +6,18 @@ interface Knot {
   description: string
   status: 'active' | 'completed'
   position: number
+  createdAt?: string
+}
+
+// Sort comparator: primary by position ascending, secondary by createdAt descending.
+// This ensures that when two tasks share the same position (e.g., due to a
+// concurrent-insert race in the DB trigger), the newer task appears first.
+function compareKnots(a: Knot, b: Knot): number {
+  if (a.position !== b.position) return a.position - b.position
+  // For same position, newer tasks first (descending createdAt)
+  const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0
+  const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0
+  return bTime - aTime
 }
 
 // State update functions extracted from page.tsx for testing
@@ -18,12 +30,13 @@ function applyInsertEvent(prev: Knot[], newTask: any): Knot[] {
     description: newTask.description || '',
     status: newTask.status,
     position: newTask.position ?? 0,
+    createdAt: newTask.created_at,
   }
 
   if (prev.some((k) => k.id === newKnot.id)) return prev
   // Update positions of existing knots (they were shifted by the server trigger)
   const updated = prev.map((k) => ({ ...k, position: k.position + 1 }))
-  return [newKnot, ...updated].sort((a, b) => a.position - b.position)
+  return [newKnot, ...updated].sort(compareKnots)
 }
 
 function applyUpdateEvent(prev: Knot[], updatedTask: any): Knot[] {
@@ -38,8 +51,8 @@ function applyUpdateEvent(prev: Knot[], updatedTask: any): Knot[] {
         }
       : k
   )
-  // Re-sort by position to handle reorder updates
-  return updated.sort((a, b) => a.position - b.position)
+  // Re-sort by position (with createdAt tiebreaker) to handle reorder updates
+  return updated.sort(compareKnots)
 }
 
 function applyDeleteEvent(prev: Knot[], deletedTask: any): Knot[] {
@@ -58,9 +71,9 @@ function applyReorder(knots: Knot[], reorderedIds: string[]): Knot[] {
 
 describe('Cross-Tab Sync State Updates', () => {
   const initialKnots: Knot[] = [
-    { id: '1', title: 'Task 1', description: '', status: 'active', position: 0 },
-    { id: '2', title: 'Task 2', description: '', status: 'active', position: 1 },
-    { id: '3', title: 'Task 3', description: '', status: 'completed', position: 2 },
+    { id: '1', title: 'Task 1', description: '', status: 'active', position: 0, createdAt: '2024-01-01T00:00:00Z' },
+    { id: '2', title: 'Task 2', description: '', status: 'active', position: 1, createdAt: '2024-01-01T01:00:00Z' },
+    { id: '3', title: 'Task 3', description: '', status: 'completed', position: 2, createdAt: '2024-01-01T02:00:00Z' },
   ]
 
   describe('INSERT event', () => {
@@ -294,6 +307,87 @@ describe('Cross-Tab Sync State Updates', () => {
       expect(state).toHaveLength(2)
       expect(state.find((k) => k.id === '1')?.title).toBe('Task 1 Updated')
     })
+  })
+})
+
+describe('Duplicate position tiebreaker (concurrent insert race)', () => {
+  // When two tasks are inserted concurrently, the DB trigger may not serialize
+  // correctly under READ COMMITTED isolation, resulting in both tasks having
+  // position 0. The sort comparator must break ties using createdAt descending
+  // so that newer tasks appear first (matching the "newest at top" invariant).
+
+  it('should sort newer task first when two tasks share position 0', () => {
+    const knots: Knot[] = [
+      { id: '1', title: 'Task 1 (older)', description: '', status: 'active', position: 0, createdAt: '2024-01-01T10:00:00Z' },
+      { id: '2', title: 'Task 2 (newer)', description: '', status: 'active', position: 0, createdAt: '2024-01-01T10:00:01Z' },
+    ]
+
+    const sorted = [...knots].sort(compareKnots)
+
+    expect(sorted[0].id).toBe('2') // newer task first
+    expect(sorted[1].id).toBe('1')
+  })
+
+  it('should sort correctly when multiple tasks share positions', () => {
+    // Simulates loading from DB where trigger race left duplicates
+    const knots: Knot[] = [
+      { id: '1', title: 'Task 1', description: '', status: 'active', position: 0, createdAt: '2024-01-01T10:00:00Z' },
+      { id: '2', title: 'Task 2', description: '', status: 'active', position: 0, createdAt: '2024-01-01T10:00:05Z' },
+      { id: '3', title: 'Task 3', description: '', status: 'active', position: 1, createdAt: '2024-01-01T09:00:00Z' },
+    ]
+
+    const sorted = [...knots].sort(compareKnots)
+
+    // Position 0 group: Task 2 (newer) before Task 1 (older)
+    expect(sorted[0].id).toBe('2')
+    expect(sorted[1].id).toBe('1')
+    // Position 1: Task 3
+    expect(sorted[2].id).toBe('3')
+  })
+
+  it('should handle missing createdAt gracefully', () => {
+    const knots: Knot[] = [
+      { id: '1', title: 'Task 1', description: '', status: 'active', position: 0 },
+      { id: '2', title: 'Task 2', description: '', status: 'active', position: 0, createdAt: '2024-01-01T10:00:00Z' },
+    ]
+
+    const sorted = [...knots].sort(compareKnots)
+
+    // Task with createdAt should come first (has a timestamp > 0)
+    expect(sorted[0].id).toBe('2')
+    expect(sorted[1].id).toBe('1')
+  })
+
+  it('should preserve correct order when positions are unique', () => {
+    const knots: Knot[] = [
+      { id: '3', title: 'Task 3', description: '', status: 'active', position: 2, createdAt: '2024-01-01T12:00:00Z' },
+      { id: '1', title: 'Task 1', description: '', status: 'active', position: 0, createdAt: '2024-01-01T10:00:00Z' },
+      { id: '2', title: 'Task 2', description: '', status: 'active', position: 1, createdAt: '2024-01-01T11:00:00Z' },
+    ]
+
+    const sorted = [...knots].sort(compareKnots)
+
+    expect(sorted[0].id).toBe('1')
+    expect(sorted[1].id).toBe('2')
+    expect(sorted[2].id).toBe('3')
+  })
+
+  it('should match page-refresh behavior: newest concurrent task at top', () => {
+    // Reproduces the exact bug from the issue:
+    // Two Slack tasks created nearly simultaneously, both get position 0
+    // On page refresh, the older one was appearing first (wrong)
+    const knots: Knot[] = [
+      { id: 'task-1', title: 'Write essay for Task #1', description: '', status: 'active', position: 0, createdAt: '2024-06-01T10:00:00.000Z' },
+      { id: 'task-2', title: 'Send email for Task #2', description: '', status: 'active', position: 0, createdAt: '2024-06-01T10:00:00.500Z' },
+    ]
+
+    const sorted = [...knots].sort(compareKnots)
+
+    // Task #2 was created later so it should appear first
+    expect(sorted[0].id).toBe('task-2')
+    expect(sorted[0].title).toBe('Send email for Task #2')
+    expect(sorted[1].id).toBe('task-1')
+    expect(sorted[1].title).toBe('Write essay for Task #1')
   })
 })
 

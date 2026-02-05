@@ -27,6 +27,17 @@ interface Knot {
   sourceUrl?: string
 }
 
+// Sort comparator: primary by position ascending, secondary by createdAt descending.
+// The secondary sort handles a race condition in the DB trigger where concurrent
+// inserts can both end up with position 0. In that case, the newer task should
+// appear first to maintain the "newest at top" invariant.
+function compareKnots(a: Knot, b: Knot): number {
+  if (a.position !== b.position) return a.position - b.position
+  const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0
+  const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0
+  return bTime - aTime
+}
+
 export default function Page() {
   const { user, loading: authLoading, isAuthorized, isPasswordRecovery, clearPasswordRecovery } = useAuth()
   const [knots, setKnots] = useState<Knot[]>([])
@@ -113,10 +124,10 @@ export default function Page() {
                     ? { ...k, position: k.position + 1 }
                     : k
                 )
-                return [newKnot, ...updated].sort((a, b) => a.position - b.position)
+                return [newKnot, ...updated].sort(compareKnots)
               } else {
                 // No conflict - positions are already correct from UPDATE events
-                return [...prev, newKnot].sort((a, b) => a.position - b.position)
+                return [...prev, newKnot].sort(compareKnots)
               }
             })
           } else if (payload.eventType === 'UPDATE') {
@@ -144,7 +155,7 @@ export default function Page() {
                   : k
               )
               // Re-sort by position to handle reorder updates
-              return updated.sort((a, b) => a.position - b.position)
+              return updated.sort(compareKnots)
             })
           } else if (payload.eventType === 'DELETE') {
             const deletedTask = payload.old as any
@@ -169,6 +180,7 @@ export default function Page() {
         .select('*')
         .eq('user_id', user.id)
         .order('position', { ascending: true })
+        .order('created_at', { ascending: false })
 
       if (error) throw error
 
