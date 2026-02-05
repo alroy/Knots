@@ -93,6 +93,7 @@ Reusable UI components:
 - `input.tsx` - Text input with consistent styling
 - `textarea.tsx` - Multi-line text input
 - `label.tsx` - Form labels
+- `slack-badge.tsx` - Slack source row for task cards (icon + "From [name]" link)
 
 ### `/lib/supabase.ts`
 Supabase client configuration for database operations.
@@ -154,6 +155,7 @@ Retry up to 4 times with exponential backoff (2s, 4s, 8s, 16s) on network failur
 - ✅ Slack mention ingestion with heuristic + LLM pipeline
 - ✅ Actionability scoring to filter non-actionable mentions
 - ✅ Task deduplication based on source_id
+- ✅ Slack source row on task cards (icon + "From [name]" link to Slack)
 
 ## Important Notes
 - Always use optimistic updates for better UX
@@ -167,6 +169,35 @@ Retry up to 4 times with exponential backoff (2s, 4s, 8s, 16s) on network failur
 - Cards use accent-hover and accent-subtle variables for states
 - New tasks always appear at top of list (position 0), database trigger handles position shifting
 - Slack-created tasks trigger real-time INSERT events and appear without page refresh
+
+## Slack Task Display
+
+### Source Row on Task Cards
+Slack-origin tasks display a source row at the bottom of the card:
+- **Format:** Slack icon + "From [author_name]" as clickable link
+- **Link behavior:** Opens Slack permalink in new tab (`target="_blank"`)
+- **Fallback:** Shows "From Slack" if author name unavailable
+
+### When Source Row Renders
+The row appears when all conditions are met:
+1. `source_type === 'slack'` (from DB column)
+2. `source_url` is present and non-empty (Slack permalink)
+
+If `source_type === 'slack'` but `source_url` is missing, the row does not render.
+
+### Data Flow for Slack Provenance
+1. **Database columns:** `source_type`, `source_url` stored directly in tasks table
+2. **Knot interface:** Includes `sourceType` and `sourceUrl` fields
+3. **KnotCard:** Receives source fields via props, determines Slack context with priority:
+   - Priority 1: Direct DB columns (`sourceType`, `sourceUrl`)
+   - Priority 2: Metadata field (`metadata.source`)
+   - Priority 3: Legacy detection from description pattern
+4. **SlackBadge:** Renders the source row with icon and linked text
+
+### Description Cleaning
+Descriptions are cleaned before display to remove source URL blocks:
+- `stripSlackSourceBlock()` removes "Source: https://..." patterns
+- Handles both legacy format (`---\nFrom: Name | Source: Slack DM | Link: ...`) and new format (`\n\nSource: https://...`)
 
 ## Slack Mention Ingestion Pipeline
 
@@ -200,7 +231,9 @@ Strong negative signals (informational routing):
 - `lib/slack/ingest/actionability.ts` - Heuristic scoring
 - `lib/slack/ingest/classify.ts` - LLM classification
 - `lib/slack/ingest/create-task.ts` - Task creation with dedupe
+- `lib/slack/text-utils.ts` - Text normalization and source block stripping
 - `lib/slack/event-handlers.ts` - Main integration (calls LLM pipeline for mentions)
+- `components/ui/slack-badge.tsx` - Slack source row UI component
 - `app/api/slack/events/route.ts` - Slack webhook endpoint
 
 ### Setup Requirements

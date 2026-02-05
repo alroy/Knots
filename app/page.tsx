@@ -22,6 +22,9 @@ interface Knot {
   position: number
   metadata?: TaskMetadata
   createdAt?: string
+  // Source provenance fields (from database columns)
+  sourceType?: string
+  sourceUrl?: string
 }
 
 export default function Page() {
@@ -87,6 +90,8 @@ export default function Page() {
               position: newTask.position ?? 0,
               metadata: newTask.metadata || undefined,
               createdAt: newTask.created_at,
+              sourceType: newTask.source_type || undefined,
+              sourceUrl: newTask.source_url || undefined,
             }
 
             // Add new knot if it doesn't already exist (cross-tab sync)
@@ -133,6 +138,8 @@ export default function Page() {
                       status: updatedTask.status,
                       position: updatedTask.position ?? k.position,
                       metadata: updatedTask.metadata ?? k.metadata,
+                      sourceType: updatedTask.source_type ?? k.sourceType,
+                      sourceUrl: updatedTask.source_url ?? k.sourceUrl,
                     }
                   : k
               )
@@ -173,6 +180,8 @@ export default function Page() {
         position: task.position ?? 0,
         metadata: task.metadata || undefined,
         createdAt: task.created_at,
+        sourceType: task.source_type || undefined,
+        sourceUrl: task.source_url || undefined,
       }))
 
       setKnots(formattedKnots)

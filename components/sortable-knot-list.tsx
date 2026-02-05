@@ -33,6 +33,9 @@ interface Knot {
   position: number;
   metadata?: TaskMetadata;
   createdAt?: string;
+  // Source provenance fields (from database columns)
+  sourceType?: string;
+  sourceUrl?: string;
 }
 
 interface SortableKnotListProps {
@@ -86,6 +89,8 @@ function SortableKnotItem({ knot, onToggle, onDelete, onEdit, isListDragging }: 
         status={knot.status}
         metadata={knot.metadata}
         createdAt={knot.createdAt}
+        sourceType={knot.sourceType}
+        sourceUrl={knot.sourceUrl}
         onToggle={onToggle}
         onDelete={onDelete}
         onEdit={onEdit}
@@ -229,6 +234,8 @@ export function SortableKnotList({
             status={activeKnot.status}
             metadata={activeKnot.metadata}
             createdAt={activeKnot.createdAt}
+            sourceType={activeKnot.sourceType}
+            sourceUrl={activeKnot.sourceUrl}
             onToggle={() => {}}
             onDelete={() => {}}
             isOverlay

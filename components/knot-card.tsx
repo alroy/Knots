@@ -19,6 +19,9 @@ export interface KnotCardProps {
   status: "active" | "completed"
   metadata?: TaskMetadata
   createdAt?: string
+  // Source provenance fields (from database columns)
+  sourceType?: string
+  sourceUrl?: string
   onToggle: (id: string) => void
   onDelete: (id: string) => void
   onEdit?: (id: string) => void
@@ -36,6 +39,8 @@ export default function KnotCard({
   status,
   metadata,
   createdAt,
+  sourceType,
+  sourceUrl,
   onToggle,
   onDelete,
   onEdit,
@@ -56,9 +61,28 @@ export default function KnotCard({
   // Format timestamp for display
   const formattedTime = useMemo(() => formatRelativeTime(createdAt), [createdAt])
 
-  // Determine Slack context - from metadata (new tasks) or legacy detection (old tasks)
+  // Determine Slack context - prioritize direct DB columns, then metadata, then legacy detection
   const slackContext = useMemo(() => {
-    // Check metadata first (new Slack tasks)
+    // Priority 1: Direct source fields from database columns
+    // This is the primary source for Slack tasks created via the ingestion pipeline
+    if (sourceType === 'slack' && sourceUrl) {
+      // Get author name from metadata if available
+      const authorName = isSlackMetadata(metadata)
+        ? metadata.source.author?.display_name
+        : undefined
+      const subtype = isSlackMetadata(metadata)
+        ? metadata.source.subtype
+        : undefined
+
+      return {
+        isSlack: true,
+        subtype,
+        permalink: sourceUrl,
+        authorName,
+      }
+    }
+
+    // Priority 2: Check metadata (for tasks with metadata but no source columns)
     if (isSlackMetadata(metadata)) {
       return {
         isSlack: true,
@@ -68,7 +92,7 @@ export default function KnotCard({
       }
     }
 
-    // Fall back to legacy detection for old tasks
+    // Priority 3: Fall back to legacy detection for old tasks
     const detected = detectSlackTask(description)
     if (detected.isSlack) {
       return {
@@ -80,7 +104,7 @@ export default function KnotCard({
     }
 
     return { isSlack: false }
-  }, [metadata, description])
+  }, [sourceType, sourceUrl, metadata, description])
 
   // Handle click on card content area to open edit modal
   const handleContentClick = () => {
