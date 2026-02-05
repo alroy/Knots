@@ -43,6 +43,27 @@ export function buildTaskInput(
     description += `Source: ${message.permalink}`
   }
 
+  // Build metadata with author info for UI display (e.g., "Gil Alroy via Slack")
+  const metadata: Record<string, unknown> = {
+    source: {
+      type: 'slack',
+      subtype: 'mention',
+      team_id: message.team_id,
+      channel_id: message.channel_id,
+      message_ts: message.message_ts,
+      permalink: message.permalink,
+      ...(message.user_id && {
+        author: {
+          slack_user_id: message.user_id,
+          ...(message.user_name && { display_name: message.user_name }),
+        },
+      }),
+    },
+    raw: {
+      slack_text: shouldStoreRawText() ? message.text : '',
+    },
+  }
+
   return {
     user_id: userId,
     title: classification.title,
@@ -54,6 +75,7 @@ export function buildTaskInput(
     llm_confidence: classification.confidence,
     llm_why: classification.why,
     ingest_trigger: 'mention',
+    metadata,
   }
 }
 
@@ -73,7 +95,7 @@ export async function createTaskFromSource(
 ): Promise<CreateTaskResult> {
   try {
     // Build the task row
-    const taskRow = {
+    const taskRow: Record<string, unknown> = {
       title: input.title,
       description: input.description,
       status: 'active',
@@ -86,6 +108,11 @@ export async function createTaskFromSource(
       llm_confidence: input.llm_confidence,
       llm_why: input.llm_why,
       ingest_trigger: input.ingest_trigger,
+    }
+
+    // Include metadata if provided (contains author info for UI display)
+    if (input.metadata) {
+      taskRow.metadata = input.metadata
     }
 
     // Insert with ON CONFLICT handling

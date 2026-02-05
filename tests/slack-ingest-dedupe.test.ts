@@ -149,6 +149,48 @@ describe('buildTaskInput', () => {
 
     expect(input.raw_source_text).toBeUndefined()
   })
+
+  it('should include metadata with author display_name when user_name is set', () => {
+    const message = createTestMessage({ user_name: 'Gil Alroy' })
+    const classification = createTestClassification()
+    const userId = 'user-uuid-123'
+
+    const input = buildTaskInput(userId, message, classification)
+
+    expect(input.metadata).toBeDefined()
+    const source = (input.metadata as any).source
+    expect(source.type).toBe('slack')
+    expect(source.subtype).toBe('mention')
+    expect(source.author.slack_user_id).toBe('U789GHI')
+    expect(source.author.display_name).toBe('Gil Alroy')
+    expect(source.permalink).toBe(message.permalink)
+  })
+
+  it('should include metadata without display_name when user_name is not set', () => {
+    const message = createTestMessage({ user_name: undefined })
+    const classification = createTestClassification()
+    const userId = 'user-uuid-123'
+
+    const input = buildTaskInput(userId, message, classification)
+
+    expect(input.metadata).toBeDefined()
+    const source = (input.metadata as any).source
+    expect(source.author.slack_user_id).toBe('U789GHI')
+    expect(source.author.display_name).toBeUndefined()
+  })
+
+  it('should include team_id, channel_id, and message_ts in metadata', () => {
+    const message = createTestMessage()
+    const classification = createTestClassification()
+    const userId = 'user-uuid-123'
+
+    const input = buildTaskInput(userId, message, classification)
+
+    const source = (input.metadata as any).source
+    expect(source.team_id).toBe('T123ABC')
+    expect(source.channel_id).toBe('C456DEF')
+    expect(source.message_ts).toBe('1700000000.123456')
+  })
 })
 
 describe('deduplication behavior', () => {
