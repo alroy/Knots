@@ -149,18 +149,28 @@ export function deriveTitleFromSlackMessage(
 const LEGACY_SOURCE_PATTERN = /[\r\n]+---[\r\n]+(?:From: [^|]+\s*\|\s*)?Source: Slack (DM|mention)(?:\s*\|\s*Link: ([^\s\r\n]+))?/i
 
 /**
- * Strip the legacy Slack source block from a task description
+ * Pattern to detect simple source URL appended to description
+ * Matches: "\n\nSource: https://..." at end of description
+ */
+const SOURCE_URL_PATTERN = /[\r\n]+Source:\s*https?:\/\/[^\s]+$/i
+
+/**
+ * Strip the Slack source block from a task description
  *
- * Legacy format embedded at end of description:
- * ---
- * From: Name | Source: Slack DM | Link: https://...
+ * Handles two formats:
+ * 1. Legacy format: "---\nFrom: Name | Source: Slack DM | Link: https://..."
+ * 2. New format: "\n\nSource: https://..."
  *
- * @param description - Task description that may contain legacy block
+ * @param description - Task description that may contain source block
  * @returns Description with source block removed
  */
 export function stripSlackSourceBlock(description: string): string {
   if (!description) return ''
-  return description.replace(LEGACY_SOURCE_PATTERN, '').trim()
+  // Strip legacy format first, then new format
+  return description
+    .replace(LEGACY_SOURCE_PATTERN, '')
+    .replace(SOURCE_URL_PATTERN, '')
+    .trim()
 }
 
 /**
