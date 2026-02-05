@@ -22,6 +22,7 @@ export interface KnotCardProps {
   // Source provenance fields (from database columns)
   sourceType?: string
   sourceUrl?: string
+  sourceAuthorName?: string
   onToggle: (id: string) => void
   onDelete: (id: string) => void
   onEdit?: (id: string) => void
@@ -41,6 +42,7 @@ export default function KnotCard({
   createdAt,
   sourceType,
   sourceUrl,
+  sourceAuthorName,
   onToggle,
   onDelete,
   onEdit,
@@ -66,10 +68,9 @@ export default function KnotCard({
     // Priority 1: Direct source fields from database columns
     // This is the primary source for Slack tasks created via the ingestion pipeline
     if (sourceType === 'slack' && sourceUrl) {
-      // Get author name from metadata if available
-      const authorName = isSlackMetadata(metadata)
-        ? metadata.source.author?.display_name
-        : undefined
+      // Get author name: prefer direct DB column, fall back to metadata
+      const authorName = sourceAuthorName
+        || (isSlackMetadata(metadata) ? metadata.source.author?.display_name : undefined)
       const subtype = isSlackMetadata(metadata)
         ? metadata.source.subtype
         : undefined
@@ -104,7 +105,7 @@ export default function KnotCard({
     }
 
     return { isSlack: false }
-  }, [sourceType, sourceUrl, metadata, description])
+  }, [sourceType, sourceUrl, sourceAuthorName, metadata, description])
 
   // Handle click on card content area to open edit modal
   const handleContentClick = () => {

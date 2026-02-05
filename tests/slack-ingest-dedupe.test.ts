@@ -149,6 +149,37 @@ describe('buildTaskInput', () => {
 
     expect(input.raw_source_text).toBeUndefined()
   })
+
+  it('should include source_author_name when user_name is present', () => {
+    const message = createTestMessage({ user_name: 'Nathan Cohen' })
+    const classification = createTestClassification()
+    const userId = 'user-uuid-123'
+
+    const input = buildTaskInput(userId, message, classification)
+
+    expect(input.source_author_name).toBe('Nathan Cohen')
+  })
+
+  it('should not include source_author_name when user_name is missing', () => {
+    const message = createTestMessage() // No user_name
+    const classification = createTestClassification()
+    const userId = 'user-uuid-123'
+
+    const input = buildTaskInput(userId, message, classification)
+
+    expect(input.source_author_name).toBeUndefined()
+  })
+
+  it('should handle empty user_name as undefined', () => {
+    const message = createTestMessage({ user_name: '' })
+    const classification = createTestClassification()
+    const userId = 'user-uuid-123'
+
+    const input = buildTaskInput(userId, message, classification)
+
+    // Empty string should be passed through (falsy but defined)
+    expect(input.source_author_name).toBe('')
+  })
 })
 
 describe('deduplication behavior', () => {

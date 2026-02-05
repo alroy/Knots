@@ -124,6 +124,7 @@ export interface TaskFromSourceInput {
   source_type: 'slack'
   source_id: string // team_id:channel_id:message_ts
   source_url: string // Slack permalink
+  source_author_name?: string // Display name of message author
   raw_source_text?: string // Controlled by env flag
   llm_confidence?: number
   llm_why?: string

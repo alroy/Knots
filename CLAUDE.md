@@ -25,6 +25,7 @@ Table: `tasks`
 - `source_type` (text, nullable) - Source of task (e.g., 'slack')
 - `source_id` (text, nullable) - Unique ID for deduplication
 - `source_url` (text, nullable) - Permalink to source
+- `source_author_name` (text, nullable) - Display name of source message author
 - `llm_confidence` (real, nullable) - LLM confidence score (0-1)
 - `llm_why` (text, nullable) - LLM reasoning for logs
 - `ingest_trigger` (text, nullable) - How task was ingested (e.g., 'mention')
@@ -34,6 +35,7 @@ Table: `tasks`
 **Required migrations:**
 - `supabase-migration-cross-tab-sync.sql` - Position column and REPLICA IDENTITY FULL
 - `supabase-migration-task-provenance.sql` - Source tracking columns and ingest log table
+- `supabase-migration-source-author-name.sql` - Source author name column for Slack tasks
 
 ## Design System
 
@@ -186,10 +188,10 @@ The row appears when all conditions are met:
 If `source_type === 'slack'` but `source_url` is missing, the row does not render.
 
 ### Data Flow for Slack Provenance
-1. **Database columns:** `source_type`, `source_url` stored directly in tasks table
-2. **Knot interface:** Includes `sourceType` and `sourceUrl` fields
+1. **Database columns:** `source_type`, `source_url`, `source_author_name` stored directly in tasks table
+2. **Knot interface:** Includes `sourceType`, `sourceUrl`, and `sourceAuthorName` fields
 3. **KnotCard:** Receives source fields via props, determines Slack context with priority:
-   - Priority 1: Direct DB columns (`sourceType`, `sourceUrl`)
+   - Priority 1: Direct DB columns (`sourceType`, `sourceUrl`, `sourceAuthorName`)
    - Priority 2: Metadata field (`metadata.source`)
    - Priority 3: Legacy detection from description pattern
 4. **SlackBadge:** Renders the source row with icon and linked text
