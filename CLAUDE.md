@@ -22,6 +22,7 @@ Table: `tasks`
 - `position` (integer) - For persistent ordering, 0 = top
 - `created_at` (timestamp)
 - `completed_at` (timestamp, nullable)
+- `metadata` (jsonb, nullable) - Structured provenance metadata (e.g., Slack author info)
 - `source_type` (text, nullable) - Source of task (e.g., 'slack')
 - `source_id` (text, nullable) - Unique ID for deduplication
 - `source_url` (text, nullable) - Permalink to source
@@ -57,7 +58,8 @@ System fonts for optimal native appearance:
 
 ### `/app/page.tsx`
 Main page with Supabase integration:
-- Loads knots from database on mount
+- Loads knots from database on mount (sorted by position ASC, created_at DESC)
+- `compareKnots()` helper sorts by position ascending with `createdAt` descending tiebreaker (handles concurrent-insert race where multiple tasks get position 0)
 - Implements CRUD operations with optimistic updates
 - Error rollback on database failures
 - Drag-and-drop reordering
@@ -151,11 +153,13 @@ Retry up to 4 times with exponential backoff (2s, 4s, 8s, 16s) on network failur
 - ✅ Unit tests for cross-tab sync state updates
 - ✅ Task timestamps with relative time display
 - ✅ New tasks appear first in list (position 0)
+- ✅ Stable task ordering on page refresh (createdAt tiebreaker for duplicate positions)
 - ✅ Slack-created tasks appear in real-time without refresh
 - ✅ Slack mention ingestion with heuristic + LLM pipeline
 - ✅ Actionability scoring to filter non-actionable mentions
 - ✅ Task deduplication based on source_id
 - ✅ Slack source row on task cards (icon + "[name] via Slack" link)
+- ✅ Both LLM pipeline and legacy/DM path store metadata with author info
 
 ## Important Notes
 - Always use optimistic updates for better UX
@@ -168,6 +172,7 @@ Retry up to 4 times with exponential backoff (2s, 4s, 8s, 16s) on network failur
 - Focus states use 1px ring with 20% opacity
 - Cards use accent-hover and accent-subtle variables for states
 - New tasks always appear at top of list (position 0), database trigger handles position shifting
+- The DB trigger `set_task_position()` has a race condition under concurrent inserts (both get position 0); the `compareKnots()` tiebreaker and `.order('created_at', { ascending: false })` secondary sort handle this gracefully
 - Slack-created tasks trigger real-time INSERT events and appear without page refresh
 
 ## Slack Task Display
@@ -186,13 +191,14 @@ The row appears when all conditions are met:
 If `source_type === 'slack'` but `source_url` is missing, the row does not render.
 
 ### Data Flow for Slack Provenance
-1. **Database columns:** `source_type`, `source_url` stored directly in tasks table
-2. **Knot interface:** Includes `sourceType` and `sourceUrl` fields
-3. **KnotCard:** Receives source fields via props, determines Slack context with priority:
-   - Priority 1: Direct DB columns (`sourceType`, `sourceUrl`)
+1. **Database columns:** `source_type`, `source_url` stored directly in tasks table; `metadata` (jsonb) stores structured author info
+2. **Both creation paths store metadata:** LLM pipeline (`buildTaskInput` in `create-task.ts`) and legacy/DM path (`buildSlackMetadata` in `event-handlers.ts`) both write `metadata.source.author.display_name`
+3. **Knot interface:** Includes `sourceType`, `sourceUrl`, and `metadata` fields
+4. **KnotCard:** Receives source fields via props, determines Slack context with priority:
+   - Priority 1: Direct DB columns (`sourceType`, `sourceUrl`) + author from `metadata`
    - Priority 2: Metadata field (`metadata.source`)
    - Priority 3: Legacy detection from description pattern
-4. **SlackBadge:** Renders the source row with icon and linked text
+5. **SlackBadge:** Renders the source row with icon and linked text
 
 ### Description Cleaning
 Descriptions are cleaned before display to remove source URL blocks:
@@ -254,7 +260,9 @@ Run tests with: `npm test`
 Tests include:
 - Cross-tab sync state updates for INSERT, UPDATE, DELETE events
 - Reorder operations and position management
+- Duplicate position tiebreaker (concurrent insert race condition)
 - Rapid sequential operations handling
 - Slack actionability heuristic scoring
 - LLM JSON schema validation and fallback
 - Task deduplication logic
+- Metadata generation with author info in buildTaskInput
