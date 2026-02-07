@@ -367,25 +367,23 @@ async function processMentionWithLLM(
 }
 
 /**
- * Log entry for forwarded DM processing
+ * Log entry for bot DM processing
  */
-interface ForwardedDMLog {
+interface BotDMLog {
   channel_type: string
   is_forwarded: boolean
   forwarded_cues: Record<string, boolean>
   task_created: boolean
-  llm_used: boolean
-  fallback_used: boolean
   deduped: boolean
   dedupe_key?: string
 }
 
 /**
- * Process a forwarded DM to the bot — task creation is guaranteed.
+ * Process a bot DM — task creation is guaranteed.
  *
- * This is an isolated path: it does NOT run actionability heuristics or
- * LLM is_task gating. LLM is only used (optionally) to generate
- * title/description. If LLM fails, fallback title/description are used.
+ * Every message sent to the bot DM creates a task unconditionally.
+ * Forwarding detection is used only to improve content extraction
+ * (better title, original permalink, original author), never to gate.
  */
 async function processForwardedDM(
   supabase: SupabaseClient,
@@ -397,19 +395,19 @@ async function processForwardedDM(
   const { event, team_id, event_id } = eventPayload
   const extendedEvent = event as unknown as SlackMessageEventExtended
 
-  const log: ForwardedDMLog = {
+  const log: BotDMLog = {
     channel_type: event.channel_type || 'im',
-    is_forwarded: true,
+    is_forwarded: detection.isForwarded,
     forwarded_cues: { ...detection.cues },
     task_created: false,
-    llm_used: false,
-    fallback_used: false,
     deduped: false,
   }
 
   try {
-    // Extract forwarded content (text, author)
-    const content = extractForwardedContent(extendedEvent, detection)
+    // Extract content — forwarded detection improves quality but isn't required
+    const content = detection.isForwarded
+      ? extractForwardedContent(extendedEvent, detection)
+      : { text: event.text || 'Slack message', authorName: undefined as string | undefined, authorId: event.user }
 
     // Resolve sender display name
     let senderDisplayName: string | undefined = content.authorName
@@ -431,7 +429,6 @@ async function processForwardedDM(
     if (accessToken && content.text) {
       try {
         userMap = await resolveUserMentions(accessToken, content.text)
-        // Add sender to map if known
         if (senderUserId && senderDisplayName) {
           userMap[senderUserId] = senderDisplayName
         }
@@ -457,8 +454,8 @@ async function processForwardedDM(
     const sourceId = generateForwardedSourceId(team_id, extendedEvent, detection)
     log.dedupe_key = sourceId
 
-    // Generate title/description — fallback-first, LLM is optional
-    let title = deriveTitleFromSlackMessage(content.text, 120, userMap)
+    // Generate title/description from best available content
+    const title = deriveTitleFromSlackMessage(content.text, 120, userMap)
     let description = normalizeSlackText(content.text, userMap)
 
     // Append source URL to description if available
@@ -470,21 +467,21 @@ async function processForwardedDM(
       }
     }
 
-    let llmConfidence: number | undefined
-    let llmWhy: string | undefined
+    // Determine metadata subtype
+    const metadataSubtype = detection.isForwarded ? 'forwarded_dm' as const : 'dm' as const
 
     // Build metadata
     const metadata = buildSlackMetadata(
       event,
       team_id,
-      'forwarded_dm',
+      metadataSubtype,
       senderUserId,
       senderDisplayName,
       sourceUrl || undefined,
       userMap
     )
 
-    // Create the task via createTaskFromSource for consistent dedupe
+    // Create the task — this always happens, no gating
     const taskRow = {
       title,
       description,
@@ -494,9 +491,7 @@ async function processForwardedDM(
       source_type: 'slack' as const,
       source_id: sourceId,
       source_url: sourceUrl || null,
-      llm_confidence: llmConfidence,
-      llm_why: llmWhy,
-      ingest_trigger: 'forwarded_dm',
+      ingest_trigger: detection.isForwarded ? 'forwarded_dm' : 'dm',
       metadata,
     }
 
@@ -510,24 +505,24 @@ async function processForwardedDM(
       // Check for dedupe (unique constraint violation)
       if (taskError.code === '23505') {
         log.deduped = true
-        console.log('[forwarded-dm] Deduplicated:', JSON.stringify(log))
-        await updateIngestStatus(supabase, team_id, event_id, 'ignored', undefined, 'forwarded_dm_deduped')
-        return { status: 'ignored', reason: 'forwarded_dm_deduped' }
+        console.log('[bot-dm] Deduplicated:', JSON.stringify(log))
+        await updateIngestStatus(supabase, team_id, event_id, 'ignored', undefined, 'dm_deduped')
+        return { status: 'ignored', reason: 'dm_deduped' }
       }
 
       log.task_created = false
-      console.error('[forwarded-dm] Task creation failed:', taskError.message, JSON.stringify(log))
+      console.error('[bot-dm] Task creation failed:', taskError.message, JSON.stringify(log))
       await updateIngestStatus(supabase, team_id, event_id, 'failed', undefined, taskError.message)
       return { status: 'failed', error: taskError.message }
     }
 
     log.task_created = true
-    console.log('[forwarded-dm] Task created:', JSON.stringify(log))
+    console.log('[bot-dm] Task created:', JSON.stringify(log))
     await updateIngestStatus(supabase, team_id, event_id, 'processed', newTask.id)
 
     return { status: 'processed', taskId: newTask.id }
   } catch (error) {
-    console.error('[forwarded-dm] Unexpected error:', error, JSON.stringify(log))
+    console.error('[bot-dm] Unexpected error:', error, JSON.stringify(log))
     await updateIngestStatus(supabase, team_id, event_id, 'failed', undefined, (error as Error).message)
     return { status: 'failed', error: (error as Error).message }
   }
@@ -585,57 +580,57 @@ export async function processSlackEvent(
   for (const connection of connections) {
     const { user_id, slack_user_id, access_token } = connection
 
-    // --- Forwarded-DM branch (additive, isolated) ---
-    // Must run BEFORE shouldCreateTask because forwarded messages may have
-    // subtypes that shouldCreateTask would reject. This only activates for
-    // bot DM events that are detected as forwarded.
+    // --- Bot DM path: ALWAYS create a task ---
+    // Any message sent to the bot DM is explicit user intent.
+    // We skip the subtype/empty-text filters that shouldCreateTask applies.
+    // Forwarding detection is used to improve content extraction, not to gate.
     const isDMChannel = event.channel_type === 'im' || event.channel.startsWith('D')
-    if (isDMChannel && !event.bot_id) {
+    if (isDMChannel) {
+      // Skip messages from the bot itself (avoid self-loop)
+      if (event.bot_id) {
+        continue
+      }
+
       const extendedEvent = event as unknown as SlackMessageEventExtended
+
+      // Check if there's any content to create a task from
+      const hasContent = !!(
+        (event.text && event.text.trim()) ||
+        (extendedEvent.attachments && extendedEvent.attachments.length > 0) ||
+        (extendedEvent.blocks && extendedEvent.blocks.length > 0) ||
+        (extendedEvent.files && (extendedEvent.files as unknown[]).length > 0)
+      )
+
+      if (!hasContent) {
+        // Truly empty — nothing to make a task from
+        await updateIngestStatus(supabase, team_id, event_id, 'ignored', undefined, 'dm_no_content')
+        return { status: 'ignored', reason: 'dm_no_content' }
+      }
+
+      // Use forwarded detection for better content extraction
       const forwardDetection = isForwardedToBot(extendedEvent)
 
-      if (forwardDetection.isForwarded) {
-        console.log('[forwarded-dm] Detected forwarded message in bot DM:', JSON.stringify({
-          channel: event.channel,
-          cues: forwardDetection.cues,
-          has_original_permalink: !!forwardDetection.originalPermalink,
-          has_original_text: !!forwardDetection.originalText,
-        }))
+      console.log('[bot-dm] Processing bot DM:', JSON.stringify({
+        channel: event.channel,
+        subtype: event.subtype || null,
+        has_text: !!(event.text && event.text.trim()),
+        has_attachments: !!(extendedEvent.attachments && extendedEvent.attachments.length > 0),
+        has_blocks: !!(extendedEvent.blocks && extendedEvent.blocks.length > 0),
+        is_forwarded: forwardDetection.isForwarded,
+        forwarded_cues: forwardDetection.cues,
+      }))
 
-        return processForwardedDM(
-          supabase,
-          eventPayload,
-          user_id,
-          access_token,
-          forwardDetection
-        )
-      } else {
-        // Log non-forwarded bot DM for debugging missed forwards
-        const hasAttachments = !!(extendedEvent.attachments && extendedEvent.attachments.length > 0)
-        const hasBlocks = !!(extendedEvent.blocks && extendedEvent.blocks.length > 0)
-        if (hasAttachments || hasBlocks || event.subtype) {
-          console.log('[forwarded-dm] Bot DM not detected as forwarded:', JSON.stringify({
-            channel: event.channel,
-            subtype: event.subtype || null,
-            has_text: !!(event.text && event.text.trim()),
-            has_attachments: hasAttachments,
-            has_blocks: hasBlocks,
-            cues: forwardDetection.cues,
-            // Log attachment shapes for debugging
-            attachment_shapes: extendedEvent.attachments?.map(a => ({
-              is_share: a.is_share,
-              is_msg_unfurl: a.is_msg_unfurl,
-              has_from_url: !!a.from_url,
-              has_text: !!a.text,
-              has_fallback: !!a.fallback,
-            })),
-            // Log block types for debugging
-            block_types: extendedEvent.blocks?.map(b => b.type),
-          }))
-        }
-      }
+      // Always route through processForwardedDM — it handles both
+      // forwarded and non-forwarded content extraction and always creates a task.
+      return processForwardedDM(
+        supabase,
+        eventPayload,
+        user_id,
+        access_token,
+        forwardDetection
+      )
     }
-    // --- End forwarded-DM branch ---
+    // --- End bot DM path ---
 
     const check = shouldCreateTask(event, slack_user_id)
 

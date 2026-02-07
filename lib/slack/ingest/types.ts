@@ -127,7 +127,7 @@ export interface TaskFromSourceInput {
   raw_source_text?: string // Controlled by env flag
   llm_confidence?: number
   llm_why?: string
-  ingest_trigger: 'mention' | 'forwarded_dm'
+  ingest_trigger: 'mention' | 'dm' | 'forwarded_dm'
 }
 
 /**
