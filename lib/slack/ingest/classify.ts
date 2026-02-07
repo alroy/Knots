@@ -385,6 +385,141 @@ Description rules:
 }
 
 /**
+ * Shaped task output from a DM message
+ */
+export interface DMTaskShape {
+  title: string
+  description: string
+  confidence: number
+  why: string
+}
+
+/**
+ * Build fallback title/description from DM text when LLM is unavailable or fails.
+ *
+ * Produces a task-shaped result:
+ * - title: first sentence or first ~10 words, cleaned
+ * - description: "Task: <cleaned text in <= 200 chars>"
+ */
+export function createDMFallback(text: string): DMTaskShape {
+  // Clean Slack tokens
+  let cleaned = text
+    .replace(/<@[A-Z0-9]+>/gi, '@user')
+    .replace(/<#[A-Z0-9]+\|([^>]+)>/gi, '#$1')
+    .replace(/<https?:\/\/[^|>]+\|([^>]+)>/gi, '$1')
+    .replace(/<https?:\/\/[^>]+>/gi, '[link]')
+
+  // Title: first sentence or first ~10 words
+  const sentenceMatch = cleaned.match(/^(.+?[.!?])(?:\s|$)/)
+  let title: string
+  if (sentenceMatch) {
+    title = sentenceMatch[1]
+  } else {
+    const words = cleaned.split(/\s+/).filter((w) => w.length > 0)
+    title = words.slice(0, 10).join(' ')
+  }
+
+  if (title.length > 80) {
+    const lastSpace = title.substring(0, 77).lastIndexOf(' ')
+    title = (lastSpace > 40 ? title.substring(0, lastSpace) : title.substring(0, 77)) + '...'
+  }
+  if (title.length < 3) title = 'Slack message'
+
+  // Description: 1-3 lines — "Task:" line with truncation
+  let taskLine = cleaned
+  if (taskLine.length > 200) {
+    taskLine = taskLine.substring(0, 197) + '...'
+  }
+
+  return {
+    title,
+    description: `Task: ${taskLine}`,
+    confidence: 0,
+    why: 'llm_failed_fallback',
+  }
+}
+
+/**
+ * Use LLM to transform a DM message into a task-shaped title and description.
+ *
+ * The LLM never vetoes — it always produces a task. If the API call fails,
+ * returns null so the caller can use the fallback.
+ */
+export async function shapeDMMessage(
+  text: string,
+  senderName?: string
+): Promise<DMTaskShape | null> {
+  const apiKey = process.env.ANTHROPIC_API_KEY
+  if (!apiKey) return null
+
+  const client = new Anthropic({ apiKey })
+
+  const systemPrompt = `You are a task extraction assistant. A user sent a message to their task bot via DM. Transform this message into a clear, actionable task.
+
+The user sent this intentionally — it IS a task. Do not question whether it's a task.
+
+You MUST respond with valid JSON only. No markdown, no explanation.
+
+JSON Schema (strict):
+{
+  "title": string (3-80 chars, imperative, specific, phrase as next action),
+  "description": string (1-6 lines of essential context, may be empty),
+  "confidence": number (0 to 1),
+  "why": string (short reason for your decision, for logging)
+}
+
+Title rules:
+- Phrase as the user's next action (e.g., "Review Q4 budget proposal", "Follow up on deployment timeline")
+- Keep it short and concrete
+- Do not invent facts not present in the text
+- Do not output the entire original text verbatim unless it is already a clean task
+- If the text contains multiple actions, pick the primary action for the title and put the rest in the description
+- If the text is ambiguous, produce a reasonable "follow up / clarify" task rather than dumping raw text
+
+Description rules:
+- 1-6 lines of essential context
+- Include any deadlines, requirements, or key details
+- Do NOT copy the entire message verbatim
+- Do NOT add facts not in the original message`
+
+  let userPrompt = `Transform this DM into a task:\n\n---\n"${text}"\n`
+  if (senderName) {
+    userPrompt += `From: ${senderName}\n`
+  }
+  userPrompt += `---\n\nRespond with JSON only.`
+
+  try {
+    const response = await client.messages.create({
+      model: 'claude-3-5-haiku-20241022',
+      max_tokens: 400,
+      system: systemPrompt,
+      messages: [{ role: 'user', content: userPrompt }],
+    })
+
+    const raw = response.content[0].type === 'text' ? response.content[0].text : ''
+    let jsonStr = raw.trim()
+    const codeBlockMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)```/)
+    if (codeBlockMatch) jsonStr = codeBlockMatch[1].trim()
+
+    const parsed = JSON.parse(jsonStr)
+    const title =
+      typeof parsed.title === 'string' && parsed.title.length >= 3 && parsed.title.length <= 80
+        ? parsed.title
+        : null
+    const description = typeof parsed.description === 'string' ? parsed.description : ''
+    const confidence = typeof parsed.confidence === 'number' ? parsed.confidence : 0.5
+    const why = typeof parsed.why === 'string' ? parsed.why : 'llm_shaped'
+
+    if (!title) return null
+
+    return { title, description, confidence, why }
+  } catch (error) {
+    console.error('LLM shapeDMMessage failed:', error)
+    return null
+  }
+}
+
+/**
  * Classify with fallback - always returns a usable result
  */
 export async function classifyWithFallback(

@@ -14,6 +14,8 @@ import {
   generateSourceId,
   shapeForwardedMessage,
   createForwardedFallback,
+  shapeDMMessage,
+  createDMFallback,
 } from './ingest'
 
 /**
@@ -224,37 +226,41 @@ export function shouldCreateTask(
   event: SlackMessageEvent,
   slackUserId: string
 ): { shouldCreate: boolean; reason: string; isDM: boolean; isMention: boolean; isForwarded: boolean } {
-  // Ignore bot messages
+  // DMs always create tasks — manual, automation (n8n), bot_message subtypes.
+  // Check DM first so bot_id/subtype/empty-text guards only apply to channels.
+  const isDM = event.channel_type === 'im' || event.channel.startsWith('D')
+
+  if (isDM) {
+    // Forwarded DMs bypass subtype and empty-text checks.
+    // Forwarding is explicit user intent — always create a task.
+    if (isForwardedToBot(event)) {
+      return { shouldCreate: true, reason: 'forwarded_dm', isDM: true, isMention: false, isForwarded: true }
+    }
+
+    // All other DMs — manual or automation (n8n, bot_message, etc.)
+    return { shouldCreate: true, reason: 'dm', isDM: true, isMention: false, isForwarded: false }
+  }
+
+  // --- Non-DM (channel) messages below ---
+
+  // Ignore bot messages in channels
   if (event.bot_id) {
     return { shouldCreate: false, reason: 'bot_message', isDM: false, isMention: false, isForwarded: false }
   }
 
-  // Forwarded DMs bypass subtype and empty-text checks.
-  // Forwarding is explicit user intent — always create a task.
-  if (isForwardedToBot(event)) {
-    return { shouldCreate: true, reason: 'forwarded_dm', isDM: true, isMention: false, isForwarded: true }
-  }
-
-  // Ignore message subtypes (edits, deletes, joins, etc)
+  // Ignore message subtypes (edits, deletes, joins, etc) in channels
   if (event.subtype && event.subtype !== '') {
     return { shouldCreate: false, reason: `subtype_${event.subtype}`, isDM: false, isMention: false, isForwarded: false }
   }
 
-  // Ignore empty messages
+  // Ignore empty messages in channels
   if (!event.text || event.text.trim() === '') {
     return { shouldCreate: false, reason: 'empty_text', isDM: false, isMention: false, isForwarded: false }
   }
 
-  // Check if it's a DM
-  const isDM = event.channel_type === 'im' || event.channel.startsWith('D')
-
   // Check if user is mentioned
   const mentionPattern = new RegExp(`<@${slackUserId}>`)
   const isMention = mentionPattern.test(event.text)
-
-  if (isDM) {
-    return { shouldCreate: true, reason: 'dm', isDM: true, isMention: false, isForwarded: false }
-  }
 
   if (isMention) {
     return { shouldCreate: true, reason: 'mention', isDM: false, isMention: true, isForwarded: false }
@@ -694,6 +700,137 @@ export async function processSlackEvent(
 
       await updateIngestStatus(supabase, team_id, event_id, 'processed', fwdTask.id)
       return { status: 'processed', taskId: fwdTask.id }
+    }
+
+    // Step 3.7: Non-forwarded DMs — always create task with LLM shaping
+    if (check.isDM && !check.isForwarded) {
+      const messageText = event.text?.trim() || ''
+
+      // Fetch permalink for source tracking
+      let dmPermalink: string | undefined
+      if (access_token) {
+        const fetched = await ensurePermalink(access_token, event.channel, event.ts)
+        if (fetched) dmPermalink = fetched
+      }
+
+      // Resolve sender display name and user mentions
+      let dmSenderName: string | undefined
+      let dmUserMap: SlackUserMap = {}
+      if (access_token) {
+        if (messageText) {
+          try {
+            dmUserMap = await resolveUserMentions(access_token, messageText)
+          } catch {
+            // Continue without user map
+          }
+        }
+
+        if (event.user) {
+          if (dmUserMap[event.user]) {
+            dmSenderName = dmUserMap[event.user]
+          } else {
+            try {
+              const senderInfo = await fetchSlackUser(access_token, event.user)
+              if (senderInfo?.display_name) {
+                dmSenderName = senderInfo.display_name
+                dmUserMap[event.user] = dmSenderName
+              }
+            } catch {
+              // Continue without sender name
+            }
+          }
+        }
+      }
+
+      // Call LLM to shape task content (never vetoes)
+      let dmTitle: string
+      let dmDescription: string
+      let dmConfidence: number | undefined
+      let dmWhy: string | undefined
+
+      const shaped = await shapeDMMessage(messageText || 'Slack message', dmSenderName)
+      if (shaped) {
+        dmTitle = shaped.title
+        dmDescription = shaped.description
+        dmConfidence = shaped.confidence
+        dmWhy = shaped.why
+      } else {
+        // LLM unavailable or failed — use deterministic fallback
+        const fallback = createDMFallback(messageText || 'Slack message')
+        dmTitle = fallback.title
+        dmDescription = fallback.description
+        dmConfidence = undefined
+        dmWhy = fallback.why
+      }
+
+      // Enforce source link in description
+      const sourceUrl = dmPermalink || ''
+      if (sourceUrl && !dmDescription.includes(sourceUrl)) {
+        dmDescription = dmDescription
+          ? `${dmDescription}\n\nSource: ${sourceUrl}`
+          : `Source: ${sourceUrl}`
+      }
+
+      // Source ID for deduplication
+      const sourceId = `${team_id}:${event.channel}:${event.ts}`
+
+      // Build metadata
+      const dmMetadata: SlackTaskMetadata = {
+        source: {
+          type: 'slack',
+          subtype: 'dm',
+          team_id,
+          channel_id: event.channel,
+          message_ts: event.ts,
+          ...(dmPermalink ? { permalink: dmPermalink } : {}),
+          ...(event.user || dmSenderName ? {
+            author: {
+              slack_user_id: event.user || 'unknown',
+              ...(dmSenderName ? { display_name: dmSenderName } : {}),
+            },
+          } : {}),
+        },
+        raw: {
+          slack_text: messageText,
+        },
+        ...(Object.keys(dmUserMap).length > 0 ? { user_map: dmUserMap } : {}),
+      }
+
+      const shouldStoreRaw = process.env.STORE_RAW_SLACK_TEXT === 'true'
+
+      const { data: dmTask, error: dmError } = await supabase
+        .from('tasks')
+        .insert({
+          title: dmTitle,
+          description: dmDescription,
+          status: 'active',
+          user_id,
+          position: 0,
+          source_type: 'slack',
+          source_id: sourceId,
+          source_url: sourceUrl,
+          ingest_trigger: 'dm',
+          metadata: dmMetadata,
+          llm_confidence: dmConfidence,
+          llm_why: dmWhy,
+          ...(shouldStoreRaw ? { raw_source_text: messageText } : {}),
+        })
+        .select('id')
+        .single()
+
+      // Unique constraint violation → deduplicated
+      if (dmError?.code === '23505') {
+        await updateIngestStatus(supabase, team_id, event_id, 'ignored', undefined, 'deduped')
+        return { status: 'ignored', reason: 'deduped' }
+      }
+
+      if (dmError) {
+        await updateIngestStatus(supabase, team_id, event_id, 'failed', undefined, dmError.message)
+        return { status: 'failed', error: dmError.message }
+      }
+
+      await updateIngestStatus(supabase, team_id, event_id, 'processed', dmTask.id)
+      return { status: 'processed', taskId: dmTask.id }
     }
 
     // Step 4: For mentions, use the heuristic + LLM pipeline

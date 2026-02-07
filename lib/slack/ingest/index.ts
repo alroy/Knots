@@ -46,7 +46,7 @@ export {
 } from './actionability'
 
 // LLM classification (types)
-export type { ClassificationResult, FallbackResult, ForwardedTaskShape } from './classify'
+export type { ClassificationResult, FallbackResult, ForwardedTaskShape, DMTaskShape } from './classify'
 
 // LLM classification (values)
 export {
@@ -55,6 +55,8 @@ export {
   createFallbackFromMessage,
   shapeForwardedMessage,
   createForwardedFallback,
+  shapeDMMessage,
+  createDMFallback,
 } from './classify'
 
 // Task creation (types)

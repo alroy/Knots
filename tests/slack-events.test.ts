@@ -14,7 +14,7 @@ import {
   type SlackUrlVerification,
   type SlackTaskMetadata,
 } from '../lib/slack/event-handlers'
-import { createForwardedFallback } from '../lib/slack/ingest/classify'
+import { createForwardedFallback, createDMFallback } from '../lib/slack/ingest/classify'
 
 describe('shouldCreateTask', () => {
   const slackUserId = 'U12345'
@@ -189,6 +189,83 @@ describe('shouldCreateTask', () => {
     expect(result.isDM).toBe(true)
     expect(result.isForwarded).toBe(false)
     expect(result.reason).toBe('dm')
+  })
+
+  it('should create task for DM with bot_id (n8n automation)', () => {
+    const event: SlackMessageEvent = {
+      ...baseEvent,
+      channel_type: 'im',
+      bot_id: 'B_N8N',
+      text: 'Automated task from n8n',
+    }
+    const result = shouldCreateTask(event, slackUserId)
+    expect(result.shouldCreate).toBe(true)
+    expect(result.isDM).toBe(true)
+    expect(result.reason).toBe('dm')
+  })
+
+  it('should create task for DM with bot_message subtype', () => {
+    const event: SlackMessageEvent = {
+      ...baseEvent,
+      channel_type: 'im',
+      subtype: 'bot_message',
+      bot_id: 'B_N8N',
+      text: 'Deploy the new service',
+    }
+    const result = shouldCreateTask(event, slackUserId)
+    expect(result.shouldCreate).toBe(true)
+    expect(result.isDM).toBe(true)
+    expect(result.reason).toBe('dm')
+  })
+
+  it('should create task for DM with empty text (automation edge case)', () => {
+    const event: SlackMessageEvent = {
+      ...baseEvent,
+      channel_type: 'im',
+      text: '',
+    }
+    const result = shouldCreateTask(event, slackUserId)
+    expect(result.shouldCreate).toBe(true)
+    expect(result.isDM).toBe(true)
+    expect(result.reason).toBe('dm')
+  })
+
+  it('should create task for DM without event.user (automation)', () => {
+    const event: SlackMessageEvent = {
+      type: 'message',
+      channel: 'D123456',
+      channel_type: 'im',
+      text: 'Task from automation',
+      ts: '1234567890.123456',
+      // no user field
+    }
+    const result = shouldCreateTask(event, slackUserId)
+    expect(result.shouldCreate).toBe(true)
+    expect(result.isDM).toBe(true)
+  })
+
+  it('should still reject bot messages in channels', () => {
+    const event: SlackMessageEvent = {
+      ...baseEvent,
+      channel: 'C123',
+      channel_type: 'channel',
+      bot_id: 'B_N8N',
+    }
+    const result = shouldCreateTask(event, slackUserId)
+    expect(result.shouldCreate).toBe(false)
+    expect(result.reason).toBe('bot_message')
+  })
+
+  it('should still reject subtypes in channels', () => {
+    const event: SlackMessageEvent = {
+      ...baseEvent,
+      channel: 'C123',
+      channel_type: 'channel',
+      subtype: 'message_changed',
+    }
+    const result = shouldCreateTask(event, slackUserId)
+    expect(result.shouldCreate).toBe(false)
+    expect(result.reason).toBe('subtype_message_changed')
   })
 })
 
@@ -678,6 +755,61 @@ describe('createForwardedFallback', () => {
     const text = Array.from({ length: 10 }, (_, i) => `Line ${i + 1}`).join('\n')
     const result = createForwardedFallback(text)
     expect(result.description.split('\n').length).toBeLessThanOrEqual(6)
+  })
+})
+
+describe('createDMFallback', () => {
+  it('should extract first sentence as title', () => {
+    const result = createDMFallback('Check the deployment logs. Something looks off.')
+    expect(result.title).toBe('Check the deployment logs.')
+  })
+
+  it('should use first ~10 words when no sentence ending', () => {
+    const result = createDMFallback('Deploy the new service to production by end of day tomorrow morning please')
+    expect(result.title.split(/\s+/).length).toBeLessThanOrEqual(10)
+  })
+
+  it('should truncate long titles to 80 chars', () => {
+    const longText = 'A'.repeat(200)
+    const result = createDMFallback(longText)
+    expect(result.title.length).toBeLessThanOrEqual(80)
+    expect(result.title.endsWith('...')).toBe(true)
+  })
+
+  it('should handle very short text', () => {
+    const result = createDMFallback('Hi')
+    expect(result.title).toBe('Slack message')
+  })
+
+  it('should handle empty text', () => {
+    const result = createDMFallback('')
+    expect(result.title).toBe('Slack message')
+  })
+
+  it('should clean Slack tokens in title', () => {
+    const result = createDMFallback('<@U123> please check <https://example.com|this link>')
+    expect(result.title).toContain('@user')
+    expect(result.title).toContain('this link')
+    expect(result.title).not.toContain('<@U123>')
+  })
+
+  it('should produce "Task: ..." description', () => {
+    const result = createDMFallback('Review the Q4 budget document')
+    expect(result.description).toMatch(/^Task: /)
+    expect(result.description).toContain('Review the Q4 budget document')
+  })
+
+  it('should truncate description to 200 chars', () => {
+    const longText = 'A'.repeat(300)
+    const result = createDMFallback(longText)
+    // "Task: " prefix (6 chars) + 200 chars max for the content
+    expect(result.description.length).toBeLessThanOrEqual(210)
+  })
+
+  it('should set confidence to 0 and why to llm_failed_fallback', () => {
+    const result = createDMFallback('Some task text')
+    expect(result.confidence).toBe(0)
+    expect(result.why).toBe('llm_failed_fallback')
   })
 })
 
