@@ -64,3 +64,17 @@ export {
   buildTaskInput,
   taskExistsForSource,
 } from './create-task'
+
+// Forwarded message detection (types)
+export type {
+  SlackMessageEventExtended,
+  ForwardedDetectionCues,
+  ForwardedDetectionResult,
+} from './forwarded'
+
+// Forwarded message detection (values)
+export {
+  isForwardedToBot,
+  extractForwardedContent,
+  generateForwardedSourceId,
+} from './forwarded'

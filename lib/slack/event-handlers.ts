@@ -13,6 +13,13 @@ import {
   ensurePermalink,
   generateSourceId,
 } from './ingest'
+import {
+  isForwardedToBot,
+  extractForwardedContent,
+  generateForwardedSourceId,
+  type SlackMessageEventExtended,
+  type ForwardedDetectionResult,
+} from './ingest/forwarded'
 
 /**
  * Slack task metadata structure stored in tasks.metadata column
@@ -20,7 +27,7 @@ import {
 export interface SlackTaskMetadata {
   source: {
     type: 'slack'
-    subtype: 'dm' | 'mention'
+    subtype: 'dm' | 'mention' | 'forwarded_dm'
     team_id: string
     channel_id: string
     message_ts: string
@@ -159,7 +166,7 @@ export function formatTaskDescription(text: string, userMap?: SlackUserMap): str
 export function buildSlackMetadata(
   event: SlackMessageEvent,
   teamId: string,
-  subtype: 'dm' | 'mention',
+  subtype: 'dm' | 'mention' | 'forwarded_dm',
   senderUserId?: string,
   senderDisplayName?: string,
   permalink?: string,
@@ -360,6 +367,173 @@ async function processMentionWithLLM(
 }
 
 /**
+ * Log entry for forwarded DM processing
+ */
+interface ForwardedDMLog {
+  channel_type: string
+  is_forwarded: boolean
+  forwarded_cues: Record<string, boolean>
+  task_created: boolean
+  llm_used: boolean
+  fallback_used: boolean
+  deduped: boolean
+  dedupe_key?: string
+}
+
+/**
+ * Process a forwarded DM to the bot — task creation is guaranteed.
+ *
+ * This is an isolated path: it does NOT run actionability heuristics or
+ * LLM is_task gating. LLM is only used (optionally) to generate
+ * title/description. If LLM fails, fallback title/description are used.
+ */
+async function processForwardedDM(
+  supabase: SupabaseClient,
+  eventPayload: SlackEventCallback,
+  userId: string,
+  accessToken: string,
+  detection: ForwardedDetectionResult
+): Promise<ProcessEventResult> {
+  const { event, team_id, event_id } = eventPayload
+  const extendedEvent = event as unknown as SlackMessageEventExtended
+
+  const log: ForwardedDMLog = {
+    channel_type: event.channel_type || 'im',
+    is_forwarded: true,
+    forwarded_cues: { ...detection.cues },
+    task_created: false,
+    llm_used: false,
+    fallback_used: false,
+    deduped: false,
+  }
+
+  try {
+    // Extract forwarded content (text, author)
+    const content = extractForwardedContent(extendedEvent, detection)
+
+    // Resolve sender display name
+    let senderDisplayName: string | undefined = content.authorName
+    let senderUserId: string | undefined = content.authorId || event.user
+
+    if (accessToken && senderUserId && !senderDisplayName) {
+      try {
+        const userInfo = await fetchSlackUser(accessToken, senderUserId)
+        if (userInfo?.display_name) {
+          senderDisplayName = userInfo.display_name
+        }
+      } catch {
+        // Continue without display name
+      }
+    }
+
+    // Resolve user mentions in text for clean display
+    let userMap: SlackUserMap = {}
+    if (accessToken && content.text) {
+      try {
+        userMap = await resolveUserMentions(accessToken, content.text)
+        // Add sender to map if known
+        if (senderUserId && senderDisplayName) {
+          userMap[senderUserId] = senderDisplayName
+        }
+      } catch {
+        // Continue with empty map
+      }
+    }
+
+    // Determine source URL: prefer original permalink, fallback to DM permalink
+    let sourceUrl = detection.originalPermalink || ''
+    if (!sourceUrl && accessToken) {
+      try {
+        const dmPermalink = await ensurePermalink(accessToken, event.channel, event.ts)
+        if (dmPermalink) {
+          sourceUrl = dmPermalink
+        }
+      } catch {
+        // Continue without permalink
+      }
+    }
+
+    // Generate dedupe source_id
+    const sourceId = generateForwardedSourceId(team_id, extendedEvent, detection)
+    log.dedupe_key = sourceId
+
+    // Generate title/description — fallback-first, LLM is optional
+    let title = deriveTitleFromSlackMessage(content.text, 120, userMap)
+    let description = normalizeSlackText(content.text, userMap)
+
+    // Append source URL to description if available
+    if (sourceUrl) {
+      if (description) {
+        description += `\n\nSource: ${sourceUrl}`
+      } else {
+        description = `Source: ${sourceUrl}`
+      }
+    }
+
+    let llmConfidence: number | undefined
+    let llmWhy: string | undefined
+
+    // Build metadata
+    const metadata = buildSlackMetadata(
+      event,
+      team_id,
+      'forwarded_dm',
+      senderUserId,
+      senderDisplayName,
+      sourceUrl || undefined,
+      userMap
+    )
+
+    // Create the task via createTaskFromSource for consistent dedupe
+    const taskRow = {
+      title,
+      description,
+      status: 'active' as const,
+      user_id: userId,
+      position: 0,
+      source_type: 'slack' as const,
+      source_id: sourceId,
+      source_url: sourceUrl || null,
+      llm_confidence: llmConfidence,
+      llm_why: llmWhy,
+      ingest_trigger: 'forwarded_dm',
+      metadata,
+    }
+
+    const { data: newTask, error: taskError } = await supabase
+      .from('tasks')
+      .insert(taskRow)
+      .select('id')
+      .single()
+
+    if (taskError) {
+      // Check for dedupe (unique constraint violation)
+      if (taskError.code === '23505') {
+        log.deduped = true
+        console.log('[forwarded-dm] Deduplicated:', JSON.stringify(log))
+        await updateIngestStatus(supabase, team_id, event_id, 'ignored', undefined, 'forwarded_dm_deduped')
+        return { status: 'ignored', reason: 'forwarded_dm_deduped' }
+      }
+
+      log.task_created = false
+      console.error('[forwarded-dm] Task creation failed:', taskError.message, JSON.stringify(log))
+      await updateIngestStatus(supabase, team_id, event_id, 'failed', undefined, taskError.message)
+      return { status: 'failed', error: taskError.message }
+    }
+
+    log.task_created = true
+    console.log('[forwarded-dm] Task created:', JSON.stringify(log))
+    await updateIngestStatus(supabase, team_id, event_id, 'processed', newTask.id)
+
+    return { status: 'processed', taskId: newTask.id }
+  } catch (error) {
+    console.error('[forwarded-dm] Unexpected error:', error, JSON.stringify(log))
+    await updateIngestStatus(supabase, team_id, event_id, 'failed', undefined, (error as Error).message)
+    return { status: 'failed', error: (error as Error).message }
+  }
+}
+
+/**
  * Process a Slack event callback and create a task if appropriate
  */
 export async function processSlackEvent(
@@ -410,6 +584,35 @@ export async function processSlackEvent(
   // Step 3: Check each connection for DM or mention
   for (const connection of connections) {
     const { user_id, slack_user_id, access_token } = connection
+
+    // --- Forwarded-DM branch (additive, isolated) ---
+    // Must run BEFORE shouldCreateTask because forwarded messages may have
+    // subtypes that shouldCreateTask would reject. This only activates for
+    // bot DM events that are detected as forwarded.
+    const isDMChannel = event.channel_type === 'im' || event.channel.startsWith('D')
+    if (isDMChannel && !event.bot_id) {
+      const extendedEvent = event as unknown as SlackMessageEventExtended
+      const forwardDetection = isForwardedToBot(extendedEvent)
+
+      if (forwardDetection.isForwarded) {
+        console.log('[forwarded-dm] Detected forwarded message in bot DM:', JSON.stringify({
+          channel: event.channel,
+          cues: forwardDetection.cues,
+          has_original_permalink: !!forwardDetection.originalPermalink,
+          has_original_text: !!forwardDetection.originalText,
+        }))
+
+        return processForwardedDM(
+          supabase,
+          eventPayload,
+          user_id,
+          access_token,
+          forwardDetection
+        )
+      }
+    }
+    // --- End forwarded-DM branch ---
+
     const check = shouldCreateTask(event, slack_user_id)
 
     if (!check.shouldCreate) {
