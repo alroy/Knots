@@ -346,6 +346,8 @@ export default function Page() {
         title: knot.title,
         description: knot.description,
         metadata: knot.metadata,
+        sourceType: knot.sourceType,
+        sourceUrl: knot.sourceUrl,
       })
     }
   }, [knots])

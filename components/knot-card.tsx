@@ -3,7 +3,7 @@
 import React, { useMemo } from "react"
 
 import { Checkbox } from "@/components/ui/checkbox"
-import { SlackBadge } from "@/components/ui/slack-badge"
+import { SlackProvenanceRow } from "@/components/ui/slack-badge"
 import { GripVertical, Trash2 } from "lucide-react"
 import { cn, formatRelativeTime } from "@/lib/utils"
 import { TaskMetadata, SlackTaskMetadata, isSlackMetadata } from "@/lib/types"
@@ -214,7 +214,7 @@ export default function KnotCard({
         )}
         {/* Slack context badge for Slack-origin tasks */}
         {slackContext.isSlack && (
-          <SlackBadge
+          <SlackProvenanceRow
             authorName={slackContext.authorName}
             permalink={slackContext.permalink}
             className="mt-2"

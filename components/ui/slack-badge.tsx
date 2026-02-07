@@ -1,13 +1,13 @@
 "use client"
 
-interface SlackBadgeProps {
+interface SlackProvenanceRowProps {
   authorName?: string
   permalink?: string
   className?: string
 }
 
 /**
- * Slack icon component
+ * Slack icon component (same SVG used across the app)
  */
 function SlackIcon({ className }: { className?: string }) {
   return (
@@ -23,36 +23,34 @@ function SlackIcon({ className }: { className?: string }) {
 }
 
 /**
- * Compact footer for Slack-origin tasks
- * Shows Slack icon with "{name} via Slack" as clickable link
+ * Shared Slack provenance row for task cards and edit modal.
+ *
+ * Renders: [Slack icon] {name} via Slack · View in Slack
  */
-export function SlackBadge({ authorName, permalink, className }: SlackBadgeProps) {
-  // Determine display text: "{name} via Slack" or just "Slack" as fallback
-  const displayText = authorName ? `${authorName} via Slack` : 'Slack'
+export function SlackProvenanceRow({ authorName, permalink, className }: SlackProvenanceRowProps) {
+  const displayName = authorName || 'Unknown'
 
-  // If we have a permalink, render as clickable link
-  if (permalink) {
-    return (
-      <div className={`flex items-center gap-1.5 text-xs ${className || ''}`}>
-        <SlackIcon className="h-3 w-3 shrink-0 text-muted-foreground/70" />
-        <a
-          href={permalink}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-muted-foreground/70 hover:text-primary transition-colors"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {displayText}
-        </a>
-      </div>
-    )
-  }
-
-  // No permalink - render as plain text
   return (
     <div className={`flex items-center gap-1.5 text-xs text-muted-foreground/70 ${className || ''}`}>
       <SlackIcon className="h-3 w-3 shrink-0" />
-      <span>{displayText}</span>
+      <span>{displayName} via Slack</span>
+      {permalink && (
+        <>
+          <span className="text-muted-foreground/40">·</span>
+          <a
+            href={permalink}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-primary/70 hover:text-primary transition-colors"
+            onClick={(e) => e.stopPropagation()}
+          >
+            View in Slack
+          </a>
+        </>
+      )}
     </div>
   )
 }
+
+/** @deprecated Use SlackProvenanceRow instead */
+export const SlackBadge = SlackProvenanceRow
