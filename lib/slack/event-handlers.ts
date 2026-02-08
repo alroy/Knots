@@ -298,14 +298,61 @@ export function detectGranolaMetadata(event: SlackMessageEvent): GranolaContext 
  * These messages look like:
  *   "Granola tasks\n• Send email to Noah\n\nTranscript: https://notes.granola.ai/..."
  *
- * Safety net: if metadata-based Granola detection fails (e.g. n8n doesn't set
- * metadata), the text-based check prevents creating a garbage task from the
- * notification text. Real tasks come from the metadata payload's tasks[] array.
+ * Slack may wrap URLs in angle brackets:
+ *   "<https://notes.granola.ai/d/abc123>"
+ *   "<https://notes.granola.ai/d/abc123|notes.granola.ai/d/abc123>"
+ *
+ * When metadata-based detection fails, the text-based check still identifies
+ * the message as Granola so parseGranolaFromText can create tasks from it.
  */
 export function isGranolaNotification(text: string): boolean {
   if (!text) return false
   // Must start with "Granola" (case-insensitive) and contain a notes.granola.ai URL
+  // The URL regex matches both plain URLs and Slack-wrapped <URL|display> format
   return /^granola\b/i.test(text.trim()) && /notes\.granola\.ai\//i.test(text)
+}
+
+/**
+ * Parse Granola tasks and URL from plain message text.
+ *
+ * Fallback for when Slack doesn't deliver message metadata: extracts
+ * individual task titles from bullet-pointed lines and the Granola URL.
+ *
+ * Expected text format from n8n:
+ *   "Granola tasks\n• Task one\n• Task two\n\nTranscript: https://notes.granola.ai/d/..."
+ *
+ * Handles Slack URL wrapping:
+ *   <https://notes.granola.ai/d/abc123>
+ *   <https://notes.granola.ai/d/abc123|display text>
+ *
+ * Returns null if no Granola URL found or no bullet points parsed.
+ */
+export function parseGranolaFromText(text: string): { sourceUrl: string; tasks: { title: string }[] } | null {
+  if (!text) return null
+
+  // Extract Granola URL — handle both plain and Slack-wrapped formats
+  const urlMatch = text.match(/<?(https?:\/\/notes\.granola\.ai\/d\/[^\s>|]+)/)
+  if (!urlMatch) return null
+
+  const sourceUrl = urlMatch[1]
+
+  // Parse bullet-pointed lines: • or - or * at start of line
+  const lines = text.split('\n')
+  const tasks: { title: string }[] = []
+  for (const line of lines) {
+    const trimmed = line.trim()
+    const bulletMatch = trimmed.match(/^[•\-*]\s+(.+)$/)
+    if (bulletMatch) {
+      const title = bulletMatch[1].trim()
+      if (title) {
+        tasks.push({ title })
+      }
+    }
+  }
+
+  if (tasks.length === 0) return null
+
+  return { sourceUrl, tasks }
 }
 
 /**
@@ -876,9 +923,68 @@ export async function processSlackEvent(
         return { status: 'ignored', reason: 'granola_all_deduped' }
       }
 
-      // Safety net: skip Granola notification DMs when metadata detection missed
-      // (e.g. n8n didn't attach metadata). Prevents garbage LLM-shaped tasks.
+      // Fallback: metadata detection missed but text looks like a Granola notification.
+      // Parse bullet points from the text and create individual Granola tasks.
       if (isGranolaNotification(messageText)) {
+        const parsed = parseGranolaFromText(messageText)
+
+        if (parsed && parsed.tasks.length > 0) {
+          console.log(`[DM] Granola text fallback: parsed ${parsed.tasks.length} tasks from message text`)
+          const createdIds: string[] = []
+
+          for (const pTask of parsed.tasks) {
+            const title = pTask.title.trim()
+            const description = `Source: ${parsed.sourceUrl}`
+
+            const titleHash = simpleHash(title)
+            const sourceId = `granola:${parsed.sourceUrl}:${titleHash}`
+
+            const metadata = {
+              source: {
+                type: 'granola' as const,
+                granola_url: parsed.sourceUrl,
+                slack_team_id: team_id,
+                slack_channel_id: event.channel,
+                slack_message_ts: event.ts,
+              },
+              raw: { slack_text: messageText },
+            }
+
+            const { data: newTask, error: taskErr } = await supabase
+              .from('tasks')
+              .insert({
+                title,
+                description,
+                status: 'active',
+                user_id,
+                position: 0,
+                source_type: 'granola',
+                source_id: sourceId,
+                source_url: parsed.sourceUrl,
+                ingest_trigger: 'granola',
+                metadata,
+              })
+              .select('id')
+              .single()
+
+            if (taskErr?.code === '23505') continue
+            if (taskErr) {
+              console.error(`Error creating Granola task (text fallback) "${title}":`, taskErr)
+              continue
+            }
+
+            createdIds.push(newTask.id)
+          }
+
+          if (createdIds.length > 0) {
+            await updateIngestStatus(supabase, team_id, event_id, 'processed', createdIds[0])
+            return { status: 'processed', taskId: createdIds[0] }
+          }
+          await updateIngestStatus(supabase, team_id, event_id, 'ignored', undefined, 'granola_text_all_deduped')
+          return { status: 'ignored', reason: 'granola_text_all_deduped' }
+        }
+
+        // Text matched Granola pattern but couldn't parse tasks — still block the regular DM path
         await updateIngestStatus(supabase, team_id, event_id, 'ignored', undefined, 'granola_notification')
         return { status: 'ignored', reason: 'granola_notification' }
       }

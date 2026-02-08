@@ -11,6 +11,7 @@ import {
   extractForwardedOriginal,
   detectGranolaMetadata,
   isGranolaNotification,
+  parseGranolaFromText,
   simpleHash,
   type SlackMessageEvent,
   type SlackEventCallback,
@@ -1083,6 +1084,91 @@ describe('isGranolaNotification', () => {
 
   it('should NOT detect undefined-ish text', () => {
     expect(isGranolaNotification(undefined as unknown as string)).toBe(false)
+  })
+
+  it('should detect Granola notification with Slack-wrapped URL', () => {
+    const text = 'Granola tasks\n• Task one\n\nTranscript: <https://notes.granola.ai/d/abc123>'
+    expect(isGranolaNotification(text)).toBe(true)
+  })
+
+  it('should detect Granola notification with Slack-wrapped URL with display text', () => {
+    const text = 'Granola tasks\n• Task one\n\nTranscript: <https://notes.granola.ai/d/abc123|notes.granola.ai>'
+    expect(isGranolaNotification(text)).toBe(true)
+  })
+})
+
+describe('parseGranolaFromText', () => {
+  it('should parse bullet-pointed tasks and plain URL', () => {
+    const text = 'Granola tasks\n• Review and merge pin logic feature\n• Test role/permission propagation\n\nTranscript: https://notes.granola.ai/d/abc123'
+    const result = parseGranolaFromText(text)
+    expect(result).not.toBeNull()
+    expect(result!.sourceUrl).toBe('https://notes.granola.ai/d/abc123')
+    expect(result!.tasks).toHaveLength(2)
+    expect(result!.tasks[0].title).toBe('Review and merge pin logic feature')
+    expect(result!.tasks[1].title).toBe('Test role/permission propagation')
+  })
+
+  it('should handle Slack-wrapped URL format', () => {
+    const text = 'Granola tasks\n• Task one\n• Task two\n\nTranscript: <https://notes.granola.ai/d/abc123>'
+    const result = parseGranolaFromText(text)
+    expect(result).not.toBeNull()
+    expect(result!.sourceUrl).toBe('https://notes.granola.ai/d/abc123')
+    expect(result!.tasks).toHaveLength(2)
+  })
+
+  it('should handle Slack-wrapped URL with display text', () => {
+    const text = 'Granola tasks\n• Task one\n\n<https://notes.granola.ai/d/abc123|View transcript>'
+    const result = parseGranolaFromText(text)
+    expect(result).not.toBeNull()
+    expect(result!.sourceUrl).toBe('https://notes.granola.ai/d/abc123')
+    expect(result!.tasks).toHaveLength(1)
+  })
+
+  it('should parse many bullet points from realistic payload', () => {
+    const text = 'Granola tasks\n• Review and merge pin logic feature\n• Test role/permission propagation\n• Remove legacy survey redirect page\n• Investigate PI discrepancies\n• Integrate template images from S3\n• Investigate surveys list bug\n• Begin notebook development\n• Complete scope breakdown widget\nTranscript: https://notes.granola.ai/d/286d734f-a039-4468-944e-78b3c731f465'
+    const result = parseGranolaFromText(text)
+    expect(result).not.toBeNull()
+    expect(result!.tasks).toHaveLength(8)
+    expect(result!.sourceUrl).toBe('https://notes.granola.ai/d/286d734f-a039-4468-944e-78b3c731f465')
+  })
+
+  it('should return null for text without Granola URL', () => {
+    const text = 'Granola tasks\n• Task one\n• Task two'
+    expect(parseGranolaFromText(text)).toBeNull()
+  })
+
+  it('should return null for text without bullet points', () => {
+    const text = 'Granola tasks\n\nTranscript: https://notes.granola.ai/d/abc123'
+    expect(parseGranolaFromText(text)).toBeNull()
+  })
+
+  it('should return null for empty text', () => {
+    expect(parseGranolaFromText('')).toBeNull()
+  })
+
+  it('should return null for undefined-ish text', () => {
+    expect(parseGranolaFromText(undefined as unknown as string)).toBeNull()
+  })
+
+  it('should handle dash bullet points', () => {
+    const text = 'Granola tasks\n- Task one\n- Task two\n\nhttps://notes.granola.ai/d/abc123'
+    const result = parseGranolaFromText(text)
+    expect(result).not.toBeNull()
+    expect(result!.tasks).toHaveLength(2)
+  })
+
+  it('should handle asterisk bullet points', () => {
+    const text = 'Granola tasks\n* Task one\n* Task two\n\nhttps://notes.granola.ai/d/abc123'
+    const result = parseGranolaFromText(text)
+    expect(result).not.toBeNull()
+    expect(result!.tasks).toHaveLength(2)
+  })
+
+  it('should skip empty bullet lines', () => {
+    const text = 'Granola tasks\n• Task one\n•  \n• Task two\n\nhttps://notes.granola.ai/d/abc123'
+    const result = parseGranolaFromText(text)
+    expect(result).not.toBeNull()
+    expect(result!.tasks).toHaveLength(2)
   })
 })
 
