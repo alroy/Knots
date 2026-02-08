@@ -356,6 +356,19 @@ export function parseGranolaFromText(text: string): { sourceUrl: string; tasks: 
 }
 
 /**
+ * Check if text contains a notes.granola.ai URL anywhere.
+ *
+ * Broader than isGranolaNotification (no prefix requirement).
+ * Used as a safety net: if a DM contains a Granola URL but we couldn't
+ * parse bullet points, block the regular DM path to prevent the LLM
+ * from creating a garbage summarized task.
+ */
+export function hasGranolaUrl(text: string): boolean {
+  if (!text) return false
+  return /notes\.granola\.ai\//i.test(text)
+}
+
+/**
  * Check if this is a message we should create a task for
  */
 export function shouldCreateTask(
@@ -923,68 +936,72 @@ export async function processSlackEvent(
         return { status: 'ignored', reason: 'granola_all_deduped' }
       }
 
-      // Fallback: metadata detection missed but text looks like a Granola notification.
-      // Parse bullet points from the text and create individual Granola tasks.
-      if (isGranolaNotification(messageText)) {
-        const parsed = parseGranolaFromText(messageText)
+      // Fallback: metadata detection missed — try to parse Granola tasks from text.
+      // NOT gated on isGranolaNotification: we don't know exactly how Slack
+      // formats event.text, so we try parseGranolaFromText on every DM.
+      // It only succeeds when both a notes.granola.ai URL and bullet points exist.
+      const parsedGranola = parseGranolaFromText(messageText)
 
-        if (parsed && parsed.tasks.length > 0) {
-          console.log(`[DM] Granola text fallback: parsed ${parsed.tasks.length} tasks from message text`)
-          const createdIds: string[] = []
+      if (parsedGranola && parsedGranola.tasks.length > 0) {
+        console.log(`[DM] Granola text fallback: parsed ${parsedGranola.tasks.length} tasks from message text`)
+        const createdIds: string[] = []
 
-          for (const pTask of parsed.tasks) {
-            const title = pTask.title.trim()
-            const description = `Source: ${parsed.sourceUrl}`
+        for (const pTask of parsedGranola.tasks) {
+          const title = pTask.title.trim()
+          const description = `Source: ${parsedGranola.sourceUrl}`
 
-            const titleHash = simpleHash(title)
-            const sourceId = `granola:${parsed.sourceUrl}:${titleHash}`
+          const titleHash = simpleHash(title)
+          const sourceId = `granola:${parsedGranola.sourceUrl}:${titleHash}`
 
-            const metadata = {
-              source: {
-                type: 'granola' as const,
-                granola_url: parsed.sourceUrl,
-                slack_team_id: team_id,
-                slack_channel_id: event.channel,
-                slack_message_ts: event.ts,
-              },
-              raw: { slack_text: messageText },
-            }
-
-            const { data: newTask, error: taskErr } = await supabase
-              .from('tasks')
-              .insert({
-                title,
-                description,
-                status: 'active',
-                user_id,
-                position: 0,
-                source_type: 'granola',
-                source_id: sourceId,
-                source_url: parsed.sourceUrl,
-                ingest_trigger: 'granola',
-                metadata,
-              })
-              .select('id')
-              .single()
-
-            if (taskErr?.code === '23505') continue
-            if (taskErr) {
-              console.error(`Error creating Granola task (text fallback) "${title}":`, taskErr)
-              continue
-            }
-
-            createdIds.push(newTask.id)
+          const metadata = {
+            source: {
+              type: 'granola' as const,
+              granola_url: parsedGranola.sourceUrl,
+              slack_team_id: team_id,
+              slack_channel_id: event.channel,
+              slack_message_ts: event.ts,
+            },
+            raw: { slack_text: messageText },
           }
 
-          if (createdIds.length > 0) {
-            await updateIngestStatus(supabase, team_id, event_id, 'processed', createdIds[0])
-            return { status: 'processed', taskId: createdIds[0] }
+          const { data: newTask, error: taskErr } = await supabase
+            .from('tasks')
+            .insert({
+              title,
+              description,
+              status: 'active',
+              user_id,
+              position: 0,
+              source_type: 'granola',
+              source_id: sourceId,
+              source_url: parsedGranola.sourceUrl,
+              ingest_trigger: 'granola',
+              metadata,
+            })
+            .select('id')
+            .single()
+
+          if (taskErr?.code === '23505') continue
+          if (taskErr) {
+            console.error(`Error creating Granola task (text fallback) "${title}":`, taskErr)
+            continue
           }
-          await updateIngestStatus(supabase, team_id, event_id, 'ignored', undefined, 'granola_text_all_deduped')
-          return { status: 'ignored', reason: 'granola_text_all_deduped' }
+
+          createdIds.push(newTask.id)
         }
 
-        // Text matched Granola pattern but couldn't parse tasks — still block the regular DM path
+        if (createdIds.length > 0) {
+          await updateIngestStatus(supabase, team_id, event_id, 'processed', createdIds[0])
+          return { status: 'processed', taskId: createdIds[0] }
+        }
+        await updateIngestStatus(supabase, team_id, event_id, 'ignored', undefined, 'granola_text_all_deduped')
+        return { status: 'ignored', reason: 'granola_text_all_deduped' }
+      }
+
+      // Safety net: if text has a Granola URL but no parseable bullets,
+      // still block the regular DM path to prevent garbage LLM-shaped tasks.
+      if (hasGranolaUrl(messageText)) {
+        console.log('[DM] Granola URL detected but no bullets parsed — blocking regular DM path')
         await updateIngestStatus(supabase, team_id, event_id, 'ignored', undefined, 'granola_notification')
         return { status: 'ignored', reason: 'granola_notification' }
       }

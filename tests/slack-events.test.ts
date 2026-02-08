@@ -12,6 +12,7 @@ import {
   detectGranolaMetadata,
   isGranolaNotification,
   parseGranolaFromText,
+  hasGranolaUrl,
   simpleHash,
   type SlackMessageEvent,
   type SlackEventCallback,
@@ -1170,6 +1171,137 @@ describe('parseGranolaFromText', () => {
     expect(result).not.toBeNull()
     expect(result!.tasks).toHaveLength(2)
   })
+
+  // Tests for formats where isGranolaNotification would FAIL but parseGranolaFromText should SUCCEED
+  it('should parse when text does NOT start with "Granola" (no prefix)', () => {
+    const text = '• Review and merge pin logic feature\n• Test role/permission propagation\n\nhttps://notes.granola.ai/d/abc123'
+    // isGranolaNotification would return false (no ^granola prefix)
+    expect(isGranolaNotification(text)).toBe(false)
+    // But parseGranolaFromText should still work
+    const result = parseGranolaFromText(text)
+    expect(result).not.toBeNull()
+    expect(result!.tasks).toHaveLength(2)
+    expect(result!.sourceUrl).toBe('https://notes.granola.ai/d/abc123')
+  })
+
+  it('should parse when text has emoji prefix before Granola', () => {
+    const text = '📋 Granola tasks\n• Task one\n• Task two\n\nhttps://notes.granola.ai/d/abc123'
+    expect(isGranolaNotification(text)).toBe(false)
+    const result = parseGranolaFromText(text)
+    expect(result).not.toBeNull()
+    expect(result!.tasks).toHaveLength(2)
+  })
+
+  it('should parse when text has "Your" prefix before Granola', () => {
+    const text = 'Your Granola meeting tasks\n• Task one\n• Task two\n\nhttps://notes.granola.ai/d/abc123'
+    expect(isGranolaNotification(text)).toBe(false)
+    const result = parseGranolaFromText(text)
+    expect(result).not.toBeNull()
+    expect(result!.tasks).toHaveLength(2)
+  })
+
+  it('should parse when URL is on the same line as a label', () => {
+    const text = 'Tasks from meeting\n• Task one\n• Task two\nTranscript: https://notes.granola.ai/d/abc123'
+    const result = parseGranolaFromText(text)
+    expect(result).not.toBeNull()
+    expect(result!.tasks).toHaveLength(2)
+  })
+
+  it('should parse the exact Slack message text from the n8n payload', () => {
+    // This is the exact text from slack_message.text in the payload
+    const text = 'Granola tasks\n• Review and merge pin logic feature\n• Test role/permission propagation\n• Remove legacy survey redirect page\n• Investigate PI discrepancies\n• Integrate template images from S3\n• Investigate surveys list bug\n• Begin notebook development\n• Complete scope breakdown widget\nTranscript: https://notes.granola.ai/d/286d734f-a039-4468-944e-78b3c731f465'
+    const result = parseGranolaFromText(text)
+    expect(result).not.toBeNull()
+    expect(result!.tasks).toHaveLength(8)
+    expect(result!.tasks[0].title).toBe('Review and merge pin logic feature')
+    expect(result!.tasks[7].title).toBe('Complete scope breakdown widget')
+    expect(result!.sourceUrl).toBe('https://notes.granola.ai/d/286d734f-a039-4468-944e-78b3c731f465')
+  })
+
+  it('should parse Slack-formatted version of the n8n payload text', () => {
+    // Slack wraps URLs in angle brackets
+    const text = 'Granola tasks\n• Review and merge pin logic feature\n• Test role/permission propagation\n• Remove legacy survey redirect page\n• Investigate PI discrepancies\n• Integrate template images from S3\n• Investigate surveys list bug\n• Begin notebook development\n• Complete scope breakdown widget\nTranscript: <https://notes.granola.ai/d/286d734f-a039-4468-944e-78b3c731f465>'
+    const result = parseGranolaFromText(text)
+    expect(result).not.toBeNull()
+    expect(result!.tasks).toHaveLength(8)
+    expect(result!.sourceUrl).toBe('https://notes.granola.ai/d/286d734f-a039-4468-944e-78b3c731f465')
+  })
+})
+
+describe('hasGranolaUrl', () => {
+  it('should detect plain Granola URL', () => {
+    expect(hasGranolaUrl('Something https://notes.granola.ai/d/abc123')).toBe(true)
+  })
+
+  it('should detect Slack-wrapped Granola URL', () => {
+    expect(hasGranolaUrl('Something <https://notes.granola.ai/d/abc123>')).toBe(true)
+  })
+
+  it('should detect Granola URL with display text', () => {
+    expect(hasGranolaUrl('<https://notes.granola.ai/d/abc123|Transcript>')).toBe(true)
+  })
+
+  it('should not detect unrelated URLs', () => {
+    expect(hasGranolaUrl('https://example.com/tasks')).toBe(false)
+  })
+
+  it('should return false for empty text', () => {
+    expect(hasGranolaUrl('')).toBe(false)
+  })
+
+  it('should return false for undefined-ish text', () => {
+    expect(hasGranolaUrl(undefined as unknown as string)).toBe(false)
+  })
+})
+
+describe('Granola detection: isGranolaNotification vs parseGranolaFromText', () => {
+  // This test documents the actual failure: isGranolaNotification is too strict
+  // for some text formats, but parseGranolaFromText is resilient
+  const variants = [
+    {
+      name: 'standard format',
+      text: 'Granola tasks\n• Task A\n• Task B\nTranscript: https://notes.granola.ai/d/abc',
+      isGranolaNotification_expected: true,
+      parseGranola_expected: true,
+    },
+    {
+      name: 'no "Granola" prefix',
+      text: 'Meeting action items\n• Task A\n• Task B\nhttps://notes.granola.ai/d/abc',
+      isGranolaNotification_expected: false,
+      parseGranola_expected: true,
+    },
+    {
+      name: 'emoji prefix',
+      text: '📝 Granola tasks\n• Task A\n• Task B\nhttps://notes.granola.ai/d/abc',
+      isGranolaNotification_expected: false,
+      parseGranola_expected: true,
+    },
+    {
+      name: 'bullets only, URL in angle brackets',
+      text: '• Task A\n• Task B\n<https://notes.granola.ai/d/abc>',
+      isGranolaNotification_expected: false,
+      parseGranola_expected: true,
+    },
+    {
+      name: 'Granola URL but no bullets',
+      text: 'Check the transcript: https://notes.granola.ai/d/abc',
+      isGranolaNotification_expected: false,
+      parseGranola_expected: false, // no bullets → null
+    },
+  ]
+
+  for (const v of variants) {
+    it(`${v.name}: isGranolaNotification=${v.isGranolaNotification_expected}, parseGranola=${v.parseGranola_expected}`, () => {
+      expect(isGranolaNotification(v.text)).toBe(v.isGranolaNotification_expected)
+      const parsed = parseGranolaFromText(v.text)
+      if (v.parseGranola_expected) {
+        expect(parsed).not.toBeNull()
+        expect(parsed!.tasks.length).toBeGreaterThan(0)
+      } else {
+        expect(parsed).toBeNull()
+      }
+    })
+  }
 })
 
 describe('simpleHash', () => {
