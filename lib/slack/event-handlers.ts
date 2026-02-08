@@ -225,11 +225,24 @@ export function extractForwardedOriginal(event: SlackMessageEvent): ForwardedOri
 }
 
 /**
+ * A single pre-shaped task from the Granola payload
+ */
+export interface GranolaTask {
+  title: string
+  description?: string
+  owner?: string | null
+  due_hint?: string | null
+  priority_hint?: string | null
+  tags?: string[]
+}
+
+/**
  * Detected Granola context from Slack message metadata
  */
 export interface GranolaContext {
   isGranola: true
-  granolaUrl: string
+  sourceUrl: string
+  tasks: GranolaTask[]
   authorName?: string
   authorId?: string
 }
@@ -238,9 +251,16 @@ export interface GranolaContext {
  * Detect if a Slack message carries Granola metadata (from n8n automation).
  *
  * Looks for `event.metadata.event_type === "knots.granola"` and extracts
- * the Granola URL and optional author info from `event_payload`.
+ * the pre-shaped tasks array, source URL, and optional author info.
  *
- * Returns null if not a Granola message or if granola_url is missing.
+ * The n8n workflow posts the Slack DM with metadata containing:
+ *   event_type: "knots.granola"
+ *   event_payload: {
+ *     integration: { source_type: "granola", source_url: "https://notes.granola.ai/..." },
+ *     tasks: [{ title, description, ... }, ...],
+ *   }
+ *
+ * Returns null if not a Granola message or if required fields are missing.
  */
 export function detectGranolaMetadata(event: SlackMessageEvent): GranolaContext | null {
   if (!event.metadata) return null
@@ -249,18 +269,43 @@ export function detectGranolaMetadata(event: SlackMessageEvent): GranolaContext 
   const payload = event.metadata.event_payload
   if (!payload) return null
 
-  const granolaUrl = payload.granola_url
-  if (typeof granolaUrl !== 'string' || !granolaUrl) {
-    console.error('knots.granola metadata missing granola_url, falling back to normal DM')
+  // Extract source URL from integration object or top-level granola_url
+  const integration = payload.integration as Record<string, unknown> | undefined
+  const sourceUrl = (integration?.source_url as string) || (payload.granola_url as string)
+  if (typeof sourceUrl !== 'string' || !sourceUrl) {
+    console.error('knots.granola metadata missing source_url, falling back to normal DM')
     return null
   }
 
+  // Extract pre-shaped tasks array
+  const rawTasks = payload.tasks as GranolaTask[] | undefined
+  const tasks: GranolaTask[] = Array.isArray(rawTasks)
+    ? rawTasks.filter(t => t && typeof t.title === 'string' && t.title.trim())
+    : []
+
   return {
     isGranola: true,
-    granolaUrl,
+    sourceUrl,
+    tasks,
     authorName: typeof payload.granola_author_name === 'string' ? payload.granola_author_name : undefined,
     authorId: typeof payload.granola_author_id === 'string' ? payload.granola_author_id : undefined,
   }
+}
+
+/**
+ * Detect if a DM is a Granola notification posted by n8n.
+ *
+ * These messages look like:
+ *   "Granola tasks\n• Send email to Noah\n\nTranscript: https://notes.granola.ai/..."
+ *
+ * Safety net: if metadata-based Granola detection fails (e.g. n8n doesn't set
+ * metadata), the text-based check prevents creating a garbage task from the
+ * notification text. Real tasks come from the metadata payload's tasks[] array.
+ */
+export function isGranolaNotification(text: string): boolean {
+  if (!text) return false
+  // Must start with "Granola" (case-insensitive) and contain a notes.granola.ai URL
+  return /^granola\b/i.test(text.trim()) && /notes\.granola\.ai\//i.test(text)
 }
 
 /**
@@ -746,12 +791,93 @@ export async function processSlackEvent(
       return { status: 'processed', taskId: fwdTask.id }
     }
 
-    // Step 3.7: Non-forwarded DMs — always create task with LLM shaping
+    // Step 3.7: Non-forwarded DMs — Granola or regular DM
     if (check.isDM && !check.isForwarded) {
       const messageText = event.text?.trim() || ''
 
       // Detect Granola provenance from Slack message metadata
       const granolaCtx = detectGranolaMetadata(event)
+
+      // ── Granola path: create individual tasks from pre-shaped array ──
+      if (granolaCtx && granolaCtx.tasks.length > 0) {
+        const createdIds: string[] = []
+        const errors: string[] = []
+
+        for (const gTask of granolaCtx.tasks) {
+          const title = gTask.title.trim()
+          let description = gTask.description?.trim() || ''
+
+          // Append source link
+          if (granolaCtx.sourceUrl && !description.includes(granolaCtx.sourceUrl)) {
+            description = description
+              ? `${description}\n\nSource: ${granolaCtx.sourceUrl}`
+              : `Source: ${granolaCtx.sourceUrl}`
+          }
+
+          // Dedup: granola:<url>:<title_hash> — unique per meeting per task
+          const titleHash = simpleHash(title)
+          const sourceId = `granola:${granolaCtx.sourceUrl}:${titleHash}`
+
+          const metadata = {
+            source: {
+              type: 'granola' as const,
+              granola_url: granolaCtx.sourceUrl,
+              slack_team_id: team_id,
+              slack_channel_id: event.channel,
+              slack_message_ts: event.ts,
+              ...(gTask.due_hint ? { due_hint: gTask.due_hint } : {}),
+              ...(gTask.priority_hint ? { priority_hint: gTask.priority_hint } : {}),
+              ...(gTask.tags && gTask.tags.length > 0 ? { tags: gTask.tags } : {}),
+            },
+            raw: { slack_text: messageText },
+          }
+
+          const { data: newTask, error: taskErr } = await supabase
+            .from('tasks')
+            .insert({
+              title,
+              description,
+              status: 'active',
+              user_id,
+              position: 0,
+              source_type: 'granola',
+              source_id: sourceId,
+              source_url: granolaCtx.sourceUrl,
+              ingest_trigger: 'granola',
+              metadata,
+            })
+            .select('id')
+            .single()
+
+          // Unique constraint → already ingested
+          if (taskErr?.code === '23505') continue
+
+          if (taskErr) {
+            console.error(`Error creating Granola task "${title}":`, taskErr)
+            errors.push(title)
+            continue
+          }
+
+          createdIds.push(newTask.id)
+        }
+
+        if (createdIds.length > 0) {
+          await updateIngestStatus(supabase, team_id, event_id, 'processed', createdIds[0])
+          return { status: 'processed', taskId: createdIds[0] }
+        }
+        // All deduped or failed
+        await updateIngestStatus(supabase, team_id, event_id, 'ignored', undefined, 'granola_all_deduped')
+        return { status: 'ignored', reason: 'granola_all_deduped' }
+      }
+
+      // Safety net: skip Granola notification DMs when metadata detection missed
+      // (e.g. n8n didn't attach metadata). Prevents garbage LLM-shaped tasks.
+      if (isGranolaNotification(messageText)) {
+        await updateIngestStatus(supabase, team_id, event_id, 'ignored', undefined, 'granola_notification')
+        return { status: 'ignored', reason: 'granola_notification' }
+      }
+
+      // ── Regular DM path: LLM shaping ──
 
       // Fetch permalink for source tracking
       let dmPermalink: string | undefined
@@ -761,8 +887,7 @@ export async function processSlackEvent(
       }
 
       // Resolve sender display name and user mentions
-      // For Granola: prefer granola_author_name from metadata
-      let dmSenderName: string | undefined = granolaCtx?.authorName
+      let dmSenderName: string | undefined
       let dmUserMap: SlackUserMap = {}
       if (access_token) {
         if (messageText) {
@@ -773,7 +898,7 @@ export async function processSlackEvent(
           }
         }
 
-        if (!dmSenderName && event.user) {
+        if (event.user) {
           if (dmUserMap[event.user]) {
             dmSenderName = dmUserMap[event.user]
           } else {
@@ -811,58 +936,36 @@ export async function processSlackEvent(
         dmWhy = fallback.why
       }
 
-      // Determine source type and URL based on Granola detection
-      const effectiveSourceType = granolaCtx ? 'granola' : 'slack'
-      const effectiveSourceUrl = granolaCtx ? granolaCtx.granolaUrl : (dmPermalink || '')
+      const dmSourceUrl = dmPermalink || ''
 
       // Enforce source link in description
-      if (effectiveSourceUrl && !dmDescription.includes(effectiveSourceUrl)) {
+      if (dmSourceUrl && !dmDescription.includes(dmSourceUrl)) {
         dmDescription = dmDescription
-          ? `${dmDescription}\n\nSource: ${effectiveSourceUrl}`
-          : `Source: ${effectiveSourceUrl}`
+          ? `${dmDescription}\n\nSource: ${dmSourceUrl}`
+          : `Source: ${dmSourceUrl}`
       }
 
       // Source ID for deduplication
       const sourceId = `${team_id}:${event.channel}:${event.ts}`
 
-      // Build metadata — Granola tasks get their own metadata shape
-      const dmMetadata = granolaCtx
-        ? {
-            source: {
-              type: 'granola' as const,
-              granola_url: granolaCtx.granolaUrl,
-              slack_team_id: team_id,
-              slack_channel_id: event.channel,
-              slack_message_ts: event.ts,
-              ...(dmPermalink ? { slack_permalink: dmPermalink } : {}),
-              ...(dmSenderName || granolaCtx.authorId ? {
-                author: {
-                  ...(dmSenderName ? { display_name: dmSenderName } : {}),
-                  ...(granolaCtx.authorId ? { granola_author_id: granolaCtx.authorId } : {}),
-                },
-              } : {}),
+      const dmMetadata = {
+        source: {
+          type: 'slack' as const,
+          subtype: 'dm' as const,
+          team_id,
+          channel_id: event.channel,
+          message_ts: event.ts,
+          ...(dmPermalink ? { permalink: dmPermalink } : {}),
+          ...(event.user || dmSenderName ? {
+            author: {
+              slack_user_id: event.user || 'unknown',
+              ...(dmSenderName ? { display_name: dmSenderName } : {}),
             },
-            raw: { slack_text: messageText },
-            ...(Object.keys(dmUserMap).length > 0 ? { user_map: dmUserMap } : {}),
-          }
-        : {
-            source: {
-              type: 'slack' as const,
-              subtype: 'dm' as const,
-              team_id,
-              channel_id: event.channel,
-              message_ts: event.ts,
-              ...(dmPermalink ? { permalink: dmPermalink } : {}),
-              ...(event.user || dmSenderName ? {
-                author: {
-                  slack_user_id: event.user || 'unknown',
-                  ...(dmSenderName ? { display_name: dmSenderName } : {}),
-                },
-              } : {}),
-            },
-            raw: { slack_text: messageText },
-            ...(Object.keys(dmUserMap).length > 0 ? { user_map: dmUserMap } : {}),
-          }
+          } : {}),
+        },
+        raw: { slack_text: messageText },
+        ...(Object.keys(dmUserMap).length > 0 ? { user_map: dmUserMap } : {}),
+      }
 
       const shouldStoreRaw = process.env.STORE_RAW_SLACK_TEXT === 'true'
 
@@ -874,9 +977,9 @@ export async function processSlackEvent(
           status: 'active',
           user_id,
           position: 0,
-          source_type: effectiveSourceType,
+          source_type: 'slack',
           source_id: sourceId,
-          source_url: effectiveSourceUrl,
+          source_url: dmSourceUrl,
           ingest_trigger: 'dm',
           metadata: dmMetadata,
           llm_confidence: dmConfidence,
@@ -998,6 +1101,21 @@ export async function processSlackEvent(
   // No matching connection found for DM/mention
   await updateIngestStatus(supabase, team_id, event_id, 'ignored', undefined, 'no_matching_user')
   return { status: 'ignored', reason: 'no_matching_user' }
+}
+
+/**
+ * Simple deterministic string hash for deduplication source IDs.
+ * Not cryptographic — just needs to be stable and collision-resistant enough
+ * to distinguish multiple tasks from the same Granola meeting.
+ */
+export function simpleHash(str: string): string {
+  let hash = 0
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i)
+    hash = ((hash << 5) - hash) + char
+    hash |= 0
+  }
+  return Math.abs(hash).toString(36)
 }
 
 /**

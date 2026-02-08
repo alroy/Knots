@@ -10,6 +10,8 @@ import {
   extractForwardedText,
   extractForwardedOriginal,
   detectGranolaMetadata,
+  isGranolaNotification,
+  simpleHash,
   type SlackMessageEvent,
   type SlackEventCallback,
   type SlackUrlVerification,
@@ -824,13 +826,20 @@ describe('detectGranolaMetadata', () => {
     ts: '1234567890.123456',
   }
 
-  it('should detect knots.granola metadata with granola_url', () => {
+  it('should detect knots.granola metadata with integration.source_url and tasks', () => {
     const event: SlackMessageEvent = {
       ...baseEvent,
       metadata: {
         event_type: 'knots.granola',
         event_payload: {
-          granola_url: 'https://granola.app/meetings/abc123',
+          integration: {
+            source_type: 'granola',
+            source_url: 'https://notes.granola.ai/d/abc123',
+          },
+          tasks: [
+            { title: 'Send email to Noah', description: 'Follow up on meeting' },
+            { title: 'Review PR', description: null },
+          ],
           granola_author_name: 'Sam Campion',
         },
       },
@@ -838,8 +847,27 @@ describe('detectGranolaMetadata', () => {
     const result = detectGranolaMetadata(event)
     expect(result).not.toBeNull()
     expect(result!.isGranola).toBe(true)
-    expect(result!.granolaUrl).toBe('https://granola.app/meetings/abc123')
+    expect(result!.sourceUrl).toBe('https://notes.granola.ai/d/abc123')
+    expect(result!.tasks).toHaveLength(2)
+    expect(result!.tasks[0].title).toBe('Send email to Noah')
+    expect(result!.tasks[1].title).toBe('Review PR')
     expect(result!.authorName).toBe('Sam Campion')
+  })
+
+  it('should fall back to granola_url when integration.source_url is missing', () => {
+    const event: SlackMessageEvent = {
+      ...baseEvent,
+      metadata: {
+        event_type: 'knots.granola',
+        event_payload: {
+          granola_url: 'https://notes.granola.ai/d/fallback',
+        },
+      },
+    }
+    const result = detectGranolaMetadata(event)
+    expect(result).not.toBeNull()
+    expect(result!.sourceUrl).toBe('https://notes.granola.ai/d/fallback')
+    expect(result!.tasks).toHaveLength(0)
   })
 
   it('should extract granola_author_id when provided', () => {
@@ -848,7 +876,7 @@ describe('detectGranolaMetadata', () => {
       metadata: {
         event_type: 'knots.granola',
         event_payload: {
-          granola_url: 'https://granola.app/meetings/abc123',
+          integration: { source_url: 'https://notes.granola.ai/d/abc123' },
           granola_author_id: 'granola_user_42',
         },
       },
@@ -857,6 +885,54 @@ describe('detectGranolaMetadata', () => {
     expect(result).not.toBeNull()
     expect(result!.authorId).toBe('granola_user_42')
     expect(result!.authorName).toBeUndefined()
+  })
+
+  it('should filter out tasks with empty titles', () => {
+    const event: SlackMessageEvent = {
+      ...baseEvent,
+      metadata: {
+        event_type: 'knots.granola',
+        event_payload: {
+          integration: { source_url: 'https://notes.granola.ai/d/abc123' },
+          tasks: [
+            { title: 'Valid task' },
+            { title: '' },
+            { title: '  ' },
+            { title: 'Another valid task' },
+          ],
+        },
+      },
+    }
+    const result = detectGranolaMetadata(event)
+    expect(result).not.toBeNull()
+    expect(result!.tasks).toHaveLength(2)
+    expect(result!.tasks[0].title).toBe('Valid task')
+    expect(result!.tasks[1].title).toBe('Another valid task')
+  })
+
+  it('should handle tasks with full payload fields (tags, priority, due_hint)', () => {
+    const event: SlackMessageEvent = {
+      ...baseEvent,
+      metadata: {
+        event_type: 'knots.granola',
+        event_payload: {
+          integration: { source_type: 'granola', source_url: 'https://notes.granola.ai/d/abc' },
+          tasks: [
+            {
+              title: 'Monitor migration',
+              description: 'IGAL migration in progress',
+              priority_hint: 'high',
+              due_hint: 'Wednesday',
+              tags: ['migration', 'maintenance'],
+            },
+          ],
+        },
+      },
+    }
+    const result = detectGranolaMetadata(event)
+    expect(result!.tasks[0].priority_hint).toBe('high')
+    expect(result!.tasks[0].due_hint).toBe('Wednesday')
+    expect(result!.tasks[0].tags).toEqual(['migration', 'maintenance'])
   })
 
   it('should return null when no metadata', () => {
@@ -868,13 +944,13 @@ describe('detectGranolaMetadata', () => {
       ...baseEvent,
       metadata: {
         event_type: 'some.other.type',
-        event_payload: { granola_url: 'https://granola.app/x' },
+        event_payload: { integration: { source_url: 'https://notes.granola.ai/d/x' } },
       },
     }
     expect(detectGranolaMetadata(event)).toBeNull()
   })
 
-  it('should return null when granola_url is missing from payload', () => {
+  it('should return null when source_url is missing from payload', () => {
     const event: SlackMessageEvent = {
       ...baseEvent,
       metadata: {
@@ -895,23 +971,12 @@ describe('detectGranolaMetadata', () => {
     expect(detectGranolaMetadata(event)).toBeNull()
   })
 
-  it('should return null when granola_url is empty string', () => {
+  it('should return null when source_url is empty string', () => {
     const event: SlackMessageEvent = {
       ...baseEvent,
       metadata: {
         event_type: 'knots.granola',
-        event_payload: { granola_url: '' },
-      },
-    }
-    expect(detectGranolaMetadata(event)).toBeNull()
-  })
-
-  it('should return null when granola_url is not a string', () => {
-    const event: SlackMessageEvent = {
-      ...baseEvent,
-      metadata: {
-        event_type: 'knots.granola',
-        event_payload: { granola_url: 123 },
+        event_payload: { integration: { source_url: '' } },
       },
     }
     expect(detectGranolaMetadata(event)).toBeNull()
@@ -924,7 +989,8 @@ describe('detectGranolaMetadata', () => {
       metadata: {
         event_type: 'knots.granola',
         event_payload: {
-          granola_url: 'https://granola.app/meetings/abc123',
+          integration: { source_url: 'https://notes.granola.ai/d/abc123' },
+          tasks: [{ title: 'Test task' }],
         },
       },
     }
@@ -980,5 +1046,61 @@ describe('isEventCallback', () => {
       challenge: 'challenge123',
     }
     expect(isEventCallback(event)).toBe(false)
+  })
+})
+
+describe('isGranolaNotification', () => {
+  it('should detect typical Granola notification with bullet list', () => {
+    const text = 'Granola tasks\n• Send email to Noah\n• Follow up with team\n\nTranscript: https://notes.granola.ai/d/abc123'
+    expect(isGranolaNotification(text)).toBe(true)
+  })
+
+  it('should detect Granola notification with single task', () => {
+    const text = 'Granola tasks\n• Draft proposal\n\nhttps://notes.granola.ai/d/xyz789'
+    expect(isGranolaNotification(text)).toBe(true)
+  })
+
+  it('should detect Granola notification case-insensitively', () => {
+    const text = 'GRANOLA tasks\n• Something\n\nTranscript: https://notes.granola.ai/d/foo'
+    expect(isGranolaNotification(text)).toBe(true)
+  })
+
+  it('should NOT detect regular DM text', () => {
+    expect(isGranolaNotification('Please review this PR')).toBe(false)
+  })
+
+  it('should NOT detect text with just "Granola" but no URL', () => {
+    expect(isGranolaNotification('Granola tasks\n• Something')).toBe(false)
+  })
+
+  it('should NOT detect text with just granola URL but not starting with Granola', () => {
+    expect(isGranolaNotification('Check this: https://notes.granola.ai/d/abc')).toBe(false)
+  })
+
+  it('should NOT detect empty text', () => {
+    expect(isGranolaNotification('')).toBe(false)
+  })
+
+  it('should NOT detect undefined-ish text', () => {
+    expect(isGranolaNotification(undefined as unknown as string)).toBe(false)
+  })
+})
+
+describe('simpleHash', () => {
+  it('should return deterministic hash for same input', () => {
+    expect(simpleHash('Monitor tags migration progress')).toBe(simpleHash('Monitor tags migration progress'))
+  })
+
+  it('should return different hashes for different inputs', () => {
+    expect(simpleHash('Task A')).not.toBe(simpleHash('Task B'))
+  })
+
+  it('should handle empty string', () => {
+    expect(simpleHash('')).toBe('0')
+  })
+
+  it('should return a base-36 string', () => {
+    const hash = simpleHash('some task title')
+    expect(hash).toMatch(/^[0-9a-z]+$/)
   })
 })
