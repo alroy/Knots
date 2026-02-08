@@ -795,8 +795,14 @@ export async function processSlackEvent(
     if (check.isDM && !check.isForwarded) {
       const messageText = event.text?.trim() || ''
 
+      // Diagnostic: log what metadata Slack actually delivers
+      console.log('[DM] event.metadata:', JSON.stringify(event.metadata ?? null))
+      console.log('[DM] event keys:', Object.keys(event).join(', '))
+
       // Detect Granola provenance from Slack message metadata
       const granolaCtx = detectGranolaMetadata(event)
+      console.log('[DM] granolaCtx:', granolaCtx ? `found ${granolaCtx.tasks.length} tasks` : 'null')
+      console.log('[DM] isGranolaNotification:', isGranolaNotification(messageText))
 
       // ── Granola path: create individual tasks from pre-shaped array ──
       if (granolaCtx && granolaCtx.tasks.length > 0) {
