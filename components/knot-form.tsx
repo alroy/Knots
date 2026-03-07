@@ -251,7 +251,7 @@ export function KnotForm({ onSubmit, onUpdate, editTask, onEditClose, contentCol
       {!isEditMode && (
         <div
           ref={fabRef}
-          className="fixed bottom-6 z-30 flex items-center gap-3"
+          className="fixed bottom-20 z-30 flex items-center gap-3"
           style={{
             ...fixedStyle,
             right: fabPosition?.right ?? 24,
