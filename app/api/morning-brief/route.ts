@@ -11,6 +11,15 @@ export interface MorningBriefContent {
   generatedAt: string
 }
 
+function getTimeOfDayPeriod(date: Date): string {
+  const hour = parseInt(
+    date.toLocaleTimeString('en-US', { hour: 'numeric', hour12: false, timeZone: 'Asia/Jerusalem' })
+  )
+  if (hour < 12) return 'morning'
+  if (hour < 17) return 'afternoon'
+  return 'evening'
+}
+
 export async function GET(request: Request) {
   try {
     const apiKey = process.env.ANTHROPIC_API_KEY
@@ -44,7 +53,9 @@ export async function GET(request: Request) {
       if (cached) {
         const cacheAge = Date.now() - new Date(cached.created_at).getTime()
         const fourHours = 4 * 60 * 60 * 1000
-        if (cacheAge < fourHours) {
+        const cachedPeriod = getTimeOfDayPeriod(new Date(cached.created_at))
+        const currentPeriod = getTimeOfDayPeriod(now)
+        if (cacheAge < fourHours && cachedPeriod === currentPeriod) {
           return NextResponse.json({ brief: cached.content, cached: true })
         }
       }
