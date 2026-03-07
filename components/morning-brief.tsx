@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { cn } from "@/lib/utils"
 import { Sparkles, ChevronDown, ChevronUp, RefreshCw, ArrowUpDown, AlertTriangle, Lightbulb } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -16,18 +16,33 @@ export interface MorningBriefContent {
 
 interface MorningBriefProps {
   onApplyOrder: (taskIds: string[]) => void
+  /** Increment to trigger a debounced refresh (e.g., after task delete/toggle/goal change) */
+  revision?: number
 }
 
-export function MorningBrief({ onApplyOrder }: MorningBriefProps) {
+export function MorningBrief({ onApplyOrder, revision = 0 }: MorningBriefProps) {
   const [brief, setBrief] = useState<MorningBriefContent | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [isExpanded, setIsExpanded] = useState(false)
   const [isRefreshing, setIsRefreshing] = useState(false)
+  const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     fetchBrief()
   }, [])
+
+  // Auto-refresh when revision changes (debounced 5s)
+  useEffect(() => {
+    if (revision === 0) return // skip initial
+    if (debounceTimer.current) clearTimeout(debounceTimer.current)
+    debounceTimer.current = setTimeout(() => {
+      fetchBrief(true)
+    }, 5000)
+    return () => {
+      if (debounceTimer.current) clearTimeout(debounceTimer.current)
+    }
+  }, [revision])
 
   const fetchBrief = async (forceRefresh = false) => {
     try {

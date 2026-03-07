@@ -31,6 +31,7 @@ export function TasksTab({ contentColumnRef }: TasksTabProps) {
   const [goals, setGoals] = useState<GoalOption[]>([])
   const [loading, setLoading] = useState(true)
   const [editTask, setEditTask] = useState<EditTask | null>(null)
+  const [briefRevision, setBriefRevision] = useState(0)
   const supabase = createClient()
 
   const locallyCreatedIds = useRef<Set<string>>(new Set())
@@ -187,6 +188,7 @@ export function TasksTab({ contentColumnRef }: TasksTabProps) {
         .update({ status: newStatus, completed_at: newStatus === 'completed' ? new Date().toISOString() : null })
         .eq('id', id)
       if (error) throw error
+      setBriefRevision(r => r + 1)
     } catch (error) {
       console.error('Error toggling knot:', error)
       locallyModifiedIds.current.delete(id)
@@ -199,6 +201,7 @@ export function TasksTab({ contentColumnRef }: TasksTabProps) {
     try {
       const { error } = await supabase.from('tasks').delete().eq('id', id)
       if (error) throw error
+      setBriefRevision(r => r + 1)
     } catch (error) {
       console.error('Error deleting knot:', error)
       loadKnots()
@@ -282,6 +285,9 @@ export function TasksTab({ contentColumnRef }: TasksTabProps) {
       }
       const { error } = await supabase.from('tasks').update(updatePayload).eq('id', id)
       if (error) throw error
+      if (data.goalId !== undefined && data.goalId !== knot.goalId) {
+        setBriefRevision(r => r + 1)
+      }
       return true
     } catch (error) {
       console.error('Error updating knot:', error)
@@ -321,7 +327,7 @@ export function TasksTab({ contentColumnRef }: TasksTabProps) {
       </header>
 
       {/* Morning Brief — AI-generated daily priorities */}
-      <MorningBrief onApplyOrder={handleApplyBriefOrder} />
+      <MorningBrief onApplyOrder={handleApplyBriefOrder} revision={briefRevision} />
 
       {knots.length > 0 ? (
         <SortableKnotList
