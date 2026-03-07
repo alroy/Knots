@@ -89,16 +89,7 @@ export function MondaySettings() {
     <div className="flex items-center gap-3 p-3 rounded-lg bg-accent">
       {/* Monday.com Icon */}
       <div className="w-8 h-8 flex items-center justify-center">
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          viewBox="0 0 24 24"
-          className="w-6 h-6"
-          fill="currentColor"
-        >
-          <rect x="1.5" y="5" width="5.5" height="16" rx="2.75" transform="rotate(-30 4.25 13)" />
-          <rect x="9" y="5" width="5.5" height="16" rx="2.75" transform="rotate(-30 11.75 13)" />
-          <circle cx="20" cy="18.5" r="2.75" />
-        </svg>
+        <img src="/monday-icon-svgrepo-com.svg" alt="" className="w-6 h-6" />
       </div>
 
       <div className="flex-1 min-w-0">
