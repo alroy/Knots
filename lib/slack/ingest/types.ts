@@ -121,13 +121,13 @@ export interface TaskFromSourceInput {
   user_id: string
   title: string
   description: string
-  source_type: 'slack'
-  source_id: string // team_id:channel_id:message_ts
-  source_url: string // Slack permalink
+  source_type: 'slack' | 'monday'
+  source_id: string // team_id:channel_id:message_ts or account_id:board_id:item_id
+  source_url: string // Slack permalink or Monday item URL
   raw_source_text?: string // Controlled by env flag
   llm_confidence?: number
   llm_why?: string
-  ingest_trigger: 'mention' | 'dm' | 'dm_poll'
+  ingest_trigger: 'mention' | 'dm' | 'dm_poll' | 'assignment'
   goal_id?: string // FK to goals table for task-to-goal linking
 }
 

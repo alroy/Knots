@@ -89,6 +89,15 @@ export default function KnotCard({
       }
     }
 
+    // Priority 1b: Monday.com source fields from database columns
+    if (sourceType === 'monday' && sourceUrl) {
+      return {
+        hasProvenance: true,
+        sourceType: 'monday' as const,
+        permalink: sourceUrl,
+      }
+    }
+
     // Priority 2: Check metadata (for tasks with metadata but no source columns)
     if (isGranolaMetadata(metadata)) {
       return {

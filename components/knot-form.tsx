@@ -128,6 +128,15 @@ export function KnotForm({ onSubmit, onUpdate, editTask, onEditClose, contentCol
       }
     }
 
+    // Priority 1b: Monday.com source fields
+    if (editTask.sourceType === 'monday' && editTask.sourceUrl) {
+      return {
+        hasProvenance: true,
+        sourceType: 'monday' as const,
+        permalink: editTask.sourceUrl,
+      }
+    }
+
     // Priority 2: Check metadata (for tasks with metadata but no source columns)
     if (isGranolaMetadata(editTask.metadata)) {
       return {

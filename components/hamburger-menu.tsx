@@ -5,6 +5,7 @@ import { useAuth } from "@/contexts/auth-context"
 import { Button } from "@/components/ui/button"
 import { useSafariPWAFix } from "@/hooks/use-safari-pwa-fix"
 import { SlackSettings } from "@/components/settings/slack-settings"
+import { MondaySettings } from "@/components/settings/monday-settings"
 
 export function HamburgerMenu() {
   const { user, signOut } = useAuth()
@@ -119,8 +120,9 @@ export function HamburgerMenu() {
             Sign out
           </Button>
 
-          {/* Slack Integration Settings */}
+          {/* Integration Settings */}
           <SlackSettings />
+          <MondaySettings />
         </div>
       </div>
     </>
