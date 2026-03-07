@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react"
 import { SortableKnotList } from "@/components/sortable-knot-list"
-import { KnotForm, type EditTask } from "@/components/knot-form"
+import { KnotForm, type EditTask, type GoalOption } from "@/components/knot-form"
 import { MorningBrief } from "@/components/morning-brief"
 import { createClient } from "@/lib/supabase-browser"
 import { useAuth } from "@/contexts/auth-context"
@@ -18,6 +18,7 @@ interface Knot {
   createdAt?: string
   sourceType?: string
   sourceUrl?: string
+  goalId?: string | null
 }
 
 interface TasksTabProps {
@@ -27,6 +28,7 @@ interface TasksTabProps {
 export function TasksTab({ contentColumnRef }: TasksTabProps) {
   const { user } = useAuth()
   const [knots, setKnots] = useState<Knot[]>([])
+  const [goals, setGoals] = useState<GoalOption[]>([])
   const [loading, setLoading] = useState(true)
   const [editTask, setEditTask] = useState<EditTask | null>(null)
   const supabase = createClient()
@@ -36,7 +38,10 @@ export function TasksTab({ contentColumnRef }: TasksTabProps) {
   const isBatchOperation = useRef(false)
 
   useEffect(() => {
-    if (user) loadKnots()
+    if (user) {
+      loadKnots()
+      loadGoals()
+    }
   }, [user])
 
   // Subscribe to real-time changes
@@ -73,6 +78,7 @@ export function TasksTab({ contentColumnRef }: TasksTabProps) {
               createdAt: newTask.created_at,
               sourceType: newTask.source_type || undefined,
               sourceUrl: newTask.source_url || undefined,
+              goalId: newTask.goal_id || null,
             }
 
             setKnots((prev) => {
@@ -142,12 +148,30 @@ export function TasksTab({ contentColumnRef }: TasksTabProps) {
         createdAt: task.created_at,
         sourceType: task.source_type || undefined,
         sourceUrl: task.source_url || undefined,
+        goalId: task.goal_id || null,
       }))
       setKnots(formattedKnots)
     } catch (error) {
       console.error('Error loading knots:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const loadGoals = async () => {
+    if (!user) return
+    try {
+      const { data, error } = await supabase
+        .from('goals')
+        .select('id, title, priority')
+        .eq('user_id', user.id)
+        .eq('status', 'active')
+        .order('priority', { ascending: true })
+
+      if (error) throw error
+      setGoals((data || []).map((g: any) => ({ id: g.id, title: g.title, priority: g.priority })))
+    } catch (error) {
+      console.error('Error loading goals:', error)
     }
   }
 
@@ -239,25 +263,30 @@ export function TasksTab({ contentColumnRef }: TasksTabProps) {
         metadata: knot.metadata,
         sourceType: knot.sourceType,
         sourceUrl: knot.sourceUrl,
+        goalId: knot.goalId,
       })
     }
   }, [knots])
 
   const handleEditClose = useCallback(() => { setEditTask(null) }, [])
 
-  const handleUpdateKnot = useCallback(async (id: string, data: { title: string; description: string }): Promise<boolean> => {
+  const handleUpdateKnot = useCallback(async (id: string, data: { title: string; description: string; goalId?: string | null }): Promise<boolean> => {
     const knot = knots.find((k) => k.id === id)
     if (!knot) return false
     locallyModifiedIds.current.add(id)
-    setKnots((prev) => prev.map((k) => k.id === id ? { ...k, title: data.title, description: data.description } : k))
+    setKnots((prev) => prev.map((k) => k.id === id ? { ...k, title: data.title, description: data.description, goalId: data.goalId ?? k.goalId } : k))
     try {
-      const { error } = await supabase.from('tasks').update({ title: data.title, description: data.description }).eq('id', id)
+      const updatePayload: Record<string, any> = { title: data.title, description: data.description }
+      if (data.goalId !== undefined) {
+        updatePayload.goal_id = data.goalId
+      }
+      const { error } = await supabase.from('tasks').update(updatePayload).eq('id', id)
       if (error) throw error
       return true
     } catch (error) {
       console.error('Error updating knot:', error)
       locallyModifiedIds.current.delete(id)
-      setKnots((prev) => prev.map((k) => k.id === id ? { ...k, title: knot.title, description: knot.description } : k))
+      setKnots((prev) => prev.map((k) => k.id === id ? { ...k, title: knot.title, description: knot.description, goalId: knot.goalId } : k))
       return false
     }
   }, [knots, supabase])
@@ -314,6 +343,7 @@ export function TasksTab({ contentColumnRef }: TasksTabProps) {
         editTask={editTask}
         onEditClose={handleEditClose}
         contentColumnRef={contentColumnRef}
+        goals={goals}
       />
     </>
   )

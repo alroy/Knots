@@ -31,21 +31,33 @@ export interface EditTask {
   metadata?: TaskMetadata
   sourceType?: string
   sourceUrl?: string
+  goalId?: string | null
+}
+
+export interface GoalOption {
+  id: string
+  title: string
+  priority: number
 }
 
 interface KnotFormProps {
   onSubmit: (data: { title: string; description: string }) => void
-  onUpdate?: (id: string, data: { title: string; description: string }) => Promise<boolean>
+  onUpdate?: (id: string, data: { title: string; description: string; goalId?: string | null }) => Promise<boolean>
   editTask?: EditTask | null
   onEditClose?: () => void
   /** Reference to content column for desktop FAB positioning */
   contentColumnRef?: ContentColumnRef
+  /** Active goals for the goal selector (edit mode only) */
+  goals?: GoalOption[]
 }
 
-export function KnotForm({ onSubmit, onUpdate, editTask, onEditClose, contentColumnRef }: KnotFormProps) {
+const PRIORITY_LABELS: Record<number, string> = { 1: 'P0', 2: 'P1', 3: 'P2' }
+
+export function KnotForm({ onSubmit, onUpdate, editTask, onEditClose, contentColumnRef, goals }: KnotFormProps) {
   const [isCreateOpen, setIsCreateOpen] = React.useState(false)
   const [title, setTitle] = React.useState("")
   const [description, setDescription] = React.useState("")
+  const [selectedGoalId, setSelectedGoalId] = React.useState<string>("")
   const [error, setError] = React.useState("")
   const [touched, setTouched] = React.useState(false)
   const [isSubmitting, setIsSubmitting] = React.useState(false)
@@ -156,6 +168,7 @@ export function KnotForm({ onSubmit, onUpdate, editTask, onEditClose, contentCol
       setTitle(editTask.title)
       // Clean up description by removing legacy "---\nSource: Slack..." block
       setDescription(prepareDescriptionForEdit(editTask.description))
+      setSelectedGoalId(editTask.goalId || "")
       setError("")
       setTouched(false)
     }
@@ -189,6 +202,7 @@ export function KnotForm({ onSubmit, onUpdate, editTask, onEditClose, contentCol
     // Reset form state after closing
     setTitle("")
     setDescription("")
+    setSelectedGoalId("")
     setError("")
     setTouched(false)
     setIsSubmitting(false)
@@ -212,6 +226,7 @@ export function KnotForm({ onSubmit, onUpdate, editTask, onEditClose, contentCol
         const success = await onUpdate(editTask.id, {
           title: trimmedTitle,
           description: description.trim(),
+          goalId: selectedGoalId || null,
         })
         if (success) {
           handleClose()
@@ -362,6 +377,30 @@ export function KnotForm({ onSubmit, onUpdate, editTask, onEditClose, contentCol
                 style={{ touchAction: "manipulation" }}
               />
             </div>
+
+            {/* Goal selector — edit mode only */}
+            {isEditMode && goals && goals.length > 0 && (
+              <div className="space-y-2 mb-6">
+                <Label htmlFor="goal" className="text-sm text-muted-foreground">
+                  Goal <span className="text-muted-foreground/60">(optional)</span>
+                </Label>
+                <select
+                  id="goal"
+                  value={selectedGoalId}
+                  onChange={(e) => setSelectedGoalId(e.target.value)}
+                  className="flex h-10 w-full rounded-md border border-border/60 bg-card px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                >
+                  <option value="">No goal</option>
+                  {goals
+                    .sort((a, b) => a.priority - b.priority)
+                    .map((g) => (
+                      <option key={g.id} value={g.id}>
+                        {PRIORITY_LABELS[g.priority] || 'P2'} — {g.title}
+                      </option>
+                    ))}
+                </select>
+              </div>
+            )}
 
             {/* Read-only provenance row for Slack/Granola-origin tasks */}
             {isEditMode && provenance?.hasProvenance && (
