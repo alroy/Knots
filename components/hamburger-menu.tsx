@@ -121,8 +121,13 @@ export function HamburgerMenu() {
           </Button>
 
           {/* Integration Settings */}
-          <SlackSettings />
-          <MondaySettings />
+          <div className="border-t border-border pt-6 mt-6 w-full">
+            <h3 className="text-sm font-medium text-foreground mb-3">Integrations</h3>
+            <div className="flex flex-col gap-2">
+              <SlackSettings />
+              <MondaySettings />
+            </div>
+          </div>
         </div>
       </div>
     </>

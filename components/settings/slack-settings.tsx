@@ -92,10 +92,7 @@ export function SlackSettings() {
   }
 
   return (
-    <div className="border-t border-border pt-6 mt-6">
-      <h3 className="text-sm font-medium text-foreground mb-3">Integrations</h3>
-
-      <div className="flex items-center gap-3 p-3 rounded-lg bg-accent">
+    <div className="flex items-center gap-3 p-3 rounded-lg bg-accent">
         {/* Slack Icon */}
         <div className="w-8 h-8 flex items-center justify-center">
           <svg
@@ -145,6 +142,5 @@ export function SlackSettings() {
           )
         )}
       </div>
-    </div>
   )
 }

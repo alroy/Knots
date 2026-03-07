@@ -86,7 +86,7 @@ export function MondaySettings() {
   }
 
   return (
-    <div className="flex items-center gap-3 p-3 rounded-lg bg-accent mt-2">
+    <div className="flex items-center gap-3 p-3 rounded-lg bg-accent">
       {/* Monday.com Icon */}
       <div className="w-8 h-8 flex items-center justify-center">
         <svg
