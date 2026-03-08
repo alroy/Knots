@@ -4,18 +4,17 @@ import { fetchBoards, createBoardWebhook, deleteMondayWebhook } from './api'
 const BATCH_SIZE = 5
 
 /**
- * Register webhooks on owned Monday.com boards for a connection.
+ * Register webhooks on Monday.com boards for a connection.
  * Called after OAuth completes. Failures are logged but don't throw.
  *
- * Only registers on boards where:
- * - type is 'board' (excludes subitems boards, docs, etc.)
- * - user is the board owner (Monday only allows owners to create webhooks)
+ * Filters out subitems boards (can't have webhooks). For remaining boards,
+ * attempts webhook creation and silently skips boards where the user lacks
+ * permissions (expected for non-admin boards).
  */
 export async function registerWebhooksForConnection(
   supabase: SupabaseClient,
   connectionId: string,
-  accessToken: string,
-  mondayUserId: string
+  accessToken: string
 ): Promise<void> {
   const webhookUrl = `${process.env.NEXT_PUBLIC_SITE_URL}/api/monday/events`
 
@@ -25,18 +24,17 @@ export async function registerWebhooksForConnection(
     return
   }
 
-  // Filter to boards where user is owner and type is regular board
-  const boards = allBoards.filter(
-    (b) => b.type === 'board' && b.owner?.id === mondayUserId
-  )
+  // Filter out subitems boards (can't have webhooks)
+  const boards = allBoards.filter((b) => b.type === 'board')
 
   console.log(
-    `Monday webhook registration: ${boards.length} eligible boards (${allBoards.length} total)`
+    `Monday webhook registration: ${boards.length} boards (${allBoards.length - boards.length} subitems excluded)`
   )
 
   if (boards.length === 0) return
 
   let totalSucceeded = 0
+  let totalDenied = 0
 
   for (let i = 0; i < boards.length; i += BATCH_SIZE) {
     const batch = boards.slice(i, i + BATCH_SIZE)
@@ -46,10 +44,9 @@ export async function registerWebhooksForConnection(
 
         if (!result.ok) {
           if (result.rateLimited) {
-            // Signal rate limit to caller — will be caught by allSettled
             throw { rateLimited: true, retryInSeconds: result.retryInSeconds }
           }
-          return null
+          return result.authDenied ? 'denied' : null
         }
 
         // Store the webhook registration
@@ -80,10 +77,12 @@ export async function registerWebhooksForConnection(
         r.reason?.rateLimited
     )
 
-    const succeeded = results.filter(
-      (r) => r.status === 'fulfilled' && r.value !== null
-    ).length
-    totalSucceeded += succeeded
+    for (const r of results) {
+      if (r.status === 'fulfilled') {
+        if (r.value === 'denied') totalDenied++
+        else if (r.value !== null) totalSucceeded++
+      }
+    }
 
     if (rateLimitResult && rateLimitResult.status === 'rejected') {
       const waitSeconds = rateLimitResult.reason.retryInSeconds || 30
@@ -95,7 +94,7 @@ export async function registerWebhooksForConnection(
   }
 
   console.log(
-    `Monday webhook registration complete: ${totalSucceeded}/${boards.length} succeeded`
+    `Monday webhook registration complete: ${totalSucceeded} succeeded, ${totalDenied} no permission`
   )
 }
 

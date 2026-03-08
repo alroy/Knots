@@ -154,7 +154,6 @@ export interface MondayBoard {
   id: string
   name: string
   type: string
-  owner: { id: string } | null
 }
 
 /**
@@ -165,7 +164,7 @@ export async function fetchBoards(
 ): Promise<MondayBoard[]> {
   const result = await mondayQuery<{ boards: MondayBoard[] }>(
     token,
-    `query { boards(limit: 200) { id name type owner { id } } }`
+    `query { boards(limit: 200) { id name type } }`
   )
 
   if (result.errors || !result.data?.boards) {
@@ -182,7 +181,7 @@ export async function fetchBoards(
 export type WebhookCreateResult =
   | { ok: true; webhookId: string; boardId: string }
   | { ok: false; rateLimited: true; retryInSeconds: number }
-  | { ok: false; rateLimited: false }
+  | { ok: false; rateLimited: false; authDenied: boolean }
 
 /**
  * Create a webhook subscription on a Monday.com board
@@ -207,7 +206,7 @@ export async function createBoardWebhook(
 
   if (result.errors) {
     const rateLimitError = result.errors.find(
-      (e: any) => e.extensions?.code === 'COMPLEXITY_BUDGET_EXHAUSTED'
+      (e) => e.extensions?.code === 'COMPLEXITY_BUDGET_EXHAUSTED'
     )
     if (rateLimitError) {
       return {
@@ -216,12 +215,22 @@ export async function createBoardWebhook(
         retryInSeconds: rateLimitError.extensions?.retry_in_seconds ?? 30,
       }
     }
+
+    // Expected errors: user lacks permissions or board is a subitems board
+    const expectedCodes = ['UserUnauthorizedException', 'InvalidArgumentException']
+    const isExpected = result.errors.every(
+      (e) => expectedCodes.includes(e.extensions?.code)
+    )
+    if (isExpected) {
+      return { ok: false, rateLimited: false, authDenied: true }
+    }
+
     console.error(`Failed to create webhook for board ${boardId}:`, result.errors)
-    return { ok: false, rateLimited: false }
+    return { ok: false, rateLimited: false, authDenied: false }
   }
 
   if (!result.data?.create_webhook) {
-    return { ok: false, rateLimited: false }
+    return { ok: false, rateLimited: false, authDenied: false }
   }
 
   return {

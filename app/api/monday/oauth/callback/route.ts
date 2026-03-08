@@ -138,8 +138,7 @@ export async function GET(request: NextRequest) {
     await registerWebhooksForConnection(
       adminSupabase,
       connectionId,
-      accessToken,
-      mondayUserId
+      accessToken
     ).catch((err) => console.error('Monday webhook registration failed:', err))
   })
 
