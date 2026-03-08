@@ -297,6 +297,35 @@ export function TasksTab({ contentColumnRef }: TasksTabProps) {
     }
   }, [knots, supabase])
 
+  const handleMoveToBacklog = async (id: string) => {
+    const knot = knots.find((k) => k.id === id)
+    if (!knot || !user) return
+
+    // Optimistic: remove from tasks list
+    setKnots((prev) => prev.filter((k) => k.id !== id))
+
+    try {
+      // Insert into backlog
+      const { error: insertError } = await supabase.from('backlog').insert({
+        title: knot.title,
+        description: knot.description,
+        category: 'action',
+        user_id: user.id,
+        position: 0,
+      })
+      if (insertError) throw insertError
+
+      // Delete from tasks
+      const { error: deleteError } = await supabase.from('tasks').delete().eq('id', id)
+      if (deleteError) throw deleteError
+
+      setBriefRevision(r => r + 1)
+    } catch (error) {
+      console.error('Error moving task to backlog:', error)
+      loadKnots() // Rollback
+    }
+  }
+
   // Apply AI-suggested task order from morning brief
   const handleApplyBriefOrder = useCallback(async (taskIds: string[]) => {
     // Build new order: prioritized tasks first, then remaining tasks in original order
@@ -336,6 +365,7 @@ export function TasksTab({ contentColumnRef }: TasksTabProps) {
           onToggle={handleToggle}
           onDelete={handleDelete}
           onEdit={handleEdit}
+          onMoveToBacklog={handleMoveToBacklog}
         />
       ) : (
         <p className="py-8 text-center text-muted-foreground">

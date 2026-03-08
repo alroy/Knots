@@ -4,7 +4,7 @@ import React, { useMemo } from "react"
 
 import { Checkbox } from "@/components/ui/checkbox"
 import { ProvenanceRow } from "@/components/ui/slack-badge"
-import { GripVertical, Trash2 } from "lucide-react"
+import { GripVertical, Trash2, Archive } from "lucide-react"
 import { cn, formatRelativeTime } from "@/lib/utils"
 import { TaskMetadata, SlackTaskMetadata, isSlackMetadata, isGranolaMetadata } from "@/lib/types"
 import {
@@ -25,6 +25,7 @@ export interface KnotCardProps {
   onToggle: (id: string) => void
   onDelete: (id: string) => void
   onEdit?: (id: string) => void
+  onMoveToBacklog?: (id: string) => void
   isDragging?: boolean
   isOverlay?: boolean
   dragHandleProps?: React.HTMLAttributes<HTMLDivElement>
@@ -44,6 +45,7 @@ export default function KnotCard({
   onToggle,
   onDelete,
   onEdit,
+  onMoveToBacklog,
   isDragging = false,
   isOverlay = false,
   dragHandleProps,
@@ -248,15 +250,27 @@ export default function KnotCard({
         )}
       </div>
 
-      {/* Delete button - clicks should not trigger edit */}
-      <button
-        onClick={handleDeleteClick}
-        aria-label={`Delete ${displayText.title}`}
-        className="shrink-0 rounded-md p-1.5 text-muted-foreground/50 opacity-100 transition-opacity duration-100 ease-out hover:text-destructive focus:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:opacity-0 sm:group-hover:opacity-100"
-        style={{ touchAction: "manipulation" }}
-      >
-        <Trash2 className="h-4 w-4" />
-      </button>
+      {/* Action buttons - clicks should not trigger edit */}
+      <div className="flex shrink-0 items-center gap-0.5">
+        {onMoveToBacklog && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onMoveToBacklog(id) }}
+            aria-label={`Move ${displayText.title} to backlog`}
+            className="shrink-0 rounded-md p-1.5 text-muted-foreground/50 opacity-100 transition-opacity duration-100 ease-out hover:text-primary focus:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:opacity-0 sm:group-hover:opacity-100"
+            style={{ touchAction: "manipulation" }}
+          >
+            <Archive className="h-4 w-4" />
+          </button>
+        )}
+        <button
+          onClick={handleDeleteClick}
+          aria-label={`Delete ${displayText.title}`}
+          className="shrink-0 rounded-md p-1.5 text-muted-foreground/50 opacity-100 transition-opacity duration-100 ease-out hover:text-destructive focus:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:opacity-0 sm:group-hover:opacity-100"
+          style={{ touchAction: "manipulation" }}
+        >
+          <Trash2 className="h-4 w-4" />
+        </button>
+      </div>
     </div>
   )
 }

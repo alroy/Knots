@@ -41,6 +41,7 @@ export interface BacklogItem {
   position: number
   createdAt?: string
   resolvedAt?: string | null
+  snoozedUntil?: string | null
 }
 
 export interface UserProfile {
