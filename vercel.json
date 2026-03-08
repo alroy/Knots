@@ -3,6 +3,10 @@
     {
       "path": "/api/cron/poll-slack-dms",
       "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/cron/poll-monday-assignments",
+      "schedule": "*/5 * * * *"
     }
   ]
 }
