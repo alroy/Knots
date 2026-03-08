@@ -86,6 +86,7 @@ export function buildAuthUrl(config: MondayOAuthConfig, state: string): string {
     client_id: config.clientId,
     redirect_uri: config.redirectUri,
     state,
+    scopes: 'me:read boards:read webhooks:write',
   })
 
   return `https://auth.monday.com/oauth2/authorize?${params.toString()}`
