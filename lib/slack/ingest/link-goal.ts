@@ -76,7 +76,7 @@ export async function matchTaskToGoal(
 
   try {
     const response = await client.messages.create({
-      model: 'claude-3-5-haiku-20241022',
+      model: 'claude-haiku-4-5-20251001',
       max_tokens: 150,
       system: `You match tasks to goals. Given a list of goals and a task, determine which goal (if any) the task relates to. Return JSON only: { "goal_index": number | null, "confidence": number }. goal_index is 1-based. Set null if no goal matches. confidence is 0-1.`,
       messages: [{

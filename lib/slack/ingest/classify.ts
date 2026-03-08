@@ -212,7 +212,7 @@ export async function classifySlackMention(
   try {
     // First attempt
     const response = await client.messages.create({
-      model: 'claude-3-5-haiku-20241022',
+      model: 'claude-haiku-4-5-20251001',
       max_tokens: 500,
       system: buildSystemPrompt(),
       messages: [{ role: 'user', content: buildUserPrompt(message) }],
@@ -232,7 +232,7 @@ export async function classifySlackMention(
 
     // Repair attempt
     const repairResponse = await client.messages.create({
-      model: 'claude-3-5-haiku-20241022',
+      model: 'claude-haiku-4-5-20251001',
       max_tokens: 500,
       system: buildSystemPrompt(),
       messages: [
@@ -358,7 +358,7 @@ Description rules:
 
   try {
     const response = await client.messages.create({
-      model: 'claude-3-5-haiku-20241022',
+      model: 'claude-haiku-4-5-20251001',
       max_tokens: 400,
       system: systemPrompt,
       messages: [{ role: 'user', content: userPrompt }],
@@ -490,7 +490,7 @@ Description rules:
 
   try {
     const response = await client.messages.create({
-      model: 'claude-3-5-haiku-20241022',
+      model: 'claude-haiku-4-5-20251001',
       max_tokens: 400,
       system: systemPrompt,
       messages: [{ role: 'user', content: userPrompt }],
