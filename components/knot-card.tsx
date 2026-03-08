@@ -1,10 +1,10 @@
 "use client"
 
-import React, { useMemo } from "react"
+import React, { useMemo, useState, useCallback, useRef, useEffect } from "react"
 
 import { Checkbox } from "@/components/ui/checkbox"
 import { ProvenanceRow } from "@/components/ui/slack-badge"
-import { GripVertical, Trash2 } from "lucide-react"
+import { GripVertical, Trash2, Clock } from "lucide-react"
 import { cn, formatRelativeTime } from "@/lib/utils"
 import { TaskMetadata, SlackTaskMetadata, isSlackMetadata, isGranolaMetadata } from "@/lib/types"
 import {
@@ -25,11 +25,16 @@ export interface KnotCardProps {
   onToggle: (id: string) => void
   onDelete: (id: string) => void
   onEdit?: (id: string) => void
+  onSnooze?: (id: string, until: Date) => void
   isDragging?: boolean
   isOverlay?: boolean
   dragHandleProps?: React.HTMLAttributes<HTMLDivElement>
   /** Whether dragging is active in the list (used to suppress edit clicks) */
   isListDragging?: boolean
+  /** Notify parent when snooze menu opens/closes (for z-index stacking) */
+  onSnoozeMenuOpenChange?: (open: boolean) => void
+  /** Whether the card is playing its snooze exit animation */
+  isSnoozing?: boolean
 }
 
 export default function KnotCard({
@@ -44,12 +49,20 @@ export default function KnotCard({
   onToggle,
   onDelete,
   onEdit,
+  onSnooze,
   isDragging = false,
   isOverlay = false,
   dragHandleProps,
   isListDragging = false,
+  onSnoozeMenuOpenChange,
+  isSnoozing = false,
 }: KnotCardProps) {
   const isCompleted = status === "completed"
+  const [snoozeMenuOpen, setSnoozeMenuOpen] = useState(false)
+  const handleSnoozeMenuOpenChange = useCallback((open: boolean) => {
+    setSnoozeMenuOpen(open)
+    onSnoozeMenuOpenChange?.(open)
+  }, [onSnoozeMenuOpenChange])
 
   // Prepare display text - normalize Slack tokens and truncate for list view
   // Pass user_map from metadata if available for resolving @mentions to real names
@@ -154,12 +167,14 @@ export default function KnotCard({
   return (
     <div
       className={cn(
-        "group flex items-start gap-3 rounded-lg bg-card p-4 transition-[background-color,opacity,transform,box-shadow] duration-200 ease-[cubic-bezier(0.2,0,0,1)]",
-        !isOverlay && "animate-in fade-in duration-300",
+        "group relative flex items-start gap-3 rounded-lg bg-card p-4 transition-[background-color,opacity,transform,box-shadow] duration-200 ease-[cubic-bezier(0.2,0,0,1)]",
+        !isOverlay && !isSnoozing && "animate-in fade-in duration-300",
         !isCompleted && "hover:bg-accent-hover",
         isCompleted && "bg-accent-subtle opacity-75",
         isDragging && "opacity-40",
         isOverlay && "shadow-md cursor-grabbing",
+        snoozeMenuOpen && "z-50",
+        isSnoozing && "animate-out fade-out slide-out-to-right duration-300 fill-mode-forwards",
       )}
     >
       {/* Drag handle - separate from content to not trigger edit */}
@@ -248,15 +263,96 @@ export default function KnotCard({
         )}
       </div>
 
-      {/* Delete button - clicks should not trigger edit */}
+      {/* Action buttons - clicks should not trigger edit */}
+      <SnoozeAndDelete
+        id={id}
+        title={displayText.title}
+        onSnooze={onSnooze}
+        onDelete={handleDeleteClick}
+        onMenuOpenChange={handleSnoozeMenuOpenChange}
+      />
+    </div>
+  )
+}
+
+const SNOOZE_OPTIONS = [
+  { label: 'Tomorrow', days: 1 },
+  { label: 'In 3 days', days: 3 },
+  { label: 'Next week', days: 7 },
+  { label: 'In 2 weeks', days: 14 },
+]
+
+function SnoozeAndDelete({ id, title, onSnooze, onDelete, onMenuOpenChange }: {
+  id: string
+  title: string
+  onSnooze?: (id: string, until: Date) => void
+  onDelete: (e: React.MouseEvent) => void
+  onMenuOpenChange?: (open: boolean) => void
+}) {
+  const [showMenu, setShowMenu] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const toggleMenu = useCallback((open: boolean) => {
+    setShowMenu(open)
+    onMenuOpenChange?.(open)
+  }, [onMenuOpenChange])
+
+  // Close menu on any click outside the container
+  // (fixed backdrop doesn't work here because ancestor transform breaks position:fixed)
+  useEffect(() => {
+    if (!showMenu) return
+    const handler = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        toggleMenu(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [showMenu, toggleMenu])
+
+  return (
+    <div ref={containerRef} className="flex shrink-0 items-center gap-0.5 relative">
+      {onSnooze && (
+        <button
+          onClick={(e) => { e.stopPropagation(); toggleMenu(!showMenu) }}
+          aria-label={`Snooze ${title}`}
+          className={cn(
+            "shrink-0 rounded-md p-1.5 text-muted-foreground/50 opacity-100 transition-opacity duration-100 ease-out hover:text-primary focus:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:opacity-0 sm:group-hover:opacity-100",
+            showMenu && "sm:!opacity-100"
+          )}
+          style={{ touchAction: "manipulation" }}
+        >
+          <Clock className="h-4 w-4" />
+        </button>
+      )}
       <button
-        onClick={handleDeleteClick}
-        aria-label={`Delete ${displayText.title}`}
+        onClick={onDelete}
+        aria-label={`Delete ${title}`}
         className="shrink-0 rounded-md p-1.5 text-muted-foreground/50 opacity-100 transition-opacity duration-100 ease-out hover:text-destructive focus:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:opacity-0 sm:group-hover:opacity-100"
         style={{ touchAction: "manipulation" }}
       >
         <Trash2 className="h-4 w-4" />
       </button>
+
+      {showMenu && (
+        <div className="absolute right-0 top-full mt-1 z-50 bg-background border border-border rounded-lg shadow-lg p-1 min-w-[140px]">
+            {SNOOZE_OPTIONS.map(({ label, days }) => (
+              <button
+                key={days}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  const d = new Date()
+                  d.setDate(d.getDate() + days)
+                  d.setHours(9, 0, 0, 0)
+                  onSnooze!(id, d)
+                  toggleMenu(false)
+                }}
+                className="w-full text-left px-3 py-1.5 text-sm text-foreground hover:bg-accent rounded transition-colors"
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+      )}
     </div>
   )
 }

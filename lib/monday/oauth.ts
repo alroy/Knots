@@ -86,6 +86,7 @@ export function buildAuthUrl(config: MondayOAuthConfig, state: string): string {
     client_id: config.clientId,
     redirect_uri: config.redirectUri,
     state,
+    scopes: 'me:read boards:read',
   })
 
   return `https://auth.monday.com/oauth2/authorize?${params.toString()}`
@@ -122,25 +123,67 @@ export async function exchangeCodeForToken(
 }
 
 /**
- * Verify Monday.com webhook signature
- * Monday signs webhooks with the app's signing secret
+ * Decoded Monday.com webhook JWT payload
  */
-export function verifyWebhookSignature(
-  body: string,
-  signature: string,
+export interface MondayWebhookJWT {
+  accountId?: number
+  userId?: number
+  aud?: string
+  exp?: number
+  iat?: number
+  shortLivedToken?: string
+}
+
+/**
+ * Verify Monday.com webhook authorization header (JWT signed with HS256).
+ * Returns decoded payload on success, null on failure.
+ */
+export function verifyWebhookJWT(
+  token: string,
   signingSecret: string
-): boolean {
-  const hmac = crypto
+): MondayWebhookJWT | null {
+  // Strip "Bearer " prefix if present
+  const jwt = token.startsWith('Bearer ') ? token.slice(7) : token
+
+  const parts = jwt.split('.')
+  if (parts.length !== 3) return null
+
+  const [headerB64, payloadB64, signatureB64] = parts
+
+  // Verify HS256 signature
+  const data = `${headerB64}.${payloadB64}`
+  const expectedSig = crypto
     .createHmac('sha256', signingSecret)
-    .update(body)
-    .digest('base64')
+    .update(data)
+    .digest('base64url')
 
   try {
-    return crypto.timingSafeEqual(
-      Buffer.from(signature, 'utf8'),
-      Buffer.from(hmac, 'utf8')
-    )
+    if (
+      !crypto.timingSafeEqual(
+        Buffer.from(signatureB64, 'base64url'),
+        Buffer.from(expectedSig, 'base64url')
+      )
+    ) {
+      return null
+    }
   } catch {
-    return false
+    return null
+  }
+
+  // Decode payload
+  try {
+    const payload = JSON.parse(
+      Buffer.from(payloadB64, 'base64url').toString('utf8')
+    )
+
+    // Check expiration
+    if (payload.exp && payload.exp < Math.floor(Date.now() / 1000)) {
+      console.warn('Monday webhook JWT expired')
+      return null
+    }
+
+    return payload as MondayWebhookJWT
+  } catch {
+    return null
   }
 }

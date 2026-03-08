@@ -255,7 +255,7 @@ Modern professionals juggle multiple collaboration platforms (Slack, Monday.com,
   - Auto-generated REST API
 - **Setup**: ~10 minutes with Claude Code
 
-#### AI/ML: Claude API (claude-3-5-haiku)
+#### AI/ML: Claude API (claude-haiku-4-5)
 - **Why**: No model training, simple API calls, excellent structured outputs, cost-effective (~$0.001/task)
 - **What you get**:
   - Task detection from messages (intent classification)
@@ -575,7 +575,7 @@ const anthropic = new Anthropic({
 });
 
 const message = await anthropic.messages.create({
-  model: "claude-3-5-haiku-20241022",
+  model: "claude-haiku-4-5-20251001",
   max_tokens: 1024,
   messages: [{
     role: "user",
@@ -930,7 +930,7 @@ Claude Code:
 #### Development Phase (0-100 users)
 - **Vercel Pro**: $20/month (you already have this)
 - **Supabase Pro**: $25/month (you already have this)
-- **Claude API**: ~$5-10 (claude-3-5-haiku at $0.80/$4 per 1M tokens)
+- **Claude API**: ~$5-10 (claude-haiku-4-5 at $0.80/$4 per 1M tokens)
 - **Domain**: $10/year (optional)
 - **Total**: ~$45-55/month (infrastructure covered by your existing accounts)
 
@@ -960,7 +960,7 @@ Claude Code:
 - **Frontend + Backend**: Next.js 14 (App Router) + TypeScript
 - **Hosting**: Vercel Pro (you already have this)
 - **Database**: Supabase Pro (you already have this)
-- **AI/ML**: Claude API (claude-3-5-haiku for speed, claude-3-5-sonnet for complex cases)
+- **AI/ML**: Claude API (claude-haiku-4-5 for speed, claude-3-5-sonnet for complex cases)
 - **UI Generation**: v0.dev (optional but recommended for faster UI development)
 - **Styling**: Tailwind CSS
 - **Animations**: Framer Motion

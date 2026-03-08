@@ -66,8 +66,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(`${siteUrl}/?monday_error=${encodeURIComponent(tokenResponse.error || 'unknown')}`)
   }
 
+  const accessToken = tokenResponse.access_token
+
   // Fetch user info from Monday API
-  const mondayUser = await fetchCurrentUser(tokenResponse.access_token)
+  const mondayUser = await fetchCurrentUser(accessToken)
   if (!mondayUser) {
     return NextResponse.redirect(`${siteUrl}/?error=monday_user_fetch_failed`)
   }
@@ -86,12 +88,14 @@ export async function GET(request: NextRequest) {
     .eq('account_id', accountId)
     .single()
 
+  let connectionId: string
+
   if (existing) {
     // Update existing connection (re-authorization)
     const { error: updateError } = await supabase
       .from('monday_connections')
       .update({
-        access_token: tokenResponse.access_token,
+        access_token: accessToken,
         scope: tokenResponse.scope,
         monday_user_id: mondayUserId,
         revoked_at: null,
@@ -102,22 +106,28 @@ export async function GET(request: NextRequest) {
       console.error('Failed to update Monday connection:', updateError)
       return NextResponse.redirect(`${siteUrl}/?error=save_failed`)
     }
+
+    connectionId = existing.id
   } else {
     // Insert new connection
-    const { error: insertError } = await supabase
+    const { data: inserted, error: insertError } = await supabase
       .from('monday_connections')
       .insert({
         user_id: userId,
         account_id: accountId,
         monday_user_id: mondayUserId,
-        access_token: tokenResponse.access_token,
+        access_token: accessToken,
         scope: tokenResponse.scope,
       })
+      .select('id')
+      .single()
 
-    if (insertError) {
+    if (insertError || !inserted) {
       console.error('Failed to save Monday connection:', insertError)
       return NextResponse.redirect(`${siteUrl}/?error=save_failed`)
     }
+
+    connectionId = inserted.id
   }
 
   return NextResponse.redirect(`${siteUrl}/?monday_connected=true`)

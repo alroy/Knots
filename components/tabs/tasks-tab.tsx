@@ -32,6 +32,7 @@ export function TasksTab({ contentColumnRef }: TasksTabProps) {
   const [loading, setLoading] = useState(true)
   const [editTask, setEditTask] = useState<EditTask | null>(null)
   const [briefRevision, setBriefRevision] = useState(0)
+  const [snoozingId, setSnoozingId] = useState<string | null>(null)
   const supabase = createClient()
 
   const locallyCreatedIds = useRef<Set<string>>(new Set())
@@ -297,6 +298,41 @@ export function TasksTab({ contentColumnRef }: TasksTabProps) {
     }
   }, [knots, supabase])
 
+  const handleSnooze = async (id: string, until: Date) => {
+    const knot = knots.find((k) => k.id === id)
+    if (!knot || !user) return
+
+    // Play exit animation, then remove from list and persist
+    setSnoozingId(id)
+
+    setTimeout(async () => {
+      setSnoozingId(null)
+      setKnots((prev) => prev.filter((k) => k.id !== id))
+
+      try {
+        // Insert into backlog with snooze date
+        const { error: insertError } = await supabase.from('backlog').insert({
+          title: knot.title,
+          description: knot.description,
+          category: 'action',
+          user_id: user.id,
+          position: 0,
+          snoozed_until: until.toISOString(),
+        })
+        if (insertError) throw insertError
+
+        // Delete from tasks
+        const { error: deleteError } = await supabase.from('tasks').delete().eq('id', id)
+        if (deleteError) throw deleteError
+
+        setBriefRevision(r => r + 1)
+      } catch (error) {
+        console.error('Error snoozing task:', error)
+        loadKnots() // Rollback
+      }
+    }, 300) // Match animation duration
+  }
+
   // Apply AI-suggested task order from morning brief
   const handleApplyBriefOrder = useCallback(async (taskIds: string[]) => {
     // Build new order: prioritized tasks first, then remaining tasks in original order
@@ -336,6 +372,8 @@ export function TasksTab({ contentColumnRef }: TasksTabProps) {
           onToggle={handleToggle}
           onDelete={handleDelete}
           onEdit={handleEdit}
+          onSnooze={handleSnooze}
+          snoozingId={snoozingId}
         />
       ) : (
         <p className="py-8 text-center text-muted-foreground">

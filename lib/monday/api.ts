@@ -6,7 +6,7 @@ const MONDAY_API_URL = 'https://api.monday.com/v2'
 
 interface GraphQLResponse<T = any> {
   data?: T
-  errors?: Array<{ message: string }>
+  errors?: Array<{ message: string; extensions?: Record<string, any> }>
   account_id?: number
 }
 
@@ -148,6 +148,81 @@ export function extractAssigneeIds(item: MondayItem): string[] {
 }
 
 /**
+ * Board info
+ */
+export interface MondayBoard {
+  id: string
+  name: string
+  type: string
+}
+
+/**
+ * Fetch all boards accessible to the authenticated user
+ */
+export async function fetchBoards(token: string): Promise<MondayBoard[]> {
+  const allBoards: MondayBoard[] = []
+  let page = 1
+
+  // Paginate — Monday returns up to 500 boards per page
+  while (true) {
+    const result = await mondayQuery<{ boards: MondayBoard[] }>(
+      token,
+      `query ($page: Int!) { boards(limit: 500, page: $page) { id name type } }`,
+      { page }
+    )
+
+    if (result.errors || !result.data?.boards?.length) break
+    allBoards.push(...result.data.boards)
+    if (result.data.boards.length < 500) break
+    page++
+  }
+
+  return allBoards
+}
+
+/**
+ * Activity log entry from Monday.com
+ */
+export interface MondayActivityLog {
+  id: string
+  event: string
+  data: string // JSON string
+  created_at: string // Unix timestamp as string (e.g. "17098...")
+}
+
+/**
+ * Fetch activity logs for a board, filtered to person-column changes.
+ * `from` is an ISO 8601 string (e.g. "2026-03-08T00:00:00Z").
+ */
+export async function fetchActivityLogs(
+  token: string,
+  boardId: string,
+  from: string
+): Promise<MondayActivityLog[]> {
+  const result = await mondayQuery<{ boards: Array<{ activity_logs: MondayActivityLog[] }> }>(
+    token,
+    `query ($ids: [ID!]!, $from: ISO8601DateTime!) {
+      boards(ids: $ids) {
+        activity_logs(from: $from, column_ids: ["person", "people"], limit: 100) {
+          id
+          event
+          data
+          created_at
+        }
+      }
+    }`,
+    { ids: [boardId], from }
+  )
+
+  if (result.errors || !result.data?.boards?.[0]) {
+    // Don't log expected errors (e.g. board access revoked)
+    return []
+  }
+
+  return result.data.boards[0].activity_logs || []
+}
+
+/**
  * Build a human-readable description from a Monday item
  */
 export function buildItemDescription(item: MondayItem): string {
@@ -161,4 +236,27 @@ export function buildItemDescription(item: MondayItem): string {
   }
 
   return parts.join(' · ')
+}
+
+/**
+ * Delete a webhook subscription from Monday.com
+ */
+export async function deleteMondayWebhook(
+  token: string,
+  webhookId: string
+): Promise<boolean> {
+  const result = await mondayQuery<{ delete_webhook: { id: string } }>(
+    token,
+    `mutation ($webhookId: ID!) {
+      delete_webhook(id: $webhookId) { id }
+    }`,
+    { webhookId }
+  )
+
+  if (result.errors) {
+    console.error(`Failed to delete webhook ${webhookId}:`, result.errors)
+    return false
+  }
+
+  return true
 }
