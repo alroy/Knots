@@ -1,10 +1,10 @@
 "use client"
 
-import React, { useMemo } from "react"
+import React, { useMemo, useState } from "react"
 
 import { Checkbox } from "@/components/ui/checkbox"
 import { ProvenanceRow } from "@/components/ui/slack-badge"
-import { GripVertical, Trash2, Archive } from "lucide-react"
+import { GripVertical, Trash2, Clock } from "lucide-react"
 import { cn, formatRelativeTime } from "@/lib/utils"
 import { TaskMetadata, SlackTaskMetadata, isSlackMetadata, isGranolaMetadata } from "@/lib/types"
 import {
@@ -25,7 +25,7 @@ export interface KnotCardProps {
   onToggle: (id: string) => void
   onDelete: (id: string) => void
   onEdit?: (id: string) => void
-  onMoveToBacklog?: (id: string) => void
+  onSnooze?: (id: string, until: Date) => void
   isDragging?: boolean
   isOverlay?: boolean
   dragHandleProps?: React.HTMLAttributes<HTMLDivElement>
@@ -45,7 +45,7 @@ export default function KnotCard({
   onToggle,
   onDelete,
   onEdit,
-  onMoveToBacklog,
+  onSnooze,
   isDragging = false,
   isOverlay = false,
   dragHandleProps,
@@ -251,26 +251,75 @@ export default function KnotCard({
       </div>
 
       {/* Action buttons - clicks should not trigger edit */}
-      <div className="flex shrink-0 items-center gap-0.5">
-        {onMoveToBacklog && (
-          <button
-            onClick={(e) => { e.stopPropagation(); onMoveToBacklog(id) }}
-            aria-label={`Move ${displayText.title} to backlog`}
-            className="shrink-0 rounded-md p-1.5 text-muted-foreground/50 opacity-100 transition-opacity duration-100 ease-out hover:text-primary focus:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:opacity-0 sm:group-hover:opacity-100"
-            style={{ touchAction: "manipulation" }}
-          >
-            <Archive className="h-4 w-4" />
-          </button>
-        )}
+      <SnoozeAndDelete
+        id={id}
+        title={displayText.title}
+        onSnooze={onSnooze}
+        onDelete={handleDeleteClick}
+      />
+    </div>
+  )
+}
+
+const SNOOZE_OPTIONS = [
+  { label: 'Tomorrow', days: 1 },
+  { label: 'In 3 days', days: 3 },
+  { label: 'Next week', days: 7 },
+  { label: 'In 2 weeks', days: 14 },
+]
+
+function SnoozeAndDelete({ id, title, onSnooze, onDelete }: {
+  id: string
+  title: string
+  onSnooze?: (id: string, until: Date) => void
+  onDelete: (e: React.MouseEvent) => void
+}) {
+  const [showMenu, setShowMenu] = useState(false)
+
+  return (
+    <div className="flex shrink-0 items-center gap-0.5 relative">
+      {onSnooze && (
         <button
-          onClick={handleDeleteClick}
-          aria-label={`Delete ${displayText.title}`}
-          className="shrink-0 rounded-md p-1.5 text-muted-foreground/50 opacity-100 transition-opacity duration-100 ease-out hover:text-destructive focus:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:opacity-0 sm:group-hover:opacity-100"
+          onClick={(e) => { e.stopPropagation(); setShowMenu(!showMenu) }}
+          aria-label={`Snooze ${title}`}
+          className="shrink-0 rounded-md p-1.5 text-muted-foreground/50 opacity-100 transition-opacity duration-100 ease-out hover:text-primary focus:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:opacity-0 sm:group-hover:opacity-100"
           style={{ touchAction: "manipulation" }}
         >
-          <Trash2 className="h-4 w-4" />
+          <Clock className="h-4 w-4" />
         </button>
-      </div>
+      )}
+      <button
+        onClick={onDelete}
+        aria-label={`Delete ${title}`}
+        className="shrink-0 rounded-md p-1.5 text-muted-foreground/50 opacity-100 transition-opacity duration-100 ease-out hover:text-destructive focus:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:opacity-0 sm:group-hover:opacity-100"
+        style={{ touchAction: "manipulation" }}
+      >
+        <Trash2 className="h-4 w-4" />
+      </button>
+
+      {showMenu && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); setShowMenu(false) }} />
+          <div className="absolute right-0 top-full mt-1 z-50 bg-background border border-border rounded-lg shadow-lg p-1 min-w-[140px]">
+            {SNOOZE_OPTIONS.map(({ label, days }) => (
+              <button
+                key={days}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  const d = new Date()
+                  d.setDate(d.getDate() + days)
+                  d.setHours(9, 0, 0, 0)
+                  onSnooze!(id, d)
+                  setShowMenu(false)
+                }}
+                className="w-full text-left px-3 py-1.5 text-sm text-foreground hover:bg-accent rounded transition-colors"
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   )
 }

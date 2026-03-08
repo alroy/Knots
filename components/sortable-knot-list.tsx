@@ -44,7 +44,7 @@ interface SortableKnotListProps {
   onToggle: (id: string) => void;
   onDelete: (id: string) => void;
   onEdit?: (id: string) => void;
-  onMoveToBacklog?: (id: string) => void;
+  onSnooze?: (id: string, until: Date) => void;
 }
 
 interface SortableKnotItemProps {
@@ -52,12 +52,12 @@ interface SortableKnotItemProps {
   onToggle: (id: string) => void;
   onDelete: (id: string) => void;
   onEdit?: (id: string) => void;
-  onMoveToBacklog?: (id: string) => void;
+  onSnooze?: (id: string, until: Date) => void;
   /** True when any item in the list is being dragged */
   isListDragging: boolean;
 }
 
-function SortableKnotItem({ knot, onToggle, onDelete, onEdit, onMoveToBacklog, isListDragging }: SortableKnotItemProps) {
+function SortableKnotItem({ knot, onToggle, onDelete, onEdit, onSnooze, isListDragging }: SortableKnotItemProps) {
   const {
     attributes,
     listeners,
@@ -96,7 +96,7 @@ function SortableKnotItem({ knot, onToggle, onDelete, onEdit, onMoveToBacklog, i
         onToggle={onToggle}
         onDelete={onDelete}
         onEdit={onEdit}
-        onMoveToBacklog={onMoveToBacklog}
+        onSnooze={onSnooze}
         isDragging={isDragging}
         isListDragging={isListDragging}
         dragHandleProps={{ ...attributes, ...listeners }}
@@ -111,7 +111,7 @@ export function SortableKnotList({
   onToggle,
   onDelete,
   onEdit,
-  onMoveToBacklog,
+  onSnooze,
 }: SortableKnotListProps) {
   const [activeId, setActiveId] = useState<string | null>(null);
   // Key to force re-render when Safari PWA resumes from background
@@ -224,7 +224,7 @@ export function SortableKnotList({
               onToggle={onToggle}
               onDelete={onDelete}
               onEdit={onEdit}
-              onMoveToBacklog={onMoveToBacklog}
+              onSnooze={onSnooze}
               isListDragging={isDragging}
             />
           ))}

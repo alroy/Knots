@@ -297,7 +297,7 @@ export function TasksTab({ contentColumnRef }: TasksTabProps) {
     }
   }, [knots, supabase])
 
-  const handleMoveToBacklog = async (id: string) => {
+  const handleSnooze = async (id: string, until: Date) => {
     const knot = knots.find((k) => k.id === id)
     if (!knot || !user) return
 
@@ -305,13 +305,14 @@ export function TasksTab({ contentColumnRef }: TasksTabProps) {
     setKnots((prev) => prev.filter((k) => k.id !== id))
 
     try {
-      // Insert into backlog
+      // Insert into backlog with snooze date
       const { error: insertError } = await supabase.from('backlog').insert({
         title: knot.title,
         description: knot.description,
         category: 'action',
         user_id: user.id,
         position: 0,
+        snoozed_until: until.toISOString(),
       })
       if (insertError) throw insertError
 
@@ -321,7 +322,7 @@ export function TasksTab({ contentColumnRef }: TasksTabProps) {
 
       setBriefRevision(r => r + 1)
     } catch (error) {
-      console.error('Error moving task to backlog:', error)
+      console.error('Error snoozing task:', error)
       loadKnots() // Rollback
     }
   }
@@ -365,7 +366,7 @@ export function TasksTab({ contentColumnRef }: TasksTabProps) {
           onToggle={handleToggle}
           onDelete={handleDelete}
           onEdit={handleEdit}
-          onMoveToBacklog={handleMoveToBacklog}
+          onSnooze={handleSnooze}
         />
       ) : (
         <p className="py-8 text-center text-muted-foreground">
