@@ -132,13 +132,14 @@ export async function GET(request: NextRequest) {
     connectionId = inserted.id
   }
 
-  // Register webhooks on all boards in the background (after response is sent)
+  // Register webhooks on owned boards in the background (after response is sent)
   after(async () => {
     const adminSupabase = createAdminClient()
     await registerWebhooksForConnection(
       adminSupabase,
       connectionId,
-      accessToken
+      accessToken,
+      mondayUserId
     ).catch((err) => console.error('Monday webhook registration failed:', err))
   })
 

@@ -6,7 +6,7 @@ const MONDAY_API_URL = 'https://api.monday.com/v2'
 
 interface GraphQLResponse<T = any> {
   data?: T
-  errors?: Array<{ message: string }>
+  errors?: Array<{ message: string; extensions?: Record<string, any> }>
   account_id?: number
 }
 
@@ -148,14 +148,24 @@ export function extractAssigneeIds(item: MondayItem): string[] {
 }
 
 /**
+ * Board info returned by fetchBoards
+ */
+export interface MondayBoard {
+  id: string
+  name: string
+  type: string
+  owner: { id: string } | null
+}
+
+/**
  * Fetch all boards accessible to the authenticated user
  */
 export async function fetchBoards(
   token: string
-): Promise<Array<{ id: string; name: string }>> {
-  const result = await mondayQuery<{ boards: Array<{ id: string; name: string }> }>(
+): Promise<MondayBoard[]> {
+  const result = await mondayQuery<{ boards: MondayBoard[] }>(
     token,
-    `query { boards(limit: 200) { id name } }`
+    `query { boards(limit: 200) { id name type owner { id } } }`
   )
 
   if (result.errors || !result.data?.boards) {
@@ -167,13 +177,21 @@ export async function fetchBoards(
 }
 
 /**
+ * Result from createBoardWebhook
+ */
+export type WebhookCreateResult =
+  | { ok: true; webhookId: string; boardId: string }
+  | { ok: false; rateLimited: true; retryInSeconds: number }
+  | { ok: false; rateLimited: false }
+
+/**
  * Create a webhook subscription on a Monday.com board
  */
 export async function createBoardWebhook(
   token: string,
   boardId: string,
   url: string
-): Promise<{ id: string; board_id: string } | null> {
+): Promise<WebhookCreateResult> {
   const result = await mondayQuery<{
     create_webhook: { id: string; board_id: string }
   }>(
@@ -187,12 +205,30 @@ export async function createBoardWebhook(
     { boardId, url, event: 'change_column_value' }
   )
 
-  if (result.errors || !result.data?.create_webhook) {
+  if (result.errors) {
+    const rateLimitError = result.errors.find(
+      (e: any) => e.extensions?.code === 'COMPLEXITY_BUDGET_EXHAUSTED'
+    )
+    if (rateLimitError) {
+      return {
+        ok: false,
+        rateLimited: true,
+        retryInSeconds: rateLimitError.extensions?.retry_in_seconds ?? 30,
+      }
+    }
     console.error(`Failed to create webhook for board ${boardId}:`, result.errors)
-    return null
+    return { ok: false, rateLimited: false }
   }
 
-  return result.data.create_webhook
+  if (!result.data?.create_webhook) {
+    return { ok: false, rateLimited: false }
+  }
+
+  return {
+    ok: true,
+    webhookId: result.data.create_webhook.id,
+    boardId: result.data.create_webhook.board_id,
+  }
 }
 
 /**
