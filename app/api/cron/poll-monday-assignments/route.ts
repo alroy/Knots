@@ -71,6 +71,7 @@ export async function GET(request: Request) {
       const boards = await fetchBoards(conn.access_token)
       const mainBoards = boards.filter((b) => b.type !== 'sub_items_board')
       result.boardsPolled = mainBoards.length
+      console.log(`[monday-poll] User ${conn.user_id}: polling ${mainBoards.length} boards since ${from}`)
 
       // Track item IDs we've already seen to avoid duplicates within a single poll
       const processedItemIds = new Set<string>()
@@ -126,6 +127,7 @@ export async function GET(request: Request) {
             if (!wasAssigned || wasAlreadyAssigned) continue
 
             processedItemIds.add(itemId)
+            console.log(`[monday-poll] New assignment detected: item ${itemId} on board ${board.id} (${board.name})`)
 
             // Fetch full item details
             const item = await fetchItem(conn.access_token, itemId)
@@ -148,6 +150,11 @@ export async function GET(request: Request) {
             }
 
             const createResult = await createTaskFromSource(supabase, taskInput)
+            console.log(`[monday-poll] Task creation result for "${item.name}":`, {
+              success: createResult.success,
+              deduped: createResult.deduped,
+              taskId: createResult.taskId,
+            })
 
             if (createResult.success && !createResult.deduped && createResult.taskId) {
               result.tasksCreated++
@@ -174,6 +181,8 @@ export async function GET(request: Request) {
 
   const totalCreated = results.reduce((sum, r) => sum + r.tasksCreated, 0)
   const totalLogs = results.reduce((sum, r) => sum + r.logsChecked, 0)
+
+  console.log(`[monday-poll] Done: ${connections.length} connection(s), ${totalLogs} logs, ${totalCreated} tasks created`)
 
   return NextResponse.json({
     message: `Polled ${connections.length} connection(s). Checked ${totalLogs} activity logs, created ${totalCreated} tasks.`,

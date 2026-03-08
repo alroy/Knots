@@ -237,3 +237,26 @@ export function buildItemDescription(item: MondayItem): string {
 
   return parts.join(' · ')
 }
+
+/**
+ * Delete a webhook subscription from Monday.com
+ */
+export async function deleteMondayWebhook(
+  token: string,
+  webhookId: string
+): Promise<boolean> {
+  const result = await mondayQuery<{ delete_webhook: { id: string } }>(
+    token,
+    `mutation ($webhookId: ID!) {
+      delete_webhook(id: $webhookId) { id }
+    }`,
+    { webhookId }
+  )
+
+  if (result.errors) {
+    console.error(`Failed to delete webhook ${webhookId}:`, result.errors)
+    return false
+  }
+
+  return true
+}

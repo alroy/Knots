@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-admin'
-import { verifyWebhookSignature } from '@/lib/monday/oauth'
+import { verifyWebhookJWT } from '@/lib/monday/oauth'
 import { fetchItem, extractAssigneeIds, buildItemDescription } from '@/lib/monday/api'
 import { createTaskFromSource } from '@/lib/slack/ingest/create-task'
 import { linkTaskToGoal } from '@/lib/slack/ingest/link-goal'
@@ -25,11 +25,15 @@ export async function POST(request: NextRequest) {
 
   const rawBody = await request.text()
 
-  // Verify webhook signature if present
-  const signature = request.headers.get('authorization')
-  if (signature && !verifyWebhookSignature(rawBody, signature, signingSecret)) {
-    console.error('Monday webhook signature verification failed')
-    return NextResponse.json({ error: 'Invalid signature' }, { status: 401 })
+  // Verify webhook JWT if present
+  const authHeader = request.headers.get('authorization')
+  if (authHeader) {
+    const jwt = verifyWebhookJWT(authHeader, signingSecret)
+    if (!jwt) {
+      console.error('Monday webhook JWT verification failed')
+      return NextResponse.json({ error: 'Invalid signature' }, { status: 401 })
+    }
+    console.log('Monday webhook JWT verified:', { accountId: jwt.accountId, userId: jwt.userId })
   }
 
   let body: any
