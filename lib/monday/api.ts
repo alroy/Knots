@@ -148,6 +148,79 @@ export function extractAssigneeIds(item: MondayItem): string[] {
 }
 
 /**
+ * Fetch all boards accessible to the authenticated user
+ */
+export async function fetchBoards(
+  token: string
+): Promise<Array<{ id: string; name: string }>> {
+  const result = await mondayQuery<{ boards: Array<{ id: string; name: string }> }>(
+    token,
+    `query { boards(limit: 200) { id name } }`
+  )
+
+  if (result.errors || !result.data?.boards) {
+    console.error('Failed to fetch Monday boards:', result.errors)
+    return []
+  }
+
+  return result.data.boards
+}
+
+/**
+ * Create a webhook subscription on a Monday.com board
+ */
+export async function createBoardWebhook(
+  token: string,
+  boardId: string,
+  url: string
+): Promise<{ id: string; board_id: string } | null> {
+  const result = await mondayQuery<{
+    create_webhook: { id: string; board_id: string }
+  }>(
+    token,
+    `mutation ($boardId: ID!, $url: String!, $event: WebhookEventType!) {
+      create_webhook(board_id: $boardId, url: $url, event: $event) {
+        id
+        board_id
+      }
+    }`,
+    { boardId, url, event: 'change_column_value' }
+  )
+
+  if (result.errors || !result.data?.create_webhook) {
+    console.error(`Failed to create webhook for board ${boardId}:`, result.errors)
+    return null
+  }
+
+  return result.data.create_webhook
+}
+
+/**
+ * Delete a webhook subscription from Monday.com
+ */
+export async function deleteMondayWebhook(
+  token: string,
+  webhookId: string
+): Promise<boolean> {
+  const result = await mondayQuery<{ delete_webhook: { id: string } }>(
+    token,
+    `mutation ($webhookId: ID!) {
+      delete_webhook(id: $webhookId) {
+        id
+      }
+    }`,
+    { webhookId }
+  )
+
+  if (result.errors) {
+    console.error(`Failed to delete webhook ${webhookId}:`, result.errors)
+    return false
+  }
+
+  return true
+}
+
+/**
  * Build a human-readable description from a Monday item
  */
 export function buildItemDescription(item: MondayItem): string {

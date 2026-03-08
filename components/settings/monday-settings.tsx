@@ -64,17 +64,11 @@ export function MondaySettings() {
 
     setDisconnecting(true)
     try {
-      const supabase = createClient()
-      const { error } = await supabase
-        .from("monday_connections")
-        .update({ revoked_at: new Date().toISOString() })
-        .eq("id", connection.id)
-        .eq("user_id", user.id)
-
-      if (error) {
-        console.error("Error disconnecting Monday:", error)
-      } else {
+      const res = await fetch("/api/monday/disconnect", { method: "POST" })
+      if (res.ok) {
         setConnection(null)
+      } else {
+        console.error("Error disconnecting Monday:", await res.text())
       }
     } finally {
       setDisconnecting(false)

@@ -1,3 +1,4 @@
+import { after } from 'next/server'
 import { NextResponse, type NextRequest } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-admin'
 import {
@@ -6,6 +7,7 @@ import {
   exchangeCodeForToken,
 } from '@/lib/monday/oauth'
 import { fetchCurrentUser } from '@/lib/monday/api'
+import { registerWebhooksForConnection } from '@/lib/monday/webhooks'
 
 /**
  * Handle Monday.com OAuth callback
@@ -86,6 +88,8 @@ export async function GET(request: NextRequest) {
     .eq('account_id', accountId)
     .single()
 
+  let connectionId: string
+
   if (existing) {
     // Update existing connection (re-authorization)
     const { error: updateError } = await supabase
@@ -102,9 +106,11 @@ export async function GET(request: NextRequest) {
       console.error('Failed to update Monday connection:', updateError)
       return NextResponse.redirect(`${siteUrl}/?error=save_failed`)
     }
+
+    connectionId = existing.id
   } else {
     // Insert new connection
-    const { error: insertError } = await supabase
+    const { data: inserted, error: insertError } = await supabase
       .from('monday_connections')
       .insert({
         user_id: userId,
@@ -113,12 +119,26 @@ export async function GET(request: NextRequest) {
         access_token: tokenResponse.access_token,
         scope: tokenResponse.scope,
       })
+      .select('id')
+      .single()
 
-    if (insertError) {
+    if (insertError || !inserted) {
       console.error('Failed to save Monday connection:', insertError)
       return NextResponse.redirect(`${siteUrl}/?error=save_failed`)
     }
+
+    connectionId = inserted.id
   }
+
+  // Register webhooks on all boards in the background (after response is sent)
+  after(async () => {
+    const adminSupabase = createAdminClient()
+    await registerWebhooksForConnection(
+      adminSupabase,
+      connectionId,
+      tokenResponse.access_token
+    ).catch((err) => console.error('Monday webhook registration failed:', err))
+  })
 
   return NextResponse.redirect(`${siteUrl}/?monday_connected=true`)
 }
