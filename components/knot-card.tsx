@@ -2,9 +2,8 @@
 
 import React, { useMemo, useState, useCallback, useRef, useEffect } from "react"
 
-import { Checkbox } from "@/components/ui/checkbox"
 import { ProvenanceRow } from "@/components/ui/slack-badge"
-import { GripVertical, Trash2, Clock } from "lucide-react"
+import { GripVertical, Trash2, Clock, Check } from "lucide-react"
 import { cn, formatRelativeTime } from "@/lib/utils"
 import { TaskMetadata, SlackTaskMetadata, isSlackMetadata, isGranolaMetadata } from "@/lib/types"
 import {
@@ -35,6 +34,8 @@ export interface KnotCardProps {
   onSnoozeMenuOpenChange?: (open: boolean) => void
   /** Whether the card is playing its snooze exit animation */
   isSnoozing?: boolean
+  /** Whether the card is playing its complete exit animation */
+  isCompleting?: boolean
 }
 
 export default function KnotCard({
@@ -56,6 +57,7 @@ export default function KnotCard({
   isListDragging = false,
   onSnoozeMenuOpenChange,
   isSnoozing = false,
+  isCompleting = false,
 }: KnotCardProps) {
   const isCompleted = status === "completed"
   const [snoozeMenuOpen, setSnoozeMenuOpen] = useState(false)
@@ -168,13 +170,14 @@ export default function KnotCard({
     <div
       className={cn(
         "group relative flex items-start gap-3 rounded-lg bg-card p-4 transition-[background-color,opacity,transform,box-shadow] duration-200 ease-[cubic-bezier(0.2,0,0,1)]",
-        !isOverlay && !isSnoozing && "animate-in fade-in duration-300",
-        !isCompleted && "hover:bg-accent-hover",
-        isCompleted && "bg-accent-subtle opacity-75",
+        !isOverlay && !isSnoozing && !isCompleting && "animate-in fade-in duration-300",
+        !isCompleted && !isCompleting && "hover:bg-accent-hover",
+        isCompleted && !isCompleting && "bg-accent-subtle opacity-75",
         isDragging && "opacity-40",
         isOverlay && "shadow-md cursor-grabbing",
         snoozeMenuOpen && "z-50",
         isSnoozing && "animate-out fade-out slide-out-to-right duration-300 fill-mode-forwards",
+        isCompleting && "animate-out fade-out slide-out-to-right duration-300 fill-mode-forwards",
       )}
     >
       {/* Drag handle - separate from content to not trigger edit */}
@@ -194,14 +197,20 @@ export default function KnotCard({
         <GripVertical className="h-4 w-4 md:h-3.5 md:w-3.5" />
       </div>
 
-      {/* Checkbox - sibling to content area, clicks won't trigger edit */}
+      {/* Toggle button - sibling to content area, clicks won't trigger edit */}
       <div style={{ touchAction: "manipulation" }}>
-        <Checkbox
-          id={`knot-${id}`}
-          checked={isCompleted}
-          onCheckedChange={() => onToggle(id)}
-          className="mt-0.5 shrink-0"
-        />
+        <button
+          onClick={() => onToggle(id)}
+          className={cn(
+            "mt-0.5 shrink-0 rounded-full w-5 h-5 border-2 flex items-center justify-center transition-colors",
+            isCompleted
+              ? "border-primary bg-primary text-primary-foreground"
+              : "border-muted-foreground/30 hover:border-primary"
+          )}
+          aria-label={isCompleted ? "Mark incomplete" : "Mark complete"}
+        >
+          {isCompleted && <Check className="h-3 w-3" />}
+        </button>
       </div>
 
       {/* Content area - tappable for edit */}
