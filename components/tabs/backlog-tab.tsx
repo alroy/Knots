@@ -356,7 +356,9 @@ function BacklogCard({ item, onEdit, onDelete, onResolve, onMoveToTasks, onSnooz
             {item.title}
           </span>
         </div>
-        <span className="text-xs text-muted-foreground">{formatRelativeTime(item.createdAt)}</span>
+        {!(item.snoozedUntil && !isResolved) && (
+          <span className="text-xs text-muted-foreground">{formatRelativeTime(item.createdAt)}</span>
+        )}
         {item.snoozedUntil && !isResolved && (
           <button
             onClick={(e) => { e.stopPropagation(); onCancelSnooze() }}
