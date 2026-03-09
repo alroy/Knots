@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react"
 import { createClient } from "@/lib/supabase-browser"
 import { useAuth } from "@/contexts/auth-context"
 import { cn, formatRelativeTime } from "@/lib/utils"
-import { Trash2, Plus, Check, ListTodo, Clock } from "lucide-react"
+import { Trash2, Plus, Check, ListTodo } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -126,77 +126,39 @@ export function BacklogTab({ contentColumnRef }: BacklogTabProps) {
     }
   }
 
+  const [movingToTasksId, setMovingToTasksId] = useState<string | null>(null)
+
   const handleMoveToTasks = async (id: string) => {
     const item = items.find(b => b.id === id)
     if (!item || !user) return
 
-    // Optimistic: remove from backlog list
-    setItems((prev) => prev.filter((b) => b.id !== id))
+    // Play exit animation, then remove from list and persist
+    setMovingToTasksId(id)
 
-    try {
-      // Insert into tasks
-      const { error: insertError } = await supabase.from('tasks').insert({
-        title: item.title,
-        description: item.description,
-        status: 'active',
-        user_id: user.id,
-        position: 0,
-      })
-      if (insertError) throw insertError
+    setTimeout(async () => {
+      setMovingToTasksId(null)
+      setItems((prev) => prev.filter((b) => b.id !== id))
 
-      // Delete from backlog
-      const { error: deleteError } = await supabase.from('backlog').delete().eq('id', id)
-      if (deleteError) throw deleteError
-    } catch (error) {
-      console.error('Error moving backlog item to tasks:', error)
-      loadItems() // Rollback
-    }
+      try {
+        // Insert into tasks
+        const { error: insertError } = await supabase.from('tasks').insert({
+          title: item.title,
+          description: item.description,
+          status: 'active',
+          user_id: user.id,
+          position: 0,
+        })
+        if (insertError) throw insertError
+
+        // Delete from backlog
+        const { error: deleteError } = await supabase.from('backlog').delete().eq('id', id)
+        if (deleteError) throw deleteError
+      } catch (error) {
+        console.error('Error moving backlog item to tasks:', error)
+        loadItems() // Rollback
+      }
+    }, 300) // Match animation duration
   }
-
-  const handleSnooze = async (id: string, until: Date) => {
-    const item = items.find(b => b.id === id)
-    if (!item) return
-
-    const snoozedUntil = until.toISOString()
-    setItems(prev => prev.map(b => b.id === id ? { ...b, snoozedUntil } : b))
-
-    try {
-      const { error } = await supabase.from('backlog').update({
-        snoozed_until: snoozedUntil,
-      }).eq('id', id)
-      if (error) throw error
-    } catch (error) {
-      console.error('Error snoozing backlog item:', error)
-      loadItems()
-    }
-  }
-
-  const handleCancelSnooze = async (id: string) => {
-    setItems(prev => prev.map(b => b.id === id ? { ...b, snoozedUntil: null } : b))
-    try {
-      const { error } = await supabase.from('backlog').update({
-        snoozed_until: null,
-      }).eq('id', id)
-      if (error) throw error
-    } catch (error) {
-      console.error('Error cancelling snooze:', error)
-      loadItems()
-    }
-  }
-
-  // Auto-promote snoozed items that are due (runs once after items load)
-  const promotedRef = useRef<Set<string>>(new Set())
-  useEffect(() => {
-    if (!user || items.length === 0) return
-    const now = new Date()
-    const dueItems = items.filter(b =>
-      b.snoozedUntil && new Date(b.snoozedUntil) <= now && b.status === 'open' && !promotedRef.current.has(b.id)
-    )
-    for (const item of dueItems) {
-      promotedRef.current.add(item.id)
-      handleMoveToTasks(item.id)
-    }
-  }, [items, user])
 
   const filteredItems = filterCategory
     ? items.filter(b => b.category === filterCategory)
@@ -255,8 +217,7 @@ export function BacklogTab({ contentColumnRef }: BacklogTabProps) {
               onDelete={() => handleDelete(item.id)}
               onResolve={() => handleResolve(item.id)}
               onMoveToTasks={() => handleMoveToTasks(item.id)}
-              onSnooze={(until) => handleSnooze(item.id, until)}
-              onCancelSnooze={() => handleCancelSnooze(item.id)}
+              isMovingToTasks={item.id === movingToTasksId}
             />
           ))}
         </div>
@@ -280,8 +241,7 @@ export function BacklogTab({ contentColumnRef }: BacklogTabProps) {
                 onDelete={() => handleDelete(item.id)}
                 onResolve={() => handleResolve(item.id)}
                 onMoveToTasks={() => handleMoveToTasks(item.id)}
-                onSnooze={(until) => handleSnooze(item.id, until)}
-                onCancelSnooze={() => handleCancelSnooze(item.id)}
+                isMovingToTasks={item.id === movingToTasksId}
               />
             ))}
           </div>
@@ -311,19 +271,20 @@ export function BacklogTab({ contentColumnRef }: BacklogTabProps) {
 
 // --- Backlog Card ---
 
-function BacklogCard({ item, onEdit, onDelete, onResolve, onMoveToTasks, onSnooze, onCancelSnooze }: {
+function BacklogCard({ item, onEdit, onDelete, onResolve, onMoveToTasks, isMovingToTasks = false }: {
   item: BacklogItem; onEdit: () => void; onDelete: () => void; onResolve: () => void; onMoveToTasks: () => void
-  onSnooze: (until: Date) => void; onCancelSnooze: () => void
+  isMovingToTasks?: boolean
 }) {
   const isResolved = item.status === 'resolved'
-  const [showSnoozeMenu, setShowSnoozeMenu] = useState(false)
 
   return (
     <div
       className={cn(
-        "group flex items-start gap-3 rounded-lg bg-card p-4 transition-[background-color,opacity] duration-200",
+        "group flex items-start gap-3 rounded-lg bg-card p-4 transition-[background-color,opacity,transform] duration-200",
+        !isMovingToTasks && "animate-in fade-in duration-300",
         !isResolved && "hover:bg-accent-hover",
         isResolved && "bg-accent-subtle opacity-75",
+        isMovingToTasks && "animate-out fade-out slide-out-to-left duration-300 fill-mode-forwards",
       )}
     >
       {/* Resolve button */}
@@ -357,16 +318,6 @@ function BacklogCard({ item, onEdit, onDelete, onResolve, onMoveToTasks, onSnooz
           </span>
         </div>
         <span className="text-xs text-muted-foreground">{formatRelativeTime(item.createdAt)}</span>
-        {item.snoozedUntil && !isResolved && (
-          <button
-            onClick={(e) => { e.stopPropagation(); onCancelSnooze() }}
-            className="mt-1 inline-flex items-center gap-1 text-xs text-primary/70 hover:text-primary transition-colors"
-          >
-            <Clock className="h-3 w-3" />
-            Snoozed until {new Date(item.snoozedUntil).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-            <span className="text-muted-foreground/50 ml-0.5">&times;</span>
-          </button>
-        )}
         {item.description && (
           <p className={cn(
             "mt-1 text-sm text-muted-foreground line-clamp-2",
@@ -378,16 +329,7 @@ function BacklogCard({ item, onEdit, onDelete, onResolve, onMoveToTasks, onSnooz
       </div>
 
       {/* Action buttons */}
-      <div className="flex shrink-0 items-center gap-0.5 relative">
-        {!isResolved && (
-          <button
-            onClick={(e) => { e.stopPropagation(); setShowSnoozeMenu(!showSnoozeMenu) }}
-            className="shrink-0 p-1.5 rounded-md text-muted-foreground/50 hover:text-primary transition-colors opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
-            aria-label={`Snooze ${item.title}`}
-          >
-            <Clock className="h-4 w-4" />
-          </button>
-        )}
+      <div className="flex shrink-0 items-center gap-0.5">
         <button
           onClick={(e) => { e.stopPropagation(); onMoveToTasks() }}
           className="shrink-0 p-1.5 rounded-md text-muted-foreground/50 hover:text-primary transition-colors opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
@@ -402,36 +344,6 @@ function BacklogCard({ item, onEdit, onDelete, onResolve, onMoveToTasks, onSnooz
         >
           <Trash2 className="h-4 w-4" />
         </button>
-
-        {/* Snooze quick-pick menu */}
-        {showSnoozeMenu && (
-          <>
-            <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); setShowSnoozeMenu(false) }} />
-            <div className="absolute right-0 top-full mt-1 z-50 bg-background border border-border rounded-lg shadow-lg p-1 min-w-[140px]">
-              {[
-                { label: 'Tomorrow', days: 1 },
-                { label: 'In 3 days', days: 3 },
-                { label: 'Next week', days: 7 },
-                { label: 'In 2 weeks', days: 14 },
-              ].map(({ label, days }) => (
-                <button
-                  key={days}
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    const d = new Date()
-                    d.setDate(d.getDate() + days)
-                    d.setHours(9, 0, 0, 0)
-                    onSnooze(d)
-                    setShowSnoozeMenu(false)
-                  }}
-                  className="w-full text-left px-3 py-1.5 text-sm text-foreground hover:bg-accent rounded transition-colors"
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          </>
-        )}
       </div>
     </div>
   )
