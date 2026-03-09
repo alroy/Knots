@@ -4,13 +4,30 @@ import { useState, useEffect, useCallback, useRef } from "react"
 import { createClient } from "@/lib/supabase-browser"
 import { useAuth } from "@/contexts/auth-context"
 import { cn, formatRelativeTime } from "@/lib/utils"
-import { Target, Trash2, ChevronDown, ChevronUp, Plus, X, AlertTriangle } from "lucide-react"
+import { Target, Trash2, ChevronDown, ChevronUp, Plus, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import type { Goal } from "@/lib/chief-of-staff-types"
 import { PRIORITY_LABELS, PRIORITY_COLORS } from "@/lib/chief-of-staff-types"
+
+/** Returns true when deadline is within 2 days and the goal is not completed. */
+function isGoalAtRisk(goal: Goal): boolean {
+  if (goal.status === 'completed' || !goal.deadline) return false
+  const now = new Date()
+  const deadline = new Date(goal.deadline + 'T23:59:59')
+  const diffMs = deadline.getTime() - now.getTime()
+  const diffDays = diffMs / (1000 * 60 * 60 * 24)
+  return diffDays <= 2
+}
+
+/** Returns a date string (YYYY-MM-DD) for 7 days from now. */
+function defaultDeadline(): string {
+  const d = new Date()
+  d.setDate(d.getDate() + 7)
+  return d.toISOString().slice(0, 10)
+}
 
 interface GoalsTabProps {
   contentColumnRef: React.RefObject<HTMLDivElement | null>
@@ -159,19 +176,6 @@ export function GoalsTab({ contentColumnRef }: GoalsTabProps) {
     }
   }
 
-  const handleMarkAtRisk = async (id: string) => {
-    const goal = goals.find(g => g.id === id)
-    if (!goal) return
-    const nextStatus = goal.status === 'at_risk' ? 'active' : 'at_risk'
-    setGoals(prev => prev.map(g => g.id === id ? { ...g, status: nextStatus } : g))
-    try {
-      const { error } = await supabase.from('goals').update({ status: nextStatus }).eq('id', id)
-      if (error) throw error
-    } catch (error) {
-      console.error('Error updating goal status:', error)
-      loadGoals()
-    }
-  }
 
   if (loading) {
     return (
@@ -200,7 +204,6 @@ export function GoalsTab({ contentColumnRef }: GoalsTabProps) {
               onEdit={() => { setEditGoal(goal); setIsFormOpen(true) }}
               onDelete={() => handleDelete(goal.id)}
               onStatusToggle={() => handleStatusToggle(goal.id)}
-              onMarkAtRisk={() => handleMarkAtRisk(goal.id)}
             />
           ))}
         </div>
@@ -235,7 +238,7 @@ export function GoalsTab({ contentColumnRef }: GoalsTabProps) {
 
 // --- Goal Card ---
 
-function GoalCard({ goal, taskCount, isExpanded, onToggleExpand, onEdit, onDelete, onStatusToggle, onMarkAtRisk }: {
+function GoalCard({ goal, taskCount, isExpanded, onToggleExpand, onEdit, onDelete, onStatusToggle }: {
   goal: Goal
   taskCount: number
   isExpanded: boolean
@@ -243,16 +246,17 @@ function GoalCard({ goal, taskCount, isExpanded, onToggleExpand, onEdit, onDelet
   onEdit: () => void
   onDelete: () => void
   onStatusToggle: () => void
-  onMarkAtRisk: () => void
 }) {
   const isCompleted = goal.status === 'completed'
+  const atRisk = isGoalAtRisk(goal)
 
   return (
     <div
       className={cn(
         "rounded-lg bg-card p-4 transition-[background-color,opacity] duration-200",
-        !isCompleted && "hover:bg-accent-hover",
+        !isCompleted && !atRisk && "hover:bg-accent-hover",
         isCompleted && "bg-accent-subtle opacity-75",
+        atRisk && "bg-red-50 dark:bg-red-950/30",
       )}
     >
       <div className="flex items-start gap-3">
@@ -273,9 +277,6 @@ function GoalCard({ goal, taskCount, isExpanded, onToggleExpand, onEdit, onDelet
             )}>
               {goal.title}
             </span>
-            {goal.status === 'at_risk' && (
-              <AlertTriangle className="h-3.5 w-3.5 text-orange-500 shrink-0" />
-            )}
           </div>
           <span className="text-xs text-muted-foreground">
             {goal.deadline ? `Due ${goal.deadline}` : formatRelativeTime(goal.createdAt)}
@@ -329,9 +330,6 @@ function GoalCard({ goal, taskCount, isExpanded, onToggleExpand, onEdit, onDelet
           <div className="flex gap-2 pt-2">
             <Button size="sm" variant="ghost" onClick={onStatusToggle} className="text-xs h-7">
               {isCompleted ? "Reopen" : "Complete"}
-            </Button>
-            <Button size="sm" variant="ghost" onClick={onMarkAtRisk} className="text-xs h-7">
-              {goal.status === 'at_risk' ? "Clear risk" : "Mark at risk"}
             </Button>
           </div>
         </div>
@@ -403,7 +401,7 @@ function GoalFormModal({ goal, onSubmit, onClose }: {
   const [description, setDescription] = useState(goal?.description || '')
   const [priority, setPriority] = useState(goal?.priority || 2)
   const [metrics, setMetrics] = useState(goal?.metrics || '')
-  const [deadline, setDeadline] = useState(goal?.deadline || '')
+  const [deadline, setDeadline] = useState(goal?.deadline || (goal ? '' : defaultDeadline()))
   const [risks, setRisks] = useState(goal?.risks || '')
   const [error, setError] = useState('')
   const titleRef = useRef<HTMLInputElement>(null)
