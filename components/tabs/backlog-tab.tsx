@@ -143,13 +143,14 @@ export function BacklogTab({ contentColumnRef }: BacklogTabProps) {
       setItems((prev) => prev.filter((b) => b.id !== id))
 
       try {
-        // Insert into tasks
+        // Insert into tasks, preserving original timestamp
         const { error: insertError } = await supabase.from('tasks').insert({
           title: item.title,
           description: item.description,
           status: 'active',
           user_id: user.id,
           position: 0,
+          created_at: item.createdAt || new Date().toISOString(),
         })
         if (insertError) throw insertError
 

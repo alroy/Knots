@@ -197,7 +197,7 @@ export function TasksTab({ contentColumnRef }: TasksTabProps) {
           locallyModifiedIds.current.delete(id)
 
           try {
-            // Insert into backlog as resolved
+            // Insert into backlog as resolved, preserving original timestamp
             const { error: insertError } = await supabase.from('backlog').insert({
               title: knot.title,
               description: knot.description,
@@ -206,6 +206,7 @@ export function TasksTab({ contentColumnRef }: TasksTabProps) {
               resolved_at: new Date().toISOString(),
               user_id: user.id,
               position: 0,
+              created_at: knot.createdAt || new Date().toISOString(),
             })
             if (insertError) throw insertError
 
@@ -352,7 +353,7 @@ export function TasksTab({ contentColumnRef }: TasksTabProps) {
       setKnots((prev) => prev.filter((k) => k.id !== id))
 
       try {
-        // Insert into backlog with snooze date
+        // Insert into backlog with snooze date, preserving original timestamp
         const { error: insertError } = await supabase.from('backlog').insert({
           title: knot.title,
           description: knot.description,
@@ -360,6 +361,7 @@ export function TasksTab({ contentColumnRef }: TasksTabProps) {
           user_id: user.id,
           position: 0,
           snoozed_until: until.toISOString(),
+          created_at: knot.createdAt || new Date().toISOString(),
         })
         if (insertError) throw insertError
 
