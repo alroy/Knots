@@ -353,7 +353,7 @@ export function TasksTab({ contentColumnRef }: TasksTabProps) {
       setKnots((prev) => prev.filter((k) => k.id !== id))
 
       try {
-        // Insert into backlog with snooze date
+        // Insert into backlog with snooze date, preserving original created_at
         const { error: insertError } = await supabase.from('backlog').insert({
           title: knot.title,
           description: knot.description,
@@ -361,6 +361,7 @@ export function TasksTab({ contentColumnRef }: TasksTabProps) {
           user_id: user.id,
           position: 0,
           snoozed_until: until.toISOString(),
+          ...(knot.createdAt ? { created_at: knot.createdAt } : {}),
         })
         if (insertError) throw insertError
 

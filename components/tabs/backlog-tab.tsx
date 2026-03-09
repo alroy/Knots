@@ -134,13 +134,14 @@ export function BacklogTab({ contentColumnRef }: BacklogTabProps) {
     setItems((prev) => prev.filter((b) => b.id !== id))
 
     try {
-      // Insert into tasks
+      // Insert into tasks, preserving original created_at
       const { error: insertError } = await supabase.from('tasks').insert({
         title: item.title,
         description: item.description,
         status: 'active',
         user_id: user.id,
         position: 0,
+        ...(item.createdAt ? { created_at: item.createdAt } : {}),
       })
       if (insertError) throw insertError
 
@@ -255,7 +256,7 @@ export function BacklogTab({ contentColumnRef }: BacklogTabProps) {
               onDelete={() => handleDelete(item.id)}
               onResolve={() => handleResolve(item.id)}
               onMoveToTasks={() => handleMoveToTasks(item.id)}
-              onSnooze={(until) => handleSnooze(item.id, until)}
+
               onCancelSnooze={() => handleCancelSnooze(item.id)}
             />
           ))}
@@ -280,7 +281,7 @@ export function BacklogTab({ contentColumnRef }: BacklogTabProps) {
                 onDelete={() => handleDelete(item.id)}
                 onResolve={() => handleResolve(item.id)}
                 onMoveToTasks={() => handleMoveToTasks(item.id)}
-                onSnooze={(until) => handleSnooze(item.id, until)}
+  
                 onCancelSnooze={() => handleCancelSnooze(item.id)}
               />
             ))}
@@ -311,12 +312,11 @@ export function BacklogTab({ contentColumnRef }: BacklogTabProps) {
 
 // --- Backlog Card ---
 
-function BacklogCard({ item, onEdit, onDelete, onResolve, onMoveToTasks, onSnooze, onCancelSnooze }: {
+function BacklogCard({ item, onEdit, onDelete, onResolve, onMoveToTasks, onCancelSnooze }: {
   item: BacklogItem; onEdit: () => void; onDelete: () => void; onResolve: () => void; onMoveToTasks: () => void
-  onSnooze: (until: Date) => void; onCancelSnooze: () => void
+  onCancelSnooze: () => void
 }) {
   const isResolved = item.status === 'resolved'
-  const [showSnoozeMenu, setShowSnoozeMenu] = useState(false)
 
   return (
     <div
@@ -381,15 +381,6 @@ function BacklogCard({ item, onEdit, onDelete, onResolve, onMoveToTasks, onSnooz
 
       {/* Action buttons */}
       <div className="flex shrink-0 items-center gap-0.5 relative">
-        {!isResolved && (
-          <button
-            onClick={(e) => { e.stopPropagation(); setShowSnoozeMenu(!showSnoozeMenu) }}
-            className="shrink-0 p-1.5 rounded-md text-muted-foreground/50 hover:text-primary transition-colors opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
-            aria-label={`Snooze ${item.title}`}
-          >
-            <Clock className="h-4 w-4" />
-          </button>
-        )}
         <button
           onClick={(e) => { e.stopPropagation(); onMoveToTasks() }}
           className="shrink-0 p-1.5 rounded-md text-muted-foreground/50 hover:text-primary transition-colors opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
@@ -405,35 +396,6 @@ function BacklogCard({ item, onEdit, onDelete, onResolve, onMoveToTasks, onSnooz
           <Trash2 className="h-4 w-4" />
         </button>
 
-        {/* Snooze quick-pick menu */}
-        {showSnoozeMenu && (
-          <>
-            <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); setShowSnoozeMenu(false) }} />
-            <div className="absolute right-0 top-full mt-1 z-50 bg-background border border-border rounded-lg shadow-lg p-1 min-w-[140px]">
-              {[
-                { label: 'Tomorrow', days: 1 },
-                { label: 'In 3 days', days: 3 },
-                { label: 'Next week', days: 7 },
-                { label: 'In 2 weeks', days: 14 },
-              ].map(({ label, days }) => (
-                <button
-                  key={days}
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    const d = new Date()
-                    d.setDate(d.getDate() + days)
-                    d.setHours(9, 0, 0, 0)
-                    onSnooze(d)
-                    setShowSnoozeMenu(false)
-                  }}
-                  className="w-full text-left px-3 py-1.5 text-sm text-foreground hover:bg-accent rounded transition-colors"
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          </>
-        )}
       </div>
     </div>
   )
