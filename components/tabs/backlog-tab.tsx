@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react"
 import { createClient } from "@/lib/supabase-browser"
 import { useAuth } from "@/contexts/auth-context"
 import { cn, formatRelativeTime } from "@/lib/utils"
-import { Trash2, Plus, Check, ListTodo } from "lucide-react"
+import { Trash2, Plus, Check, ListTodo, Clock } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -317,7 +317,14 @@ function BacklogCard({ item, onEdit, onDelete, onResolve, onMoveToTasks, isMovin
             {item.title}
           </span>
         </div>
-        <span className="text-xs text-muted-foreground">{formatRelativeTime(item.createdAt)}</span>
+        {item.snoozedUntil ? (
+          <span className="inline-flex items-center gap-1 text-xs text-primary/70">
+            <Clock className="h-3 w-3" />
+            Snoozed until {new Date(item.snoozedUntil).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+          </span>
+        ) : (
+          <span className="text-xs text-muted-foreground">{formatRelativeTime(item.createdAt)}</span>
+        )}
         {item.description && (
           <p className={cn(
             "mt-1 text-sm text-muted-foreground line-clamp-2",
