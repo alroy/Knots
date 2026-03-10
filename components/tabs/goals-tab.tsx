@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react"
 import { createClient } from "@/lib/supabase-browser"
 import { useAuth } from "@/contexts/auth-context"
-import { cn, formatRelativeTime } from "@/lib/utils"
+import { cn, formatRelativeTime, groupByDate } from "@/lib/utils"
 import { Target, Trash2, Pencil, Plus, X, FileText } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -25,8 +25,7 @@ export function GoalsTab({ contentColumnRef }: GoalsTabProps) {
   const [editGoal, setEditGoal] = useState<Goal | null>(null)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [taskCounts, setTaskCounts] = useState<Record<string, number>>({})
-  const [reorderingId, setReorderingId] = useState<string | null>(null)
-  const [settledId, setSettledId] = useState<string | null>(null)
+  const [archivingId, setArchivingId] = useState<string | null>(null)
   const [showTranscript, setShowTranscript] = useState(false)
   const supabase = createClient()
 
@@ -76,7 +75,7 @@ export function GoalsTab({ contentColumnRef }: GoalsTabProps) {
         .from('goals')
         .select('*')
         .eq('user_id', user.id)
-        .order('position', { ascending: true })
+        .order('created_at', { ascending: false })
       if (error) throw error
       const mapped = (data || []).map((g: any) => ({
         id: g.id,
@@ -91,10 +90,9 @@ export function GoalsTab({ contentColumnRef }: GoalsTabProps) {
         createdAt: g.created_at,
         completedAt: g.completed_at,
       }))
-      // Active goals first, completed at the bottom
-      const active = mapped.filter((g: Goal) => g.status === 'active')
-      const completed = mapped.filter((g: Goal) => g.status === 'completed')
-      setGoals([...active, ...completed])
+      // Filter out archived goals - they live in the Goals Archive page
+      const visible = mapped.filter((g: Goal) => g.status !== 'archived')
+      setGoals(visible)
     } catch (error) {
       console.error('Error loading goals:', error)
     } finally {
@@ -148,38 +146,28 @@ export function GoalsTab({ contentColumnRef }: GoalsTabProps) {
     }
   }
 
-  const handleStatusToggle = async (id: string) => {
+  const handleArchive = async (id: string) => {
     const goal = goals.find(g => g.id === id)
     if (!goal) return
-    const nextStatus = goal.status === 'active' ? 'completed' : goal.status === 'completed' ? 'active' : 'active'
 
-    // Optimistic: update status immediately so checkbox reflects the change
-    setGoals(prev => prev.map(g => g.id === id ? { ...g, status: nextStatus } : g))
+    // Play slide-out-to-right exit animation (same as snooze in Tasks tab)
+    setArchivingId(id)
 
-    // After a brief pause, fade out, reorder, then fade in at new position
-    setReorderingId(id)
-    setTimeout(() => {
-      setGoals(prev => {
-        const active = prev.filter(g => g.status === 'active')
-        const completed = prev.filter(g => g.status === 'completed')
-        return [...active, ...completed]
-      })
-      // Clear reorderingId and trigger fade-in at new position
-      setReorderingId(null)
-      setSettledId(id)
-      setTimeout(() => setSettledId(null), 350)
-    }, 350)
+    setTimeout(async () => {
+      setArchivingId(null)
+      setGoals(prev => prev.filter(g => g.id !== id))
 
-    try {
-      const { error } = await supabase.from('goals').update({
-        status: nextStatus,
-        completed_at: nextStatus === 'completed' ? new Date().toISOString() : null,
-      }).eq('id', id)
-      if (error) throw error
-    } catch (error) {
-      console.error('Error toggling goal status:', error)
-      loadGoals()
-    }
+      try {
+        const { error } = await supabase.from('goals').update({
+          status: 'archived',
+          completed_at: new Date().toISOString(),
+        }).eq('id', id)
+        if (error) throw error
+      } catch (error) {
+        console.error('Error archiving goal:', error)
+        loadGoals()
+      }
+    }, 300) // Match animation duration
   }
 
 
@@ -209,20 +197,26 @@ export function GoalsTab({ contentColumnRef }: GoalsTabProps) {
       </header>
 
       {goals.length > 0 ? (
-        <div className="flex flex-col gap-3">
-          {goals.map((goal) => (
-            <GoalCard
-              key={goal.id}
-              goal={goal}
-              taskCount={taskCounts[goal.id] || 0}
-              isExpanded={expandedId === goal.id}
-              isReordering={goal.id === reorderingId}
-              isSettling={goal.id === settledId}
-              onToggleExpand={() => setExpandedId(expandedId === goal.id ? null : goal.id)}
-              onEdit={() => { setEditGoal(goal); setIsFormOpen(true) }}
-              onDelete={() => handleDelete(goal.id)}
-              onStatusToggle={() => handleStatusToggle(goal.id)}
-            />
+        <div className="flex flex-col gap-6">
+          {groupByDate(goals).map(({ label, items }) => (
+            <div key={label}>
+              <h2 className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-3">{label}</h2>
+              <div className="flex flex-col gap-3">
+                {items.map((goal) => (
+                  <GoalCard
+                    key={goal.id}
+                    goal={goal}
+                    taskCount={taskCounts[goal.id] || 0}
+                    isExpanded={expandedId === goal.id}
+                    isArchiving={goal.id === archivingId}
+                    onToggleExpand={() => setExpandedId(expandedId === goal.id ? null : goal.id)}
+                    onEdit={() => { setEditGoal(goal); setIsFormOpen(true) }}
+                    onDelete={() => handleDelete(goal.id)}
+                    onArchive={() => handleArchive(goal.id)}
+                  />
+                ))}
+              </div>
+            </div>
           ))}
         </div>
       ) : (
@@ -264,16 +258,15 @@ export function GoalsTab({ contentColumnRef }: GoalsTabProps) {
 
 // --- Goal Card ---
 
-function GoalCard({ goal, taskCount, isExpanded, isReordering, isSettling, onToggleExpand, onEdit, onDelete, onStatusToggle }: {
+function GoalCard({ goal, taskCount, isExpanded, isArchiving, onToggleExpand, onEdit, onDelete, onArchive }: {
   goal: Goal
   taskCount: number
   isExpanded: boolean
-  isReordering?: boolean
-  isSettling?: boolean
+  isArchiving?: boolean
   onToggleExpand: () => void
   onEdit: () => void
   onDelete: () => void
-  onStatusToggle: () => void
+  onArchive: () => void
 }) {
   const isCompleted = goal.status === 'completed'
 
@@ -294,8 +287,8 @@ function GoalCard({ goal, taskCount, isExpanded, isReordering, isSettling, onTog
         !isCompleted && !isAtRisk && "hover:bg-accent-hover",
         isCompleted && "bg-accent-subtle opacity-75",
         isAtRisk && "bg-red-50 dark:bg-red-950/30 hover:bg-red-100/80 dark:hover:bg-red-950/40",
-        isReordering && "animate-out fade-out duration-300 fill-mode-forwards",
-        isSettling && "animate-in fade-in duration-300",
+        isArchiving && "animate-out fade-out slide-out-to-right duration-300 fill-mode-forwards",
+        !isArchiving && "animate-in fade-in duration-300",
       )}
     >
       <div className="flex items-start gap-3">
@@ -304,7 +297,7 @@ function GoalCard({ goal, taskCount, isExpanded, isReordering, isSettling, onTog
           <Checkbox
             id={`goal-${goal.id}`}
             checked={isCompleted}
-            onCheckedChange={() => onStatusToggle()}
+            onCheckedChange={() => onArchive()}
             className="mt-0.5 shrink-0"
           />
         </div>

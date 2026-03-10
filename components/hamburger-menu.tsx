@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button"
 import { useSafariPWAFix } from "@/hooks/use-safari-pwa-fix"
 import { SlackSettings } from "@/components/settings/slack-settings"
 import { MondaySettings } from "@/components/settings/monday-settings"
+import Link from "next/link"
+import { Archive } from "lucide-react"
 
 export function HamburgerMenu() {
   const { user, signOut } = useAuth()
@@ -112,10 +114,22 @@ export function HamburgerMenu() {
             {user.email}
           </p>
 
+          {/* Navigation */}
+          <div className="mt-8 w-full">
+            <Link
+              href="/goals-archive"
+              onClick={() => setIsOpen(false)}
+              className="flex items-center gap-2.5 w-full px-3 py-2.5 rounded-md text-sm text-foreground hover:bg-accent transition-colors"
+            >
+              <Archive className="h-4 w-4 text-muted-foreground" />
+              Goals Archive
+            </Link>
+          </div>
+
           {/* Sign Out Button */}
           <Button
             onClick={handleSignOut}
-            className="mt-8 w-full bg-accent text-foreground hover:bg-accent-hover"
+            className="mt-4 w-full bg-accent text-foreground hover:bg-accent-hover"
           >
             Sign out
           </Button>

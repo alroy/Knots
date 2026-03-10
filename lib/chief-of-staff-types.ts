@@ -7,7 +7,7 @@ export interface Goal {
   title: string
   description: string
   priority: number // 1=P0, 2=P1, 3=P2
-  status: 'active' | 'completed' | 'at_risk'
+  status: 'active' | 'completed' | 'at_risk' | 'archived'
   metrics: string
   deadline: string | null
   risks: string
