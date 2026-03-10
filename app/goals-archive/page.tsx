@@ -28,8 +28,8 @@ export default function GoalsArchivePage() {
         .from('goals')
         .select('*')
         .eq('user_id', user.id)
-        .eq('status', 'archived')
-        .order('created_at', { ascending: false })
+        .in('status', ['completed', 'archived'])
+        .order('completed_at', { ascending: false })
       if (error) throw error
       setGoals((data || []).map((g: any) => ({
         id: g.id,

@@ -43,7 +43,8 @@ export function GoalsTab({ contentColumnRef }: GoalsTabProps) {
     const channel = supabase
       .channel('goals-changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'goals', filter: `user_id=eq.${user.id}` }, () => {
-        loadGoals()
+        // Skip reload while an archive animation + DB update is in flight
+        if (!archivingIdRef.current) loadGoals()
       })
       .subscribe()
     return () => { supabase.removeChannel(channel) }
@@ -91,9 +92,11 @@ export function GoalsTab({ contentColumnRef }: GoalsTabProps) {
         createdAt: g.created_at,
         completedAt: g.completed_at,
       }))
-      // Filter out archived goals - they live in the Goals Archive page
+      // Only show active/at_risk goals — completed goals live in the Goals Archive page
       // Also filter out the goal currently being archived (optimistic removal)
-      const visible = mapped.filter((g: Goal) => g.status !== 'archived' && g.id !== archivingIdRef.current)
+      const visible = mapped.filter((g: Goal) =>
+        g.status !== 'completed' && g.status !== 'archived' && g.id !== archivingIdRef.current
+      )
       setGoals(visible)
     } catch (error) {
       console.error('Error loading goals:', error)
@@ -162,7 +165,7 @@ export function GoalsTab({ contentColumnRef }: GoalsTabProps) {
 
       try {
         const { error } = await supabase.from('goals').update({
-          status: 'archived',
+          status: 'completed',
           completed_at: new Date().toISOString(),
         }).eq('id', id)
         if (error) throw error
