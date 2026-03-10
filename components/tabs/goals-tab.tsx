@@ -195,16 +195,16 @@ export function GoalsTab({ contentColumnRef }: GoalsTabProps) {
     <>
       <header className="mb-10 md:mb-12">
         <h1 className="mb-2 text-2xl font-bold text-foreground">Goals</h1>
-        <div className="flex items-center gap-3">
-          <p className="text-muted-foreground">What you're accountable for.</p>
-          <button
+        <div className="flex gap-2">
+          <Button
+            size="sm"
+            variant="ghost"
             onClick={() => setShowTranscript(true)}
-            className="p-1.5 rounded-md text-muted-foreground/60 hover:text-foreground hover:bg-accent transition-colors"
-            aria-label="Import goals from transcript"
-            title="Import from transcript"
+            className="text-xs h-8 gap-1.5"
           >
-            <FileText className="h-4 w-4" />
-          </button>
+            <FileText className="h-3.5 w-3.5" />
+            Upload weekly goals
+          </Button>
         </div>
       </header>
 
