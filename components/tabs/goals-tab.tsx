@@ -454,6 +454,7 @@ function GoalFormModal({ goal, onSubmit, onClose }: {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!title.trim()) { setError('Please add a title'); return }
+    if (!description.trim()) { setError('Please add a description'); return }
     onSubmit({ title: title.trim(), description: description.trim(), priority, deadline, risks: risks.trim() })
   }
 
@@ -500,9 +501,9 @@ function GoalFormModal({ goal, onSubmit, onClose }: {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="goal-desc" className="text-sm text-muted-foreground">Description <span className="text-muted-foreground/60">(optional)</span></Label>
-                <Textarea id="goal-desc" value={description} onChange={(e) => setDescription(e.target.value)}
-                  placeholder="How will you know you've achieved this?" rows={2} className="bg-card border-border/60 shadow-none resize-none" />
+                <Label htmlFor="goal-desc" className="text-sm text-muted-foreground">Description</Label>
+                <Textarea id="goal-desc" value={description} onChange={(e) => { setDescription(e.target.value); setError('') }}
+                  placeholder="Describe the goal..." rows={2} className="bg-card border-border/60 shadow-none resize-none" />
               </div>
 
               <div className="space-y-2">
