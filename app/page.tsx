@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useRef } from "react"
+import { useState, useRef, useEffect, Suspense } from "react"
+import { useSearchParams } from "next/navigation"
 import { useAuth } from "@/contexts/auth-context"
 import { SignIn } from "@/components/auth/sign-in"
 import { Unauthorized } from "@/components/auth/unauthorized"
@@ -26,9 +27,26 @@ function getInitialTab(): TabId {
 }
 
 export default function Page() {
+  return (
+    <Suspense>
+      <PageContent />
+    </Suspense>
+  )
+}
+
+function PageContent() {
   const { user, loading: authLoading, isAuthorized, isPasswordRecovery, clearPasswordRecovery } = useAuth()
+  const searchParams = useSearchParams()
   const [activeTab, setActiveTab] = useState<TabId>(getInitialTab)
   const contentColumnRef = useRef<HTMLDivElement>(null)
+
+  // Sync active tab when URL search params change (e.g., navigating back via Link)
+  useEffect(() => {
+    const param = searchParams.get('tab') as TabId
+    if (param && VALID_TABS.includes(param)) {
+      setActiveTab(param)
+    }
+  }, [searchParams])
 
   // Show loading state while checking authentication
   if (authLoading) {
