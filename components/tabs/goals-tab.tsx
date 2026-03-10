@@ -26,6 +26,7 @@ export function GoalsTab({ contentColumnRef }: GoalsTabProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [taskCounts, setTaskCounts] = useState<Record<string, number>>({})
   const [archivingId, setArchivingId] = useState<string | null>(null)
+  const archivingIdRef = useRef<string | null>(null)
   const [showTranscript, setShowTranscript] = useState(false)
   const supabase = createClient()
 
@@ -91,7 +92,8 @@ export function GoalsTab({ contentColumnRef }: GoalsTabProps) {
         completedAt: g.completed_at,
       }))
       // Filter out archived goals - they live in the Goals Archive page
-      const visible = mapped.filter((g: Goal) => g.status !== 'archived')
+      // Also filter out the goal currently being archived (optimistic removal)
+      const visible = mapped.filter((g: Goal) => g.status !== 'archived' && g.id !== archivingIdRef.current)
       setGoals(visible)
     } catch (error) {
       console.error('Error loading goals:', error)
@@ -152,6 +154,7 @@ export function GoalsTab({ contentColumnRef }: GoalsTabProps) {
 
     // Play slide-out-to-right exit animation (same as snooze in Tasks tab)
     setArchivingId(id)
+    archivingIdRef.current = id
 
     setTimeout(async () => {
       setArchivingId(null)
@@ -165,8 +168,11 @@ export function GoalsTab({ contentColumnRef }: GoalsTabProps) {
         if (error) throw error
       } catch (error) {
         console.error('Error archiving goal:', error)
+        archivingIdRef.current = null
         loadGoals()
+        return
       }
+      archivingIdRef.current = null
     }, 300) // Match animation duration
   }
 
