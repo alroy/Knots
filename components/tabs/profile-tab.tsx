@@ -205,17 +205,15 @@ export function ProfileTab({ contentColumnRef }: ProfileTabProps) {
 
       {/* Integrations */}
       <div className="border-t border-border pt-6 mt-8">
-        <h3 className="text-sm font-medium text-foreground mb-3">Integrations</h3>
-        <div className="flex flex-col gap-2">
-          <SlackSettings />
-        </div>
+        <h3 className="text-sm font-medium text-foreground mb-3 px-3">Integrations</h3>
+        <SlackSettings />
       </div>
 
       {/* Sign Out */}
-      <div className="mt-6 pb-4">
+      <div className="mt-6 pb-8 px-3">
         <button
           onClick={() => signOut()}
-          className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+          className="text-sm font-medium text-destructive border border-destructive/30 rounded-lg px-4 py-2 hover:bg-destructive/10 transition-colors"
         >
           Sign out
         </button>
