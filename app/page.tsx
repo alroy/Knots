@@ -5,7 +5,6 @@ import { useSearchParams } from "next/navigation"
 import { useAuth } from "@/contexts/auth-context"
 import { SignIn } from "@/components/auth/sign-in"
 import { Unauthorized } from "@/components/auth/unauthorized"
-import { HamburgerMenu } from "@/components/hamburger-menu"
 import { ResetPassword } from "@/components/auth/reset-password"
 import { TabBar } from "@/components/tab-bar"
 import { TasksTab } from "@/components/tabs/tasks-tab"
@@ -79,11 +78,6 @@ function PageContent() {
   return (
     <main className="min-h-screen bg-background py-8 pb-20">
       <div ref={contentColumnRef} className="content-column">
-        {/* Header with hamburger menu */}
-        <div className="flex justify-end mb-6">
-          <HamburgerMenu />
-        </div>
-
         {/* Tab content */}
         <div id="tab-panel-tasks" role="tabpanel" aria-labelledby="tab-tasks" className={activeTab !== 'tasks' ? 'hidden' : undefined}>
           <TasksTab contentColumnRef={contentColumnRef} />
