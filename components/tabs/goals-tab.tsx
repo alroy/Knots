@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react"
 import { createClient } from "@/lib/supabase-browser"
 import { useAuth } from "@/contexts/auth-context"
 import { cn, formatRelativeTime } from "@/lib/utils"
-import { Target, Trash2, Pencil, Plus, X } from "lucide-react"
+import { Target, Trash2, Pencil, Plus, X, FileText } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
@@ -27,6 +27,7 @@ export function GoalsTab({ contentColumnRef }: GoalsTabProps) {
   const [taskCounts, setTaskCounts] = useState<Record<string, number>>({})
   const [reorderingId, setReorderingId] = useState<string | null>(null)
   const [settledId, setSettledId] = useState<string | null>(null)
+  const [showTranscript, setShowTranscript] = useState(false)
   const supabase = createClient()
 
   useEffect(() => {
@@ -108,7 +109,6 @@ export function GoalsTab({ contentColumnRef }: GoalsTabProps) {
         title: data.title,
         description: data.description,
         priority: data.priority,
-        metrics: data.metrics,
         deadline: data.deadline || null,
         risks: data.risks,
         user_id: user.id,
@@ -127,7 +127,6 @@ export function GoalsTab({ contentColumnRef }: GoalsTabProps) {
         title: data.title,
         description: data.description,
         priority: data.priority,
-        metrics: data.metrics,
         deadline: data.deadline || null,
         risks: data.risks,
       }).eq('id', id)
@@ -196,7 +195,17 @@ export function GoalsTab({ contentColumnRef }: GoalsTabProps) {
     <>
       <header className="mb-10 md:mb-12">
         <h1 className="mb-2 text-2xl font-bold text-foreground">Goals</h1>
-        <p className="text-muted-foreground">What you're accountable for.</p>
+        <div className="flex items-center gap-3">
+          <p className="text-muted-foreground">What you're accountable for.</p>
+          <button
+            onClick={() => setShowTranscript(true)}
+            className="p-1.5 rounded-md text-muted-foreground/60 hover:text-foreground hover:bg-accent transition-colors"
+            aria-label="Import goals from transcript"
+            title="Import from transcript"
+          >
+            <FileText className="h-4 w-4" />
+          </button>
+        </div>
       </header>
 
       {goals.length > 0 ? (
@@ -239,6 +248,14 @@ export function GoalsTab({ contentColumnRef }: GoalsTabProps) {
             setEditGoal(null)
           }}
           onClose={() => { setIsFormOpen(false); setEditGoal(null) }}
+        />
+      )}
+
+      {/* Transcript import modal */}
+      {showTranscript && (
+        <GoalTranscriptModal
+          onClose={() => setShowTranscript(false)}
+          onImported={() => { setShowTranscript(false); loadGoals() }}
         />
       )}
     </>
@@ -345,15 +362,9 @@ function GoalCard({ goal, taskCount, isExpanded, isReordering, isSettling, onTog
               <p className="mt-1 text-foreground whitespace-pre-wrap">{goal.description}</p>
             </div>
           )}
-          {goal.metrics && (
-            <div>
-              <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Key Metrics</span>
-              <p className="mt-1 text-foreground whitespace-pre-wrap">{goal.metrics}</p>
-            </div>
-          )}
           {goal.risks && (
             <div>
-              <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Risks & Blockers</span>
+              <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Dependencies & Risks</span>
               <p className="mt-1 text-foreground whitespace-pre-wrap">{goal.risks}</p>
             </div>
           )}
@@ -412,7 +423,6 @@ interface GoalFormData {
   title: string
   description: string
   priority: number
-  metrics: string
   deadline: string
   risks: string
 }
@@ -425,7 +435,6 @@ function GoalFormModal({ goal, onSubmit, onClose }: {
   const [title, setTitle] = useState(goal?.title || '')
   const [description, setDescription] = useState(goal?.description || '')
   const [priority, setPriority] = useState(goal?.priority || 2)
-  const [metrics, setMetrics] = useState(goal?.metrics || '')
   const [deadline, setDeadline] = useState(() => {
     if (goal?.deadline) return goal.deadline
     // Default to 1 week from now for new goals
@@ -445,7 +454,7 @@ function GoalFormModal({ goal, onSubmit, onClose }: {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!title.trim()) { setError('Please add a title'); return }
-    onSubmit({ title: title.trim(), description: description.trim(), priority, metrics: metrics.trim(), deadline, risks: risks.trim() })
+    onSubmit({ title: title.trim(), description: description.trim(), priority, deadline, risks: risks.trim() })
   }
 
   const fixedStyle: React.CSSProperties = {
@@ -497,21 +506,15 @@ function GoalFormModal({ goal, onSubmit, onClose }: {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="goal-metrics" className="text-sm text-muted-foreground">Key Metrics <span className="text-muted-foreground/60">(optional)</span></Label>
-                <Input id="goal-metrics" value={metrics} onChange={(e) => setMetrics(e.target.value)}
-                  placeholder="e.g. Revenue, NPS, completion rate" className="h-10 bg-card border-border/60 shadow-none" />
-              </div>
-
-              <div className="space-y-2">
                 <Label htmlFor="goal-deadline" className="text-sm text-muted-foreground">Deadline <span className="text-muted-foreground/60">(optional)</span></Label>
                 <Input id="goal-deadline" type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)}
                   className="h-10 bg-card border-border/60 shadow-none" />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="goal-risks" className="text-sm text-muted-foreground">Risks & Blockers <span className="text-muted-foreground/60">(optional)</span></Label>
+                <Label htmlFor="goal-risks" className="text-sm text-muted-foreground">Dependencies & Risks <span className="text-muted-foreground/60">(optional)</span></Label>
                 <Textarea id="goal-risks" value={risks} onChange={(e) => setRisks(e.target.value)}
-                  placeholder="Known risks or blockers..." rows={2} className="bg-card border-border/60 shadow-none resize-none" />
+                  placeholder="Dependencies, risks, or blockers..." rows={2} className="bg-card border-border/60 shadow-none resize-none" />
               </div>
             </div>
 
@@ -524,6 +527,115 @@ function GoalFormModal({ goal, onSubmit, onClose }: {
               </button>
             </div>
           </form>
+        </div>
+      </div>
+    </>
+  )
+}
+
+// --- Goal Transcript Import Modal ---
+
+function GoalTranscriptModal({ onClose, onImported }: { onClose: () => void; onImported: () => void }) {
+  const [transcript, setTranscript] = useState('')
+  const [isProcessing, setIsProcessing] = useState(false)
+  const [status, setStatus] = useState('')
+  const [error, setError] = useState('')
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  useEffect(() => {
+    setTimeout(() => textareaRef.current?.focus(), 100)
+  }, [])
+
+  const handleParse = async () => {
+    if (!transcript.trim()) {
+      setError('Please paste your transcript first')
+      return
+    }
+
+    setIsProcessing(true)
+    setError('')
+    setStatus('Analyzing transcript...')
+
+    try {
+      const res = await fetch('/api/parse-goals-transcript', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ transcript: transcript.trim() }),
+      })
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || 'Failed to parse transcript')
+      }
+
+      const data = await res.json()
+      const { goalsCreated, goalsUpdated } = data.summary
+      const parts: string[] = []
+      if (goalsCreated > 0) parts.push(`created ${goalsCreated}`)
+      if (goalsUpdated > 0) parts.push(`updated ${goalsUpdated}`)
+      setStatus(`Done! ${parts.length > 0 ? parts.join(', ') + ' goals.' : 'No new goals found.'}`)
+
+      setTimeout(() => {
+        onImported()
+      }, 1500)
+    } catch (err: any) {
+      console.error('Error parsing goals transcript:', err)
+      setError(err.message || 'Something went wrong')
+      setIsProcessing(false)
+    }
+  }
+
+  const fixedStyle: React.CSSProperties = {
+    transform: "translateZ(0)",
+    WebkitBackfaceVisibility: "hidden",
+    backfaceVisibility: "hidden",
+  }
+
+  return (
+    <>
+      <div className="fixed inset-0 bg-black/50 z-40" style={fixedStyle} onClick={onClose} aria-hidden="true" />
+      <div
+        className="fixed inset-x-4 z-50 mx-auto max-w-lg"
+        style={{ ...fixedStyle, top: "50%", transform: "translateY(-50%) translateZ(0)", maxHeight: "calc(100dvh - 2rem)", overflowY: "auto" }}
+        role="dialog"
+        aria-modal="true"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="bg-background rounded-lg shadow-xl p-6">
+          <h2 className="text-lg font-bold text-foreground mb-2">Import Weekly Goals</h2>
+          <p className="text-sm text-muted-foreground mb-4">
+            Paste your weekly goals transcript. AI will extract goals with a 1-week deadline.
+          </p>
+
+          <Textarea
+            ref={textareaRef}
+            value={transcript}
+            onChange={(e) => { setTranscript(e.target.value); setError('') }}
+            placeholder="Paste your transcript here..."
+            rows={10}
+            className="bg-card border-border/60 shadow-none resize-none mb-4"
+            disabled={isProcessing}
+          />
+
+          {error && <p className="text-sm text-destructive mb-4">{error}</p>}
+          {status && !error && <p className="text-sm text-muted-foreground mb-4">{status}</p>}
+
+          <div className="flex items-center gap-4">
+            <Button
+              onClick={handleParse}
+              disabled={isProcessing || !transcript.trim()}
+              className="px-5 h-9 font-medium active:scale-[0.98] transition-transform duration-75"
+            >
+              {isProcessing ? "Processing..." : "Import Goals"}
+            </Button>
+            <button
+              onClick={onClose}
+              disabled={isProcessing}
+              className="text-muted-foreground hover:text-foreground text-sm transition-colors duration-100"
+            >
+              Cancel
+            </button>
+          </div>
         </div>
       </div>
     </>
