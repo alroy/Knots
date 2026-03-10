@@ -17,9 +17,17 @@ import type { TabId } from "@/lib/chief-of-staff-types"
 // Export content column ref type for FAB positioning
 export type ContentColumnRef = React.RefObject<HTMLDivElement | null>
 
+const VALID_TABS: readonly TabId[] = ['tasks', 'goals', 'people', 'backlog', 'profile']
+
+function getInitialTab(): TabId {
+  if (typeof window === 'undefined') return 'tasks'
+  const param = new URLSearchParams(window.location.search).get('tab') as TabId
+  return VALID_TABS.includes(param) ? param : 'tasks'
+}
+
 export default function Page() {
   const { user, loading: authLoading, isAuthorized, isPasswordRecovery, clearPasswordRecovery } = useAuth()
-  const [activeTab, setActiveTab] = useState<TabId>('tasks')
+  const [activeTab, setActiveTab] = useState<TabId>(getInitialTab)
   const contentColumnRef = useRef<HTMLDivElement>(null)
 
   // Show loading state while checking authentication
