@@ -148,12 +148,37 @@ export function PeopleTab({ contentColumnRef }: PeopleTabProps) {
   // Detail view
   if (detailPerson) {
     return (
-      <PersonDetail
-        person={detailPerson}
-        onBack={() => setDetailPerson(null)}
-        onEdit={() => { setEditPerson(detailPerson); setIsFormOpen(true) }}
-        onDelete={() => setDeleteConfirmPerson(detailPerson)}
-      />
+      <>
+        <PersonDetail
+          person={detailPerson}
+          onBack={() => setDetailPerson(null)}
+          onEdit={() => { setEditPerson(detailPerson); setIsFormOpen(true) }}
+          onDelete={() => setDeleteConfirmPerson(detailPerson)}
+        />
+
+        {isFormOpen && (
+          <PersonFormModal
+            person={editPerson}
+            onSubmit={(data) => {
+              if (editPerson) {
+                handleUpdate(editPerson.id, data)
+              }
+              setIsFormOpen(false)
+              setEditPerson(null)
+              setDetailPerson(null)
+            }}
+            onClose={() => { setIsFormOpen(false); setEditPerson(null) }}
+          />
+        )}
+
+        {deleteConfirmPerson && (
+          <DeleteConfirmModal
+            personName={deleteConfirmPerson.name}
+            onConfirm={() => { handleDelete(deleteConfirmPerson.id); setDeleteConfirmPerson(null) }}
+            onClose={() => setDeleteConfirmPerson(null)}
+          />
+        )}
+      </>
     )
   }
 
