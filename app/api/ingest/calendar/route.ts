@@ -13,6 +13,18 @@ interface CalendarPayload {
   calendar_name?: string
 }
 
+/**
+ * Zapier sends comma-separated values for recurring Google Calendar events
+ * (e.g. "2026-01-01,2026-03-12,2026-03-11T19:30:00+02:00"). Pick the last
+ * value that looks like a full ISO-8601 datetime; fall back to the last token.
+ */
+function parseTimestamp(raw: string): string {
+  const parts = raw.split(',').map(s => s.trim()).filter(Boolean)
+  // prefer the last part that contains a 'T' (full datetime)
+  const withTime = parts.filter(p => p.includes('T'))
+  return withTime.length > 0 ? withTime[withTime.length - 1] : parts[parts.length - 1]
+}
+
 export async function POST(request: NextRequest) {
   const authHeader = request.headers.get('authorization')
   const webhookSecret = process.env.ZAPIER_WEBHOOK_SECRET
@@ -44,8 +56,8 @@ export async function POST(request: NextRequest) {
         user_id: userId,
         event_id: body.event_id,
         title: body.title,
-        start_time: body.start_time,
-        end_time: body.end_time,
+        start_time: parseTimestamp(body.start_time),
+        end_time: parseTimestamp(body.end_time),
         attendees: body.attendees || [],
         location: body.location || '',
         description: body.description || '',
