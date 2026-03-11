@@ -3,9 +3,11 @@
 import { useState, useEffect, useCallback, useRef } from "react"
 import { createClient } from "@/lib/supabase-browser"
 import { useAuth } from "@/contexts/auth-context"
-import { cn, formatRelativeTime } from "@/lib/utils"
-import { Target, Trash2, ChevronDown, ChevronUp, Plus, X, AlertTriangle } from "lucide-react"
+import { cn, formatRelativeTime, groupByDate } from "@/lib/utils"
+import { Target, Trash2, Pencil, Plus, X, FileUp, Archive } from "lucide-react"
+import Link from "next/link"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
@@ -24,6 +26,9 @@ export function GoalsTab({ contentColumnRef }: GoalsTabProps) {
   const [editGoal, setEditGoal] = useState<Goal | null>(null)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [taskCounts, setTaskCounts] = useState<Record<string, number>>({})
+  const [archivingId, setArchivingId] = useState<string | null>(null)
+  const archivingIdRef = useRef<string | null>(null)
+  const [showTranscript, setShowTranscript] = useState(false)
   const supabase = createClient()
 
   useEffect(() => {
@@ -39,7 +44,8 @@ export function GoalsTab({ contentColumnRef }: GoalsTabProps) {
     const channel = supabase
       .channel('goals-changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'goals', filter: `user_id=eq.${user.id}` }, () => {
-        loadGoals()
+        // Skip reload while an archive animation + DB update is in flight
+        if (!archivingIdRef.current) loadGoals()
       })
       .subscribe()
     return () => { supabase.removeChannel(channel) }
@@ -72,9 +78,9 @@ export function GoalsTab({ contentColumnRef }: GoalsTabProps) {
         .from('goals')
         .select('*')
         .eq('user_id', user.id)
-        .order('position', { ascending: true })
+        .order('created_at', { ascending: false })
       if (error) throw error
-      setGoals((data || []).map((g: any) => ({
+      const mapped = (data || []).map((g: any) => ({
         id: g.id,
         title: g.title,
         description: g.description || '',
@@ -86,7 +92,13 @@ export function GoalsTab({ contentColumnRef }: GoalsTabProps) {
         position: g.position,
         createdAt: g.created_at,
         completedAt: g.completed_at,
-      })))
+      }))
+      // Only show active/at_risk goals — completed goals live in the Goals Archive page
+      // Also filter out the goal currently being archived (optimistic removal)
+      const visible = mapped.filter((g: Goal) =>
+        g.status !== 'completed' && g.status !== 'archived' && g.id !== archivingIdRef.current
+      )
+      setGoals(visible)
     } catch (error) {
       console.error('Error loading goals:', error)
     } finally {
@@ -101,7 +113,6 @@ export function GoalsTab({ contentColumnRef }: GoalsTabProps) {
         title: data.title,
         description: data.description,
         priority: data.priority,
-        metrics: data.metrics,
         deadline: data.deadline || null,
         risks: data.risks,
         user_id: user.id,
@@ -120,7 +131,6 @@ export function GoalsTab({ contentColumnRef }: GoalsTabProps) {
         title: data.title,
         description: data.description,
         priority: data.priority,
-        metrics: data.metrics,
         deadline: data.deadline || null,
         risks: data.risks,
       }).eq('id', id)
@@ -142,36 +152,34 @@ export function GoalsTab({ contentColumnRef }: GoalsTabProps) {
     }
   }
 
-  const handleStatusToggle = async (id: string) => {
+  const handleArchive = async (id: string) => {
     const goal = goals.find(g => g.id === id)
     if (!goal) return
-    const nextStatus = goal.status === 'active' ? 'completed' : goal.status === 'completed' ? 'active' : 'active'
-    setGoals(prev => prev.map(g => g.id === id ? { ...g, status: nextStatus } : g))
-    try {
-      const { error } = await supabase.from('goals').update({
-        status: nextStatus,
-        completed_at: nextStatus === 'completed' ? new Date().toISOString() : null,
-      }).eq('id', id)
-      if (error) throw error
-    } catch (error) {
-      console.error('Error toggling goal status:', error)
-      loadGoals()
-    }
+
+    // Play slide-out-to-right exit animation (same as snooze in Tasks tab)
+    setArchivingId(id)
+    archivingIdRef.current = id
+
+    setTimeout(async () => {
+      setArchivingId(null)
+      setGoals(prev => prev.filter(g => g.id !== id))
+
+      try {
+        const { error } = await supabase.from('goals').update({
+          status: 'completed',
+          completed_at: new Date().toISOString(),
+        }).eq('id', id)
+        if (error) throw error
+      } catch (error) {
+        console.error('Error archiving goal:', error)
+        archivingIdRef.current = null
+        loadGoals()
+        return
+      }
+      archivingIdRef.current = null
+    }, 300) // Match animation duration
   }
 
-  const handleMarkAtRisk = async (id: string) => {
-    const goal = goals.find(g => g.id === id)
-    if (!goal) return
-    const nextStatus = goal.status === 'at_risk' ? 'active' : 'at_risk'
-    setGoals(prev => prev.map(g => g.id === id ? { ...g, status: nextStatus } : g))
-    try {
-      const { error } = await supabase.from('goals').update({ status: nextStatus }).eq('id', id)
-      if (error) throw error
-    } catch (error) {
-      console.error('Error updating goal status:', error)
-      loadGoals()
-    }
-  }
 
   if (loading) {
     return (
@@ -185,23 +193,29 @@ export function GoalsTab({ contentColumnRef }: GoalsTabProps) {
     <>
       <header className="mb-10 md:mb-12">
         <h1 className="mb-2 text-2xl font-bold text-foreground">Goals</h1>
-        <p className="text-muted-foreground">What you're accountable for.</p>
       </header>
 
       {goals.length > 0 ? (
-        <div className="flex flex-col gap-3">
-          {goals.map((goal) => (
-            <GoalCard
-              key={goal.id}
-              goal={goal}
-              taskCount={taskCounts[goal.id] || 0}
-              isExpanded={expandedId === goal.id}
-              onToggleExpand={() => setExpandedId(expandedId === goal.id ? null : goal.id)}
-              onEdit={() => { setEditGoal(goal); setIsFormOpen(true) }}
-              onDelete={() => handleDelete(goal.id)}
-              onStatusToggle={() => handleStatusToggle(goal.id)}
-              onMarkAtRisk={() => handleMarkAtRisk(goal.id)}
-            />
+        <div className="flex flex-col gap-6">
+          {groupByDate(goals).map(({ label, items }) => (
+            <div key={label}>
+              <h2 className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-3">{label}</h2>
+              <div className="flex flex-col gap-3">
+                {items.map((goal) => (
+                  <GoalCard
+                    key={goal.id}
+                    goal={goal}
+                    taskCount={taskCounts[goal.id] || 0}
+                    isExpanded={expandedId === goal.id}
+                    isArchiving={goal.id === archivingId}
+                    onToggleExpand={() => setExpandedId(expandedId === goal.id ? null : goal.id)}
+                    onEdit={() => { setEditGoal(goal); setIsFormOpen(true) }}
+                    onDelete={() => handleDelete(goal.id)}
+                    onArchive={() => handleArchive(goal.id)}
+                  />
+                ))}
+              </div>
+            </div>
           ))}
         </div>
       ) : (
@@ -210,8 +224,12 @@ export function GoalsTab({ contentColumnRef }: GoalsTabProps) {
         </p>
       )}
 
-      {/* FAB */}
-      <FAB onClick={() => { setEditGoal(null); setIsFormOpen(true) }} contentColumnRef={contentColumnRef} />
+      {/* Speed Dial FAB */}
+      <SpeedDialFAB
+        onCreateGoal={() => { setEditGoal(null); setIsFormOpen(true) }}
+        onUploadGoals={() => setShowTranscript(true)}
+        contentColumnRef={contentColumnRef}
+      />
 
       {/* Form modal */}
       {isFormOpen && (
@@ -229,33 +247,64 @@ export function GoalsTab({ contentColumnRef }: GoalsTabProps) {
           onClose={() => { setIsFormOpen(false); setEditGoal(null) }}
         />
       )}
+
+      {/* Transcript import modal */}
+      {showTranscript && (
+        <GoalTranscriptModal
+          onClose={() => setShowTranscript(false)}
+          onImported={() => { setShowTranscript(false); loadGoals() }}
+        />
+      )}
     </>
   )
 }
 
 // --- Goal Card ---
 
-function GoalCard({ goal, taskCount, isExpanded, onToggleExpand, onEdit, onDelete, onStatusToggle, onMarkAtRisk }: {
+function GoalCard({ goal, taskCount, isExpanded, isArchiving, onToggleExpand, onEdit, onDelete, onArchive }: {
   goal: Goal
   taskCount: number
   isExpanded: boolean
+  isArchiving?: boolean
   onToggleExpand: () => void
   onEdit: () => void
   onDelete: () => void
-  onStatusToggle: () => void
-  onMarkAtRisk: () => void
+  onArchive: () => void
 }) {
   const isCompleted = goal.status === 'completed'
+
+  // Auto at-risk: deadline within 2 days and not completed
+  const isAtRisk = !isCompleted && (() => {
+    if (!goal.deadline) return false
+    const deadlineDate = new Date(goal.deadline + 'T23:59:59')
+    const now = new Date()
+    const diffMs = deadlineDate.getTime() - now.getTime()
+    const diffDays = diffMs / (1000 * 60 * 60 * 24)
+    return diffDays <= 2
+  })()
 
   return (
     <div
       className={cn(
         "rounded-lg bg-card p-4 transition-[background-color,opacity] duration-200",
-        !isCompleted && "hover:bg-accent-hover",
+        !isCompleted && !isAtRisk && "hover:bg-accent-hover",
         isCompleted && "bg-accent-subtle opacity-75",
+        isAtRisk && "bg-red-50 dark:bg-red-950/30 hover:bg-red-100/80 dark:hover:bg-red-950/40",
+        isArchiving && "animate-out fade-out slide-out-to-right duration-300 fill-mode-forwards",
+        !isArchiving && "animate-in fade-in duration-300",
       )}
     >
       <div className="flex items-start gap-3">
+        {/* Checkbox */}
+        <div style={{ touchAction: "manipulation" }}>
+          <Checkbox
+            id={`goal-${goal.id}`}
+            checked={isCompleted}
+            onCheckedChange={() => onArchive()}
+            className="mt-0.5 shrink-0"
+          />
+        </div>
+
         {/* Priority badge */}
         <span className={cn(
           "mt-0.5 shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide",
@@ -265,19 +314,14 @@ function GoalCard({ goal, taskCount, isExpanded, onToggleExpand, onEdit, onDelet
         </span>
 
         {/* Content */}
-        <div className="min-w-0 flex-1 cursor-pointer" onClick={onEdit}>
-          <div className="flex items-center gap-2">
-            <span className={cn(
-              "text-base font-semibold text-foreground",
-              isCompleted && "text-muted-foreground line-through decoration-muted-foreground/50"
-            )}>
-              {goal.title}
-            </span>
-            {goal.status === 'at_risk' && (
-              <AlertTriangle className="h-3.5 w-3.5 text-orange-500 shrink-0" />
-            )}
-          </div>
-          <span className="text-xs text-muted-foreground">
+        <div className="min-w-0 flex-1 cursor-pointer" onClick={onToggleExpand}>
+          <span className={cn(
+            "text-base font-semibold text-foreground",
+            isCompleted && "text-muted-foreground line-through decoration-muted-foreground/50"
+          )}>
+            {goal.title}
+          </span>
+          <span className="block text-xs text-muted-foreground">
             {goal.deadline ? `Due ${goal.deadline}` : formatRelativeTime(goal.createdAt)}
             {taskCount > 0 && <> · {taskCount} linked {taskCount === 1 ? 'task' : 'tasks'}</>}
           </span>
@@ -289,11 +333,11 @@ function GoalCard({ goal, taskCount, isExpanded, onToggleExpand, onEdit, onDelet
         {/* Actions */}
         <div className="flex items-center gap-1 shrink-0">
           <button
-            onClick={onToggleExpand}
+            onClick={onEdit}
             className="p-1.5 rounded-md text-muted-foreground/50 hover:text-foreground transition-colors"
-            aria-label={isExpanded ? "Collapse" : "Expand"}
+            aria-label="Edit goal"
           >
-            {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            <Pencil className="h-4 w-4" />
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); onDelete() }}
@@ -310,39 +354,30 @@ function GoalCard({ goal, taskCount, isExpanded, onToggleExpand, onEdit, onDelet
         <div className="mt-4 ml-10 space-y-3 text-sm">
           {goal.description && (
             <div>
-              <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Success Criteria</span>
+              <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Description</span>
               <p className="mt-1 text-foreground whitespace-pre-wrap">{goal.description}</p>
-            </div>
-          )}
-          {goal.metrics && (
-            <div>
-              <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Key Metrics</span>
-              <p className="mt-1 text-foreground whitespace-pre-wrap">{goal.metrics}</p>
             </div>
           )}
           {goal.risks && (
             <div>
-              <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Risks & Blockers</span>
+              <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Dependencies & Risks</span>
               <p className="mt-1 text-foreground whitespace-pre-wrap">{goal.risks}</p>
             </div>
           )}
-          <div className="flex gap-2 pt-2">
-            <Button size="sm" variant="ghost" onClick={onStatusToggle} className="text-xs h-7">
-              {isCompleted ? "Reopen" : "Complete"}
-            </Button>
-            <Button size="sm" variant="ghost" onClick={onMarkAtRisk} className="text-xs h-7">
-              {goal.status === 'at_risk' ? "Clear risk" : "Mark at risk"}
-            </Button>
-          </div>
         </div>
       )}
     </div>
   )
 }
 
-// --- FAB ---
+// --- Speed Dial FAB ---
 
-function FAB({ onClick, contentColumnRef }: { onClick: () => void; contentColumnRef: React.RefObject<HTMLDivElement | null> }) {
+function SpeedDialFAB({ onCreateGoal, onUploadGoals, contentColumnRef }: {
+  onCreateGoal: () => void
+  onUploadGoals: () => void
+  contentColumnRef: React.RefObject<HTMLDivElement | null>
+}) {
+  const [isOpen, setIsOpen] = useState(false)
   const [fabPosition, setFabPosition] = useState<{ right: number } | null>(null)
 
   useEffect(() => {
@@ -359,27 +394,110 @@ function FAB({ onClick, contentColumnRef }: { onClick: () => void; contentColumn
     return () => window.removeEventListener('resize', update)
   }, [contentColumnRef])
 
+  // Close on scroll
+  useEffect(() => {
+    if (!isOpen) return
+    const close = () => setIsOpen(false)
+    window.addEventListener('scroll', close, { passive: true, capture: true })
+    return () => window.removeEventListener('scroll', close, true)
+  }, [isOpen])
+
+  const handleAction = (action: () => void) => {
+    setIsOpen(false)
+    action()
+  }
+
+  const fixedStyle: React.CSSProperties = {
+    transform: "translateZ(0)",
+    WebkitBackfaceVisibility: "hidden",
+    backfaceVisibility: "hidden",
+  }
+
   return (
-    <div
-      className="fixed z-30"
-      style={{
-        bottom: 'calc(5rem + env(safe-area-inset-bottom, 0px))',
-        right: fabPosition?.right ?? 24,
-        transform: "translateZ(0)",
-        WebkitBackfaceVisibility: "hidden",
-        backfaceVisibility: "hidden",
-      }}
-    >
-      <Button
-        onClick={onClick}
-        size="icon"
-        className="h-14 w-14 md:h-12 md:w-12 rounded-full shadow-lg"
-        style={{ touchAction: "manipulation" }}
-        aria-label="Add goal"
+    <>
+      {/* Scrim overlay */}
+      {isOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/40 animate-in fade-in duration-200"
+          style={fixedStyle}
+          onClick={() => setIsOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
+      {/* FAB container */}
+      <div
+        className="fixed z-50"
+        style={{
+          ...fixedStyle,
+          bottom: 'calc(5rem + env(safe-area-inset-bottom, 0px))',
+          right: fabPosition?.right ?? 24,
+        }}
       >
-        <Plus className="h-6 w-6 md:h-5 md:w-5" />
-      </Button>
-    </div>
+        {/* Speed dial menu items */}
+        {isOpen && (
+          <div className="absolute bottom-16 right-0 flex flex-col items-end gap-3 mb-2 animate-in fade-in slide-in-from-bottom-2 duration-200">
+            {/* Top item: Upload weekly goals */}
+            <button
+              onClick={() => handleAction(onUploadGoals)}
+              className="flex items-center gap-3 group min-h-[48px]"
+              style={{ touchAction: "manipulation" }}
+            >
+              <span className="rounded-full bg-background px-3 py-1.5 text-sm font-medium text-foreground shadow-md whitespace-nowrap">
+                Upload weekly goals
+              </span>
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-background text-foreground shadow-md">
+                <FileUp className="h-5 w-5" />
+              </span>
+            </button>
+
+            {/* Middle item: Create a goal */}
+            <button
+              onClick={() => handleAction(onCreateGoal)}
+              className="flex items-center gap-3 group min-h-[48px]"
+              style={{ touchAction: "manipulation" }}
+            >
+              <span className="rounded-full bg-background px-3 py-1.5 text-sm font-medium text-foreground shadow-md whitespace-nowrap">
+                Create a goal
+              </span>
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-background text-foreground shadow-md">
+                <Target className="h-5 w-5" />
+              </span>
+            </button>
+
+            {/* Bottom item: Goals archive */}
+            <Link
+              href="/goals-archive"
+              onClick={() => setIsOpen(false)}
+              className="flex items-center gap-3 group min-h-[48px]"
+              style={{ touchAction: "manipulation" }}
+            >
+              <span className="rounded-full bg-background px-3 py-1.5 text-sm font-medium text-foreground shadow-md whitespace-nowrap">
+                Goals archive
+              </span>
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-background text-foreground shadow-md">
+                <Archive className="h-5 w-5" />
+              </span>
+            </Link>
+          </div>
+        )}
+
+        {/* Main FAB button */}
+        <Button
+          onClick={() => setIsOpen(!isOpen)}
+          size="icon"
+          className="h-14 w-14 md:h-12 md:w-12 rounded-full shadow-lg"
+          style={{ touchAction: "manipulation" }}
+          aria-label={isOpen ? "Close menu" : "Add goal"}
+          aria-expanded={isOpen}
+        >
+          <Plus className={cn(
+            "h-6 w-6 md:h-5 md:w-5 transition-transform duration-200",
+            isOpen && "rotate-45"
+          )} />
+        </Button>
+      </div>
+    </>
   )
 }
 
@@ -389,7 +507,6 @@ interface GoalFormData {
   title: string
   description: string
   priority: number
-  metrics: string
   deadline: string
   risks: string
 }
@@ -402,8 +519,13 @@ function GoalFormModal({ goal, onSubmit, onClose }: {
   const [title, setTitle] = useState(goal?.title || '')
   const [description, setDescription] = useState(goal?.description || '')
   const [priority, setPriority] = useState(goal?.priority || 2)
-  const [metrics, setMetrics] = useState(goal?.metrics || '')
-  const [deadline, setDeadline] = useState(goal?.deadline || '')
+  const [deadline, setDeadline] = useState(() => {
+    if (goal?.deadline) return goal.deadline
+    // Default to 1 week from now for new goals
+    const d = new Date()
+    d.setDate(d.getDate() + 7)
+    return d.toISOString().split('T')[0]
+  })
   const [risks, setRisks] = useState(goal?.risks || '')
   const [error, setError] = useState('')
   const titleRef = useRef<HTMLInputElement>(null)
@@ -416,7 +538,8 @@ function GoalFormModal({ goal, onSubmit, onClose }: {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!title.trim()) { setError('Please add a title'); return }
-    onSubmit({ title: title.trim(), description: description.trim(), priority, metrics: metrics.trim(), deadline, risks: risks.trim() })
+    if (!description.trim()) { setError('Please add a description'); return }
+    onSubmit({ title: title.trim(), description: description.trim(), priority, deadline, risks: risks.trim() })
   }
 
   const fixedStyle: React.CSSProperties = {
@@ -462,15 +585,9 @@ function GoalFormModal({ goal, onSubmit, onClose }: {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="goal-desc" className="text-sm text-muted-foreground">Success Criteria <span className="text-muted-foreground/60">(optional)</span></Label>
-                <Textarea id="goal-desc" value={description} onChange={(e) => setDescription(e.target.value)}
-                  placeholder="How will you know you've achieved this?" rows={2} className="bg-card border-border/60 shadow-none resize-none" />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="goal-metrics" className="text-sm text-muted-foreground">Key Metrics <span className="text-muted-foreground/60">(optional)</span></Label>
-                <Input id="goal-metrics" value={metrics} onChange={(e) => setMetrics(e.target.value)}
-                  placeholder="e.g. Revenue, NPS, completion rate" className="h-10 bg-card border-border/60 shadow-none" />
+                <Label htmlFor="goal-desc" className="text-sm text-muted-foreground">Description</Label>
+                <Textarea id="goal-desc" value={description} onChange={(e) => { setDescription(e.target.value); setError('') }}
+                  placeholder="Describe the goal..." rows={2} className="bg-card border-border/60 shadow-none resize-none" />
               </div>
 
               <div className="space-y-2">
@@ -480,9 +597,9 @@ function GoalFormModal({ goal, onSubmit, onClose }: {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="goal-risks" className="text-sm text-muted-foreground">Risks & Blockers <span className="text-muted-foreground/60">(optional)</span></Label>
+                <Label htmlFor="goal-risks" className="text-sm text-muted-foreground">Dependencies & Risks <span className="text-muted-foreground/60">(optional)</span></Label>
                 <Textarea id="goal-risks" value={risks} onChange={(e) => setRisks(e.target.value)}
-                  placeholder="Known risks or blockers..." rows={2} className="bg-card border-border/60 shadow-none resize-none" />
+                  placeholder="Dependencies, risks, or blockers..." rows={2} className="bg-card border-border/60 shadow-none resize-none" />
               </div>
             </div>
 
@@ -495,6 +612,115 @@ function GoalFormModal({ goal, onSubmit, onClose }: {
               </button>
             </div>
           </form>
+        </div>
+      </div>
+    </>
+  )
+}
+
+// --- Goal Transcript Import Modal ---
+
+function GoalTranscriptModal({ onClose, onImported }: { onClose: () => void; onImported: () => void }) {
+  const [transcript, setTranscript] = useState('')
+  const [isProcessing, setIsProcessing] = useState(false)
+  const [status, setStatus] = useState('')
+  const [error, setError] = useState('')
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  useEffect(() => {
+    setTimeout(() => textareaRef.current?.focus(), 100)
+  }, [])
+
+  const handleParse = async () => {
+    if (!transcript.trim()) {
+      setError('Please paste your transcript first')
+      return
+    }
+
+    setIsProcessing(true)
+    setError('')
+    setStatus('Analyzing transcript...')
+
+    try {
+      const res = await fetch('/api/parse-goals-transcript', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ transcript: transcript.trim() }),
+      })
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || 'Failed to parse transcript')
+      }
+
+      const data = await res.json()
+      const { goalsCreated, goalsUpdated } = data.summary
+      const parts: string[] = []
+      if (goalsCreated > 0) parts.push(`created ${goalsCreated}`)
+      if (goalsUpdated > 0) parts.push(`updated ${goalsUpdated}`)
+      setStatus(`Done! ${parts.length > 0 ? parts.join(', ') + ' goals.' : 'No new goals found.'}`)
+
+      setTimeout(() => {
+        onImported()
+      }, 1500)
+    } catch (err: any) {
+      console.error('Error parsing goals transcript:', err)
+      setError(err.message || 'Something went wrong')
+      setIsProcessing(false)
+    }
+  }
+
+  const fixedStyle: React.CSSProperties = {
+    transform: "translateZ(0)",
+    WebkitBackfaceVisibility: "hidden",
+    backfaceVisibility: "hidden",
+  }
+
+  return (
+    <>
+      <div className="fixed inset-0 bg-black/50 z-40" style={fixedStyle} onClick={onClose} aria-hidden="true" />
+      <div
+        className="fixed inset-x-4 z-50 mx-auto max-w-lg"
+        style={{ ...fixedStyle, top: "50%", transform: "translateY(-50%) translateZ(0)", maxHeight: "calc(100dvh - 2rem)", overflowY: "auto" }}
+        role="dialog"
+        aria-modal="true"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="bg-background rounded-lg shadow-xl p-6">
+          <h2 className="text-lg font-bold text-foreground mb-2">Import Weekly Goals</h2>
+          <p className="text-sm text-muted-foreground mb-4">
+            Paste your weekly goals transcript. AI will extract goals with a 1-week deadline.
+          </p>
+
+          <Textarea
+            ref={textareaRef}
+            value={transcript}
+            onChange={(e) => { setTranscript(e.target.value); setError('') }}
+            placeholder="Paste your transcript here..."
+            rows={10}
+            className="bg-card border-border/60 shadow-none resize-none mb-4"
+            disabled={isProcessing}
+          />
+
+          {error && <p className="text-sm text-destructive mb-4">{error}</p>}
+          {status && !error && <p className="text-sm text-muted-foreground mb-4">{status}</p>}
+
+          <div className="flex items-center gap-4">
+            <Button
+              onClick={handleParse}
+              disabled={isProcessing || !transcript.trim()}
+              className="px-5 h-9 font-medium active:scale-[0.98] transition-transform duration-75"
+            >
+              {isProcessing ? "Processing..." : "Import Goals"}
+            </Button>
+            <button
+              onClick={onClose}
+              disabled={isProcessing}
+              className="text-muted-foreground hover:text-foreground text-sm transition-colors duration-100"
+            >
+              Cancel
+            </button>
+          </div>
         </div>
       </div>
     </>

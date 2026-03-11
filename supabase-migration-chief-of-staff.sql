@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS goals (
   title TEXT NOT NULL,
   description TEXT DEFAULT '',
   priority INTEGER NOT NULL DEFAULT 2,
-  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'completed', 'at_risk')),
+  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'completed', 'at_risk', 'archived')),
   metrics TEXT DEFAULT '',
   deadline DATE,
   risks TEXT DEFAULT '',

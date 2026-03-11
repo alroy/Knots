@@ -7,12 +7,16 @@ import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Pencil, Check, FileText, LogOut } from "lucide-react"
+import { Pencil, Check, FileText, Camera, Plus } from "lucide-react"
 import { SlackSettings } from "@/components/settings/slack-settings"
-import { MondaySettings } from "@/components/settings/monday-settings"
+import { cn } from "@/lib/utils"
 import type { UserProfile } from "@/lib/chief-of-staff-types"
 
-export function ProfileTab() {
+interface ProfileTabProps {
+  contentColumnRef: React.RefObject<HTMLDivElement | null>
+}
+
+export function ProfileTab({ contentColumnRef }: ProfileTabProps) {
   const { user, signOut } = useAuth()
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [loading, setLoading] = useState(true)
@@ -57,6 +61,7 @@ export function ProfileTab() {
   const mapProfile = (data: any): UserProfile => ({
     id: data.id,
     name: data.name || '',
+    avatarUrl: data.avatar_url || '',
     roleTitle: data.role_title || '',
     roleDescription: data.role_description || '',
     communicationStyle: data.communication_style || '',
@@ -92,6 +97,8 @@ export function ProfileTab() {
     }
   }
 
+  const avatarInputRef = useRef<HTMLInputElement>(null)
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -100,7 +107,33 @@ export function ProfileTab() {
     )
   }
 
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !profile) return
+
+    // Validate file type and size (max 2MB)
+    if (!file.type.startsWith('image/')) return
+    if (file.size > 2 * 1024 * 1024) return
+
+    // Resize and compress to data URL
+    const dataUrl = await resizeImage(file, 256)
+    setProfile({ ...profile, avatarUrl: dataUrl })
+
+    try {
+      const { error } = await supabase
+        .from('user_profile')
+        .update({ avatar_url: dataUrl })
+        .eq('id', profile.id)
+      if (error) throw error
+    } catch (error) {
+      console.error('Error saving avatar:', error)
+      loadProfile()
+    }
+  }
+
   if (!profile) return null
+
+  const avatarSrc = profile.avatarUrl || user?.user_metadata?.avatar_url
 
   const sections = [
     { key: 'name', label: 'Name', value: profile.name, placeholder: 'Your full name', isInput: true },
@@ -117,33 +150,39 @@ export function ProfileTab() {
     <div>
       {/* Header with user info */}
       <header className="mb-8">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="w-12 h-12 rounded-full overflow-hidden bg-accent shrink-0">
-            {user?.user_metadata?.avatar_url ? (
-              <img src={user.user_metadata.avatar_url} alt="" className="w-full h-full object-cover" crossOrigin="anonymous" />
+        <div className="flex items-center gap-4 mb-4">
+          {/* Avatar with upload overlay */}
+          <button
+            type="button"
+            onClick={() => avatarInputRef.current?.click()}
+            className="relative w-16 h-16 rounded-full overflow-hidden bg-accent shrink-0 group cursor-pointer"
+          >
+            {avatarSrc ? (
+              <img src={avatarSrc} alt="" className="w-full h-full object-cover" crossOrigin="anonymous" />
             ) : (
-              <div className="w-full h-full flex items-center justify-center text-muted-foreground text-lg font-medium">
+              <div className="w-full h-full flex items-center justify-center text-muted-foreground text-2xl font-medium">
                 {(profile.name || user?.email || '?').charAt(0).toUpperCase()}
               </div>
             )}
-          </div>
+            <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+              <Camera className="h-5 w-5 text-white" />
+            </div>
+            <input
+              ref={avatarInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleAvatarUpload}
+              className="hidden"
+            />
+          </button>
           <div>
             <h1 className="text-2xl font-bold text-foreground">{profile.name || 'Your Profile'}</h1>
-            <p className="text-sm text-muted-foreground">{profile.roleTitle || user?.email}</p>
+            {user?.email && (
+              <p className="text-xs text-muted-foreground mt-0.5">{user.email}</p>
+            )}
           </div>
         </div>
 
-        <div className="flex gap-2">
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => setShowTranscript(true)}
-            className="text-xs h-8 gap-1.5"
-          >
-            <FileText className="h-3.5 w-3.5" />
-            Import from transcript
-          </Button>
-        </div>
       </header>
 
       {/* Profile sections */}
@@ -164,21 +203,27 @@ export function ProfileTab() {
         ))}
       </div>
 
-      {/* Settings */}
-      <div className="mt-10 pt-6 border-t border-border">
-        <h3 className="text-sm font-medium text-foreground mb-3">Integrations</h3>
-        <div className="flex flex-col gap-2">
-          <SlackSettings />
-          <MondaySettings />
-        </div>
-        <Button
-          onClick={signOut}
-          className="mt-4 w-full bg-accent text-foreground hover:bg-accent-hover"
-        >
-          <LogOut className="h-4 w-4 mr-2" />
-          Sign out
-        </Button>
+      {/* Integrations */}
+      <div className="border-t border-border pt-6 mt-8">
+        <h3 className="text-sm font-medium text-foreground mb-3 px-3">Integrations</h3>
+        <SlackSettings />
       </div>
+
+      {/* Sign Out */}
+      <div className="mt-6 pb-8 px-3">
+        <button
+          onClick={() => signOut()}
+          className="text-sm font-medium text-destructive border border-destructive/30 rounded-lg px-4 py-2 hover:bg-destructive/10 transition-colors"
+        >
+          Sign out
+        </button>
+      </div>
+
+      {/* FAB */}
+      <ProfileFAB
+        onImportTranscript={() => setShowTranscript(true)}
+        contentColumnRef={contentColumnRef}
+      />
 
       {/* Transcript import modal */}
       {showTranscript && (
@@ -281,6 +326,101 @@ function ProfileSection({ sectionKey, label, value, placeholder, isInput, isEdit
         <Pencil className="h-3.5 w-3.5 text-muted-foreground/30 shrink-0 mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity" />
       </div>
     </div>
+  )
+}
+
+// --- Profile FAB ---
+
+function ProfileFAB({ onImportTranscript, contentColumnRef }: {
+  onImportTranscript: () => void
+  contentColumnRef: React.RefObject<HTMLDivElement | null>
+}) {
+  const [isOpen, setIsOpen] = useState(false)
+  const [fabPosition, setFabPosition] = useState<{ right: number } | null>(null)
+
+  useEffect(() => {
+    const update = () => {
+      if (!contentColumnRef?.current || !window.matchMedia('(min-width: 768px)').matches) {
+        setFabPosition(null)
+        return
+      }
+      const rect = contentColumnRef.current.getBoundingClientRect()
+      setFabPosition({ right: window.innerWidth - rect.right + 20 })
+    }
+    update()
+    window.addEventListener('resize', update)
+    return () => window.removeEventListener('resize', update)
+  }, [contentColumnRef])
+
+  useEffect(() => {
+    if (!isOpen) return
+    const close = () => setIsOpen(false)
+    window.addEventListener('scroll', close, { passive: true, capture: true })
+    return () => window.removeEventListener('scroll', close, true)
+  }, [isOpen])
+
+  const handleAction = (action: () => void) => {
+    setIsOpen(false)
+    action()
+  }
+
+  const fixedStyle: React.CSSProperties = {
+    transform: "translateZ(0)",
+    WebkitBackfaceVisibility: "hidden",
+    backfaceVisibility: "hidden",
+  }
+
+  return (
+    <>
+      {isOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/40 animate-in fade-in duration-200"
+          style={fixedStyle}
+          onClick={() => setIsOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
+      <div
+        className="fixed z-50"
+        style={{
+          ...fixedStyle,
+          bottom: 'calc(5rem + env(safe-area-inset-bottom, 0px))',
+          right: fabPosition?.right ?? 24,
+        }}
+      >
+        {isOpen && (
+          <div className="absolute bottom-16 right-0 flex flex-col items-end gap-3 mb-2 animate-in fade-in slide-in-from-bottom-2 duration-200">
+            <button
+              onClick={() => handleAction(onImportTranscript)}
+              className="flex items-center gap-3 group min-h-[48px]"
+              style={{ touchAction: "manipulation" }}
+            >
+              <span className="rounded-full bg-background px-3 py-1.5 text-sm font-medium text-foreground shadow-md whitespace-nowrap">
+                Import from transcript
+              </span>
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-background text-foreground shadow-md">
+                <FileText className="h-5 w-5" />
+              </span>
+            </button>
+          </div>
+        )}
+
+        <Button
+          onClick={() => setIsOpen(!isOpen)}
+          size="icon"
+          className="h-14 w-14 md:h-12 md:w-12 rounded-full shadow-lg"
+          style={{ touchAction: "manipulation" }}
+          aria-label={isOpen ? "Close menu" : "Profile actions"}
+          aria-expanded={isOpen}
+        >
+          <Plus className={cn(
+            "h-6 w-6 md:h-5 md:w-5 transition-transform duration-200",
+            isOpen && "rotate-45"
+          )} />
+        </Button>
+      </div>
+    </>
   )
 }
 
@@ -390,4 +530,30 @@ function TranscriptImportModal({ onClose, onImported }: { onClose: () => void; o
       </div>
     </>
   )
+}
+
+// --- Image Resize Utility ---
+
+function resizeImage(file: File, maxSize: number): Promise<string> {
+  return new Promise((resolve) => {
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      const img = new Image()
+      img.onload = () => {
+        const canvas = document.createElement('canvas')
+        let { width, height } = img
+        if (width > height) {
+          if (width > maxSize) { height = (height * maxSize) / width; width = maxSize }
+        } else {
+          if (height > maxSize) { width = (width * maxSize) / height; height = maxSize }
+        }
+        canvas.width = width
+        canvas.height = height
+        canvas.getContext('2d')!.drawImage(img, 0, 0, width, height)
+        resolve(canvas.toDataURL('image/jpeg', 0.85))
+      }
+      img.src = e.target?.result as string
+    }
+    reader.readAsDataURL(file)
+  })
 }

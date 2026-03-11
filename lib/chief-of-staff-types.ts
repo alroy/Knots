@@ -7,7 +7,7 @@ export interface Goal {
   title: string
   description: string
   priority: number // 1=P0, 2=P1, 3=P2
-  status: 'active' | 'completed' | 'at_risk'
+  status: 'active' | 'completed' | 'at_risk' | 'archived'
   metrics: string
   deadline: string | null
   risks: string
@@ -47,6 +47,7 @@ export interface BacklogItem {
 export interface UserProfile {
   id: string
   name: string
+  avatarUrl: string
   roleTitle: string
   roleDescription: string
   communicationStyle: string
@@ -67,7 +68,7 @@ export const PRIORITY_LABELS: Record<number, string> = {
 export const PRIORITY_COLORS: Record<number, string> = {
   1: 'text-red-600 bg-red-50 dark:text-red-400 dark:bg-red-950',
   2: 'text-orange-600 bg-orange-50 dark:text-orange-400 dark:bg-orange-950',
-  3: 'text-primary bg-primary/10',
+  3: 'text-blue-600 bg-blue-50 dark:text-blue-400 dark:bg-blue-950',
 }
 
 export const CATEGORY_LABELS: Record<string, string> = {

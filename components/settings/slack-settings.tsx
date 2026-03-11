@@ -115,15 +115,13 @@ export function SlackSettings() {
 
         {!loading && (
           connection ? (
-            <Button
-              size="sm"
-              variant="ghost"
+            <button
               onClick={handleDisconnect}
               disabled={disconnecting}
-              className="text-muted-foreground hover:text-foreground"
+              className="text-xs font-medium text-destructive border border-destructive/30 rounded-full px-3 py-1 hover:bg-destructive/10 transition-colors disabled:opacity-50"
             >
               {disconnecting ? "..." : "Disconnect"}
-            </Button>
+            </button>
           ) : (
             <Button
               size="sm"

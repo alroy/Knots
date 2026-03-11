@@ -47,6 +47,8 @@ interface SortableKnotListProps {
   onSnooze?: (id: string, until: Date) => void;
   /** ID of the item currently playing snooze exit animation */
   snoozingId?: string | null;
+  /** ID of the item currently playing entrance animation */
+  enteringId?: string | null;
 }
 
 interface SortableKnotItemProps {
@@ -59,9 +61,11 @@ interface SortableKnotItemProps {
   isListDragging: boolean;
   /** Whether this item is playing its snooze exit animation */
   isSnoozing: boolean;
+  /** Whether this item is playing its entrance animation */
+  isEntering: boolean;
 }
 
-function SortableKnotItem({ knot, onToggle, onDelete, onEdit, onSnooze, isListDragging, isSnoozing }: SortableKnotItemProps) {
+function SortableKnotItem({ knot, onToggle, onDelete, onEdit, onSnooze, isListDragging, isSnoozing, isEntering }: SortableKnotItemProps) {
   const {
     attributes,
     listeners,
@@ -110,6 +114,7 @@ function SortableKnotItem({ knot, onToggle, onDelete, onEdit, onSnooze, isListDr
         dragHandleProps={{ ...attributes, ...listeners }}
         onSnoozeMenuOpenChange={setSnoozeMenuOpen}
         isSnoozing={isSnoozing}
+        isEntering={isEntering}
       />
     </div>
   );
@@ -123,6 +128,7 @@ export function SortableKnotList({
   onEdit,
   onSnooze,
   snoozingId,
+  enteringId,
 }: SortableKnotListProps) {
   const [activeId, setActiveId] = useState<string | null>(null);
   // Key to force re-render when Safari PWA resumes from background
@@ -238,6 +244,7 @@ export function SortableKnotList({
               onSnooze={onSnooze}
               isListDragging={isDragging}
               isSnoozing={knot.id === snoozingId}
+              isEntering={knot.id === enteringId}
             />
           ))}
         </div>

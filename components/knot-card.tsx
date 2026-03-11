@@ -35,6 +35,8 @@ export interface KnotCardProps {
   onSnoozeMenuOpenChange?: (open: boolean) => void
   /** Whether the card is playing its snooze exit animation */
   isSnoozing?: boolean
+  /** Whether the card is playing its entrance animation */
+  isEntering?: boolean
 }
 
 export default function KnotCard({
@@ -56,6 +58,7 @@ export default function KnotCard({
   isListDragging = false,
   onSnoozeMenuOpenChange,
   isSnoozing = false,
+  isEntering = false,
 }: KnotCardProps) {
   const isCompleted = status === "completed"
   const [snoozeMenuOpen, setSnoozeMenuOpen] = useState(false)
@@ -99,15 +102,6 @@ export default function KnotCard({
         sourceType: 'slack' as const,
         permalink: sourceUrl,
         authorName,
-      }
-    }
-
-    // Priority 1b: Monday.com source fields from database columns
-    if (sourceType === 'monday' && sourceUrl) {
-      return {
-        hasProvenance: true,
-        sourceType: 'monday' as const,
-        permalink: sourceUrl,
       }
     }
 
@@ -168,13 +162,14 @@ export default function KnotCard({
     <div
       className={cn(
         "group relative flex items-start gap-3 rounded-lg bg-card p-4 transition-[background-color,opacity,transform,box-shadow] duration-200 ease-[cubic-bezier(0.2,0,0,1)]",
-        !isOverlay && !isSnoozing && "animate-in fade-in duration-300",
+        !isOverlay && !isSnoozing && !isEntering && "animate-in fade-in duration-300",
         !isCompleted && "hover:bg-accent-hover",
         isCompleted && "bg-accent-subtle opacity-75",
         isDragging && "opacity-40",
         isOverlay && "shadow-md cursor-grabbing",
         snoozeMenuOpen && "z-50",
         isSnoozing && "animate-out fade-out slide-out-to-right duration-300 fill-mode-forwards",
+        isEntering && "animate-in fade-in slide-in-from-right duration-300",
       )}
     >
       {/* Drag handle - separate from content to not trigger edit */}

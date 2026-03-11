@@ -156,6 +156,42 @@ Retry up to 4 times with exponential backoff (2s, 4s, 8s, 16s) on network failur
 - ✅ Actionability scoring to filter non-actionable mentions
 - ✅ Task deduplication based on source_id
 - ✅ Slack source row on task cards (icon + "[name] via Slack" link)
+- ✅ Snooze exit animation (slide-out-to-right) in Tasks tab
+- ✅ Move-to-tasks exit animation (slide-out-to-left) in Backlog tab
+- ✅ Entrance animation (slide-in-from-right) for tasks arriving from backlog
+- ✅ Goal completion reorder animation (fade-out, reorder, fade-in)
+- ✅ Timestamp preservation across snooze/unsnoozed round-trips
+- ✅ Goals tab: byline (timestamp + linked tasks) on its own line below title
+- ✅ Backlog cards do not show snooze CTA (snooze only in Tasks tab)
+
+## Animations & Transitions
+
+All animations use `tw-animate-css` (imported in `globals.css`). Duration is 300ms unless noted.
+
+### Snooze (Tasks → Backlog)
+- **Exit:** Card plays `animate-out fade-out slide-out-to-right` (300ms, `fill-mode-forwards`), then is removed from the tasks list and inserted into the backlog table with `snoozed_until`.
+- **State:** `snoozingId` in `tasks-tab.tsx` → passed to `SortableKnotList` → `KnotCard.isSnoozing`.
+- Snooze icon (Clock) with quick-pick menu (Tomorrow, 3 days, Next week, 2 weeks) is only shown in the **Tasks tab**. Backlog cards do **not** have a snooze CTA.
+
+### Move to Tasks (Backlog → Tasks)
+- **Exit (backlog side):** Card plays `animate-out fade-out slide-out-to-left` (300ms, `fill-mode-forwards`), then is removed and inserted into the tasks table.
+- **State:** `movingToTasksId` in `backlog-tab.tsx` → `BacklogCard.isMovingToTasks`.
+- **Entrance (tasks side):** The new task arrives via Supabase Realtime INSERT. It plays `animate-in fade-in slide-in-from-right` (300ms).
+- **State:** `enteringId` in `tasks-tab.tsx` → `SortableKnotList` → `KnotCard.isEntering`. Cleared after 400ms.
+
+### Timestamp Preservation
+When a task is snoozed to backlog and later moved back, the original `created_at` is preserved through both hops so the task shows its original timestamp (e.g., "yesterday"), not "just now".
+
+### Goal Completion Reorder
+- When a goal is checked (completed), it fades out (`animate-out fade-out`, 300ms) via `reorderingId`, then the list reorders (active first, completed last), and the card fades in at its new position (`animate-in fade-in`, 300ms) via `settledId`.
+- Initial load also sorts active goals above completed ones.
+- **State:** `reorderingId` and `settledId` in `goals-tab.tsx` → `GoalCard.isReordering` / `GoalCard.isSettling`.
+
+### Task Completion
+- Card shows completed state for 1.2s, then plays `slide-out-to-right` exit animation (reuses `snoozingId`), removed from tasks, inserted into backlog as resolved.
+
+### General Card Entrance
+- All task cards (non-snoozing, non-entering) get a default `animate-in fade-in duration-300` on mount.
 
 ## Important Notes
 - Always use optimistic updates for better UX

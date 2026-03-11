@@ -1,6 +1,38 @@
 import { type ClassValue, clsx } from "clsx"
 import { twMerge } from "tailwind-merge"
 
+/**
+ * Group items by their creation date, returning an array of { label, items } groups.
+ * Items are ordered newest-first within each group, groups are ordered newest-first.
+ */
+export function groupByDate<T extends { createdAt?: string }>(items: T[]): { label: string; items: T[] }[] {
+  const groups: Map<string, T[]> = new Map()
+  const now = new Date()
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1)
+
+  for (const item of items) {
+    let key: string
+    if (!item.createdAt) {
+      key = 'Unknown'
+    } else {
+      const ts = item.createdAt.endsWith('Z') || item.createdAt.includes('+') ? item.createdAt : item.createdAt + 'Z'
+      const d = new Date(ts)
+      const itemDay = new Date(d.getFullYear(), d.getMonth(), d.getDate())
+      if (itemDay.getTime() === today.getTime()) {
+        key = 'Today'
+      } else if (itemDay.getTime() === yesterday.getTime()) {
+        key = 'Yesterday'
+      } else {
+        key = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+      }
+    }
+    if (!groups.has(key)) groups.set(key, [])
+    groups.get(key)!.push(item)
+  }
+  return Array.from(groups.entries()).map(([label, items]) => ({ label, items }))
+}
+
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
