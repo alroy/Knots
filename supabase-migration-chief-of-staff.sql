@@ -63,7 +63,7 @@ CREATE TABLE IF NOT EXISTS people (
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
   role TEXT DEFAULT '',
-  relationship TEXT NOT NULL DEFAULT 'stakeholder' CHECK (relationship IN ('manager', 'report', 'stakeholder')),
+  relationship TEXT NOT NULL DEFAULT 'stakeholder' CHECK (relationship IN ('manager', 'team', 'report', 'stakeholder')),
   context TEXT DEFAULT '',
   strengths TEXT DEFAULT '',
   growth_areas TEXT DEFAULT '',
