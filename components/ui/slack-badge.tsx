@@ -17,19 +17,10 @@ function SlackIcon({ className }: { className?: string }) {
 }
 
 /**
- * Granola icon component (stylized grain shape)
+ * Granola icon component (official Granola logo)
  */
 function GranolaIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 24 24"
-      fill="currentColor"
-      aria-hidden="true"
-    >
-      <path d="M12 2C9 2 6 5.5 6 11s3 11 6 11 6-5.5 6-11S15 2 12 2zm0 2.5c2 0 3.5 2.5 3.5 6.5S14 18 12 18s-3.5-3.5-3.5-7S10 4.5 12 4.5z" />
-    </svg>
-  )
+  return <img src="/granola-icon.svg" alt="" className={className} aria-hidden="true" />
 }
 
 const SOURCE_CONFIG: Record<SourceType, { fallbackName: string; linkText: string; Icon: typeof SlackIcon }> = {
