@@ -205,23 +205,21 @@ export function TasksTab({ contentColumnRef }: TasksTabProps) {
         })
         if (insertError) throw insertError
 
-        // Wait for the brief visual delay, then animate out and delete from tasks
+        // Animate out immediately (same as snooze), then delete from tasks
+        setSnoozingId(id)
         setTimeout(async () => {
-          setSnoozingId(id) // reuse the slide-out animation
-          setTimeout(async () => {
-            setCompletingId(null)
-            setSnoozingId(null)
-            setKnots((prev) => prev.filter((k) => k.id !== id))
-            try {
-              const { error: deleteError } = await supabase.from('tasks').delete().eq('id', id)
-              if (deleteError) throw deleteError
-              setBriefRevision(r => r + 1)
-            } catch (error) {
-              console.error('Error deleting completed task:', error)
-              loadKnots()
-            }
-          }, 300) // slide-out animation duration
-        }, 1200) // display completed state for 1.2s
+          setCompletingId(null)
+          setSnoozingId(null)
+          setKnots((prev) => prev.filter((k) => k.id !== id))
+          try {
+            const { error: deleteError } = await supabase.from('tasks').delete().eq('id', id)
+            if (deleteError) throw deleteError
+            setBriefRevision(r => r + 1)
+          } catch (error) {
+            console.error('Error deleting completed task:', error)
+            loadKnots()
+          }
+        }, 300) // slide-out animation duration
       } catch (error) {
         console.error('Error moving completed task to backlog:', error)
         setCompletingId(null)
