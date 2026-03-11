@@ -20,7 +20,7 @@ export interface Person {
   id: string
   name: string
   role: string
-  relationship: 'manager' | 'report' | 'stakeholder'
+  relationship: 'manager' | 'team' | 'report' | 'stakeholder'
   context: string
   strengths: string
   growthAreas: string
@@ -89,12 +89,14 @@ export const CATEGORY_COLORS: Record<string, string> = {
 
 export const RELATIONSHIP_LABELS: Record<string, string> = {
   manager: 'Manager',
+  team: 'Team',
   report: 'Report',
   stakeholder: 'Stakeholder',
 }
 
 export const RELATIONSHIP_COLORS: Record<string, string> = {
   manager: 'text-purple-600 bg-purple-50 dark:text-purple-400 dark:bg-purple-950',
+  team: 'text-orange-600 bg-orange-50 dark:text-orange-400 dark:bg-orange-950',
   report: 'text-blue-600 bg-blue-50 dark:text-blue-400 dark:bg-blue-950',
   stakeholder: 'text-green-600 bg-green-50 dark:text-green-400 dark:bg-green-950',
 }

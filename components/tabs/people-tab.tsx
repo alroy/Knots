@@ -131,6 +131,7 @@ export function PeopleTab({ contentColumnRef }: PeopleTabProps) {
   // Group by relationship
   const grouped = {
     manager: people.filter(p => p.relationship === 'manager'),
+    team: people.filter(p => p.relationship === 'team'),
     report: people.filter(p => p.relationship === 'report'),
     stakeholder: people.filter(p => p.relationship === 'stakeholder'),
   }
@@ -164,13 +165,13 @@ export function PeopleTab({ contentColumnRef }: PeopleTabProps) {
 
       {people.length > 0 ? (
         <div className="space-y-6">
-          {(['manager', 'report', 'stakeholder'] as const).map((rel) => {
+          {(['manager', 'team', 'report', 'stakeholder'] as const).map((rel) => {
             const group = grouped[rel]
             if (group.length === 0) return null
             return (
               <div key={rel}>
                 <h2 className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-3">
-                  {rel === 'report' ? 'Direct Reports' : rel === 'manager' ? 'Manager' : 'Stakeholders'}
+                  {rel === 'report' ? 'Direct Reports' : rel === 'manager' ? 'Manager' : rel === 'team' ? 'Team' : 'Stakeholders'}
                 </h2>
                 <div className="flex flex-col gap-2">
                   {group.map((person) => (
@@ -359,7 +360,7 @@ function FAB({ onClick, contentColumnRef }: { onClick: () => void; contentColumn
 interface PersonFormData {
   name: string
   role: string
-  relationship: 'manager' | 'report' | 'stakeholder'
+  relationship: 'manager' | 'team' | 'report' | 'stakeholder'
   context: string
   strengths: string
   growthAreas: string
@@ -376,7 +377,7 @@ function PersonFormModal({ person, onSubmit, onClose }: {
 }) {
   const [name, setName] = useState(person?.name || '')
   const [role, setRole] = useState(person?.role || '')
-  const [relationship, setRelationship] = useState<'manager' | 'report' | 'stakeholder'>(person?.relationship || 'stakeholder')
+  const [relationship, setRelationship] = useState<'manager' | 'team' | 'report' | 'stakeholder'>(person?.relationship || 'stakeholder')
   const [context, setContext] = useState(person?.context || '')
   const [strengths, setStrengths] = useState(person?.strengths || '')
   const [growthAreas, setGrowthAreas] = useState(person?.growthAreas || '')
@@ -433,7 +434,7 @@ function PersonFormModal({ person, onSubmit, onClose }: {
               <div className="space-y-2">
                 <Label className="text-sm text-muted-foreground">Relationship</Label>
                 <div className="flex gap-2">
-                  {(['manager', 'report', 'stakeholder'] as const).map((rel) => (
+                  {(['manager', 'team', 'report', 'stakeholder'] as const).map((rel) => (
                     <button key={rel} type="button" onClick={() => setRelationship(rel)}
                       className={cn(
                         "rounded px-3 py-1.5 text-xs font-bold uppercase tracking-wide transition-colors",
