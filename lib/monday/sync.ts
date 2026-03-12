@@ -37,6 +37,7 @@ interface MondayResponse {
 }
 
 export interface ParsedActionItem {
+  mondayItemId: string
   actionItem: string
   source: 'slack' | 'granola'
   sourceChannel: string | null
@@ -108,6 +109,7 @@ function parseStatus(text: string | null): 'new' | 'done' | 'dismissed' {
 
 function parseMondayItem(item: MondayItem): ParsedActionItem {
   return {
+    mondayItemId: item.id,
     actionItem: item.name,
     source: parseSource(getColumnStatus(item, COLUMNS.source)),
     sourceChannel: getColumnText(item, COLUMNS.sourceChannel),
