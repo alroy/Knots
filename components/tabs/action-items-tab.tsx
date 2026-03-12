@@ -536,9 +536,9 @@ export function ActionItemsTab({ contentColumnRef }: ActionItemsTabProps) {
       ) : (
         <div className="flex flex-col items-center justify-center py-24 text-center">
           <img src="/inbox.svg" alt="" aria-hidden="true" className="h-20 w-20 opacity-40 mb-5" />
-          <p className="text-lg font-semibold text-foreground mb-1">All clear!</p>
+          <p className="text-lg font-semibold text-foreground mb-1">Summit reached.</p>
           <p className="text-muted-foreground text-sm max-w-[260px]">
-            Your knots are completely untangled for now.
+            You have conquered today&apos;s action items.
           </p>
         </div>
       )}
