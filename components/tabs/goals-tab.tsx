@@ -273,6 +273,26 @@ function GoalCard({ goal, taskCount, isExpanded, isArchiving, onToggleExpand, on
 }) {
   const isCompleted = goal.status === 'completed'
 
+  // Delete confirmation (two-step: trash icon → "Delete?" button → confirm)
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const confirmTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    if (confirmingDelete) {
+      confirmTimer.current = setTimeout(() => setConfirmingDelete(false), 3000)
+      return () => { if (confirmTimer.current) clearTimeout(confirmTimer.current) }
+    }
+  }, [confirmingDelete])
+
+  const handleDeleteClick = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!confirmingDelete) {
+      setConfirmingDelete(true)
+      return
+    }
+    onDelete()
+  }
+
   // Auto at-risk: deadline within 2 days and not completed
   const isAtRisk = !isCompleted && (() => {
     if (!goal.deadline) return false
@@ -286,7 +306,7 @@ function GoalCard({ goal, taskCount, isExpanded, isArchiving, onToggleExpand, on
   return (
     <div
       className={cn(
-        "rounded-lg bg-card p-4 transition-[background-color,opacity] duration-200",
+        "group rounded-lg bg-card p-4 transition-[background-color,opacity] duration-200",
         !isCompleted && !isAtRisk && "hover:bg-accent-hover",
         isCompleted && "bg-accent-subtle opacity-75",
         isAtRisk && "bg-red-50 dark:bg-red-950/30 hover:bg-red-100/80 dark:hover:bg-red-950/40",
@@ -339,13 +359,24 @@ function GoalCard({ goal, taskCount, isExpanded, isArchiving, onToggleExpand, on
           >
             <Pencil className="h-4 w-4" />
           </button>
-          <button
-            onClick={(e) => { e.stopPropagation(); onDelete() }}
-            className="p-1.5 rounded-md text-muted-foreground/50 hover:text-destructive transition-colors opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
-            aria-label="Delete goal"
-          >
-            <Trash2 className="h-4 w-4" />
-          </button>
+          {!confirmingDelete && (
+            <button
+              onClick={handleDeleteClick}
+              className="p-1.5 rounded-md text-muted-foreground/50 hover:text-destructive transition-colors opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
+              aria-label="Delete goal"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          )}
+          {confirmingDelete && (
+            <button
+              onClick={handleDeleteClick}
+              className="shrink-0 px-2 py-1 rounded-md text-xs font-medium text-destructive bg-destructive/10 hover:bg-destructive/20 transition-colors"
+              aria-label="Confirm delete"
+            >
+              Delete?
+            </button>
+          )}
         </div>
       </div>
 
