@@ -1,23 +1,42 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import { createClient } from "@/lib/supabase-browser"
 import { useAuth } from "@/contexts/auth-context"
 import { cn, formatRelativeTime } from "@/lib/utils"
-import { Check, X, ExternalLink, MessageSquare, Video, RefreshCw } from "lucide-react"
+import { Check, X, ExternalLink, MessageSquare, Video, RefreshCw, Clock, ClipboardList } from "lucide-react"
+import { KnotForm, type EditTask, type GoalOption } from "@/components/knot-form"
+import { ProvenanceRow } from "@/components/ui/slack-badge"
+import { TaskMetadata, isSlackMetadata, isGranolaMetadata } from "@/lib/types"
+import { prepareTaskForListView, detectSlackTask } from "@/lib/slack/text-utils"
 
-interface ActionItem {
+// --- Unified inbox item that can come from action_items or tasks table ---
+
+type InboxOrigin = 'action-item' | 'task'
+
+interface InboxItem {
   id: string
-  actionItem: string
-  source: 'slack' | 'granola'
+  origin: InboxOrigin
+  title: string
+  description: string
+  // Source provenance
+  source: 'slack' | 'granola' | 'manual'
   sourceChannel: string | null
   messageFrom: string | null
   messageLink: string | null
-  messageTimestamp: string | null
-  status: 'new' | 'done' | 'dismissed'
-  rawContext: string | null
-  scanTimestamp: string | null
+  // Timestamps
   createdAt: string
+  messageTimestamp: string | null
+  // Status
+  status: 'new' | 'done' | 'dismissed' | 'active' | 'completed'
+  // Task-specific fields
+  metadata?: TaskMetadata
+  sourceType?: string
+  sourceUrl?: string
+  goalId?: string | null
+  position?: number
+  // Action-item-specific fields
+  rawContext: string | null
 }
 
 interface ActionItemsTabProps {
@@ -26,83 +45,192 @@ interface ActionItemsTabProps {
 
 export function ActionItemsTab({ contentColumnRef }: ActionItemsTabProps) {
   const { user } = useAuth()
-  const [items, setItems] = useState<ActionItem[]>([])
+  const [items, setItems] = useState<InboxItem[]>([])
   const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState(false)
   const [filterSource, setFilterSource] = useState<string | null>(null)
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [exitingId, setExitingId] = useState<string | null>(null)
+  const [goals, setGoals] = useState<GoalOption[]>([])
+  const [editTask, setEditTask] = useState<EditTask | null>(null)
   const supabase = createClient()
+  const locallyCreatedIds = useRef<Set<string>>(new Set())
 
   useEffect(() => {
-    if (user) loadItems()
+    if (user) {
+      loadAllItems()
+      loadGoals()
+    }
   }, [user])
 
-  // Real-time subscription
+  // Real-time subscriptions for both tables
   useEffect(() => {
     if (!user) return
-    const channel = supabase
-      .channel('action-items-changes')
+    const actionChannel = supabase
+      .channel('inbox-action-items-changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'action_items', filter: `user_id=eq.${user.id}` }, () => {
-        loadItems()
+        loadAllItems()
       })
       .subscribe()
-    return () => { supabase.removeChannel(channel) }
+
+    const tasksChannel = supabase
+      .channel('inbox-tasks-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks', filter: `user_id=eq.${user.id}` }, (payload) => {
+        if (payload.eventType === 'INSERT') {
+          const newTask = payload.new as any
+          if (locallyCreatedIds.current.has(newTask.id)) {
+            locallyCreatedIds.current.delete(newTask.id)
+            return
+          }
+        }
+        loadAllItems()
+      })
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(actionChannel)
+      supabase.removeChannel(tasksChannel)
+    }
   }, [user])
 
-  const loadItems = async () => {
+  const loadAllItems = async () => {
     if (!user) return
     try {
-      const { data, error } = await supabase
-        .from('action_items')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('message_timestamp', { ascending: false, nullsFirst: false })
+      // Load both tables in parallel
+      const [actionResult, tasksResult] = await Promise.all([
+        supabase
+          .from('action_items')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('message_timestamp', { ascending: false, nullsFirst: false }),
+        supabase
+          .from('tasks')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('position', { ascending: true }),
+      ])
 
-      if (error) throw error
+      if (actionResult.error) throw actionResult.error
+      if (tasksResult.error) throw tasksResult.error
 
-      setItems((data || []).map((row: any) => ({
+      const actionItems: InboxItem[] = (actionResult.data || []).map((row: any) => ({
         id: row.id,
-        actionItem: row.action_item,
-        source: row.source,
+        origin: 'action-item' as const,
+        title: row.action_item,
+        description: '',
+        source: row.source as 'slack' | 'granola',
         sourceChannel: row.source_channel,
         messageFrom: row.message_from,
         messageLink: row.message_link,
+        createdAt: row.created_at,
         messageTimestamp: row.message_timestamp,
         status: row.status,
         rawContext: row.raw_context,
-        scanTimestamp: row.scan_timestamp,
-        createdAt: row.created_at,
-      })))
+      }))
+
+      const taskItems: InboxItem[] = (tasksResult.data || []).map((row: any) => {
+        // Determine source for tasks
+        let source: 'slack' | 'granola' | 'manual' = 'manual'
+        if (row.source_type === 'slack') source = 'slack'
+        else if (row.source_type === 'granola') source = 'granola'
+        else if (row.metadata?.source?.type === 'slack') source = 'slack'
+        else if (row.metadata?.source?.type === 'granola') source = 'granola'
+
+        return {
+          id: row.id,
+          origin: 'task' as const,
+          title: row.title,
+          description: row.description || '',
+          source,
+          sourceChannel: null,
+          messageFrom: null,
+          messageLink: row.source_url || null,
+          createdAt: row.created_at,
+          messageTimestamp: row.created_at,
+          status: row.status as string,
+          metadata: row.metadata || undefined,
+          sourceType: row.source_type || undefined,
+          sourceUrl: row.source_url || undefined,
+          goalId: row.goal_id || null,
+          position: row.position ?? 0,
+          rawContext: null,
+        }
+      })
+
+      // Merge: tasks first (they have explicit positions), then action items
+      setItems([...taskItems, ...actionItems])
     } catch (error) {
-      console.error('Error loading action items:', error)
+      console.error('Error loading inbox items:', error)
     } finally {
       setLoading(false)
     }
   }
 
-  const handleStatusChange = async (id: string, newStatus: 'done' | 'dismissed') => {
-    const item = items.find(i => i.id === id)
-    if (!item) return
-
-    // Optimistic update
-    setItems(prev => prev.map(i => i.id === id ? { ...i, status: newStatus } : i))
-
+  const loadGoals = async () => {
+    if (!user) return
     try {
-      const { error } = await supabase
-        .from('action_items')
-        .update({ status: newStatus })
-        .eq('id', id)
+      const { data, error } = await supabase
+        .from('goals')
+        .select('id, title, priority')
+        .eq('user_id', user.id)
+        .order('priority', { ascending: true })
       if (error) throw error
+      setGoals((data || []).map((g: any) => ({ id: g.id, title: g.title, priority: g.priority })))
     } catch (error) {
-      console.error('Error updating action item status:', error)
-      // Rollback
-      setItems(prev => prev.map(i => i.id === id ? { ...i, status: item.status } : i))
+      console.error('Error loading goals:', error)
     }
   }
 
-  const handleReopen = async (id: string) => {
+  // --- Action item handlers ---
+
+  const handleActionItemDone = async (id: string) => {
     const item = items.find(i => i.id === id)
-    if (!item) return
+    if (!item || item.origin !== 'action-item') return
+
+    // Animate out then update
+    setExitingId(id)
+    setTimeout(async () => {
+      setExitingId(null)
+      setItems(prev => prev.map(i => i.id === id ? { ...i, status: 'done' } : i))
+
+      try {
+        const { error } = await supabase
+          .from('action_items')
+          .update({ status: 'done' })
+          .eq('id', id)
+        if (error) throw error
+      } catch (error) {
+        console.error('Error updating action item status:', error)
+        setItems(prev => prev.map(i => i.id === id ? { ...i, status: item.status } : i))
+      }
+    }, 300)
+  }
+
+  const handleActionItemDismiss = async (id: string) => {
+    const item = items.find(i => i.id === id)
+    if (!item || item.origin !== 'action-item') return
+
+    setExitingId(id)
+    setTimeout(async () => {
+      setExitingId(null)
+      setItems(prev => prev.map(i => i.id === id ? { ...i, status: 'dismissed' } : i))
+
+      try {
+        const { error } = await supabase
+          .from('action_items')
+          .update({ status: 'dismissed' })
+          .eq('id', id)
+        if (error) throw error
+      } catch (error) {
+        console.error('Error dismissing action item:', error)
+        setItems(prev => prev.map(i => i.id === id ? { ...i, status: item.status } : i))
+      }
+    }, 300)
+  }
+
+  const handleActionItemReopen = async (id: string) => {
+    const item = items.find(i => i.id === id)
+    if (!item || item.origin !== 'action-item') return
 
     setItems(prev => prev.map(i => i.id === id ? { ...i, status: 'new' } : i))
 
@@ -118,6 +246,173 @@ export function ActionItemsTab({ contentColumnRef }: ActionItemsTabProps) {
     }
   }
 
+  // --- Task handlers (snooze, complete, delete) ---
+
+  const handleTaskDone = async (id: string) => {
+    const item = items.find(i => i.id === id)
+    if (!item || item.origin !== 'task' || !user) return
+
+    // Optimistic: mark completed
+    setItems(prev => prev.map(i => i.id === id ? { ...i, status: 'completed' } : i))
+
+    // Animate out, then move to backlog
+    setExitingId(id)
+    try {
+      // Insert into backlog as resolved
+      const { error: insertError } = await supabase.from('backlog').insert({
+        title: item.title,
+        description: item.description,
+        category: 'action',
+        status: 'resolved',
+        resolved_at: new Date().toISOString(),
+        user_id: user.id,
+        position: 0,
+      })
+      if (insertError) throw insertError
+
+      setTimeout(async () => {
+        setExitingId(null)
+        setItems(prev => prev.filter(i => i.id !== id))
+        try {
+          const { error: deleteError } = await supabase.from('tasks').delete().eq('id', id)
+          if (deleteError) throw deleteError
+        } catch (error) {
+          console.error('Error deleting completed task:', error)
+          loadAllItems()
+        }
+      }, 300)
+    } catch (error) {
+      console.error('Error completing task:', error)
+      setExitingId(null)
+      setItems(prev => prev.map(i => i.id === id ? { ...i, status: 'active' } : i))
+    }
+  }
+
+  const handleTaskSnooze = async (id: string, until: Date) => {
+    const item = items.find(i => i.id === id)
+    if (!item || item.origin !== 'task' || !user) return
+
+    setExitingId(id)
+
+    setTimeout(async () => {
+      setExitingId(null)
+      setItems(prev => prev.filter(i => i.id !== id))
+
+      try {
+        const { error: insertError } = await supabase.from('backlog').insert({
+          title: item.title,
+          description: item.description,
+          category: 'action',
+          user_id: user.id,
+          position: 0,
+          snoozed_until: until.toISOString(),
+          ...(item.createdAt ? { created_at: item.createdAt } : {}),
+        })
+        if (insertError) throw insertError
+
+        const { error: deleteError } = await supabase.from('tasks').delete().eq('id', id)
+        if (deleteError) throw deleteError
+      } catch (error) {
+        console.error('Error snoozing task:', error)
+        loadAllItems()
+      }
+    }, 300)
+  }
+
+  const handleActionItemSnooze = async (id: string) => {
+    const item = items.find(i => i.id === id)
+    if (!item || item.origin !== 'action-item' || !user) return
+
+    setExitingId(id)
+
+    setTimeout(async () => {
+      setExitingId(null)
+      setItems(prev => prev.map(i => i.id === id ? { ...i, status: 'dismissed' } : i))
+
+      try {
+        // Mark as dismissed in action_items (acts as "snoozed" since action_items don't have a backlog concept)
+        const { error } = await supabase
+          .from('action_items')
+          .update({ status: 'dismissed' })
+          .eq('id', id)
+        if (error) throw error
+      } catch (error) {
+        console.error('Error snoozing action item:', error)
+        setItems(prev => prev.map(i => i.id === id ? { ...i, status: item.status } : i))
+      }
+    }, 300)
+  }
+
+  const handleTaskDelete = async (id: string) => {
+    setItems(prev => prev.filter(i => i.id !== id))
+    try {
+      const { error } = await supabase.from('tasks').delete().eq('id', id)
+      if (error) throw error
+    } catch (error) {
+      console.error('Error deleting task:', error)
+      loadAllItems()
+    }
+  }
+
+  // --- FAB: Add new task ---
+
+  const handleAddTask = async (data: { title: string; description: string }) => {
+    if (!user) return
+    try {
+      const { data: newTask, error } = await supabase
+        .from('tasks')
+        .insert({ title: data.title, description: data.description, status: 'active', user_id: user.id, position: 0 })
+        .select()
+        .single()
+      if (error) throw error
+
+      locallyCreatedIds.current.add(newTask.id)
+      const newItem: InboxItem = {
+        id: newTask.id,
+        origin: 'task',
+        title: newTask.title,
+        description: newTask.description || '',
+        source: 'manual',
+        sourceChannel: null,
+        messageFrom: null,
+        messageLink: null,
+        createdAt: newTask.created_at,
+        messageTimestamp: newTask.created_at,
+        status: newTask.status,
+        metadata: newTask.metadata || undefined,
+        position: newTask.position ?? 0,
+        rawContext: null,
+      }
+
+      setItems(prev => {
+        // Insert at the top of the list
+        return [newItem, ...prev]
+      })
+    } catch (error) {
+      console.error('Error adding task:', error)
+    }
+  }
+
+  const handleEditClose = useCallback(() => { setEditTask(null) }, [])
+
+  const handleUpdateTask = useCallback(async (id: string, data: { title: string; description: string; goalId?: string | null }): Promise<boolean> => {
+    const item = items.find(i => i.id === id)
+    if (!item) return false
+
+    setItems(prev => prev.map(i => i.id === id ? { ...i, title: data.title, description: data.description, goalId: data.goalId ?? i.goalId } : i))
+    try {
+      const updatePayload: Record<string, any> = { title: data.title, description: data.description }
+      if (data.goalId !== undefined) updatePayload.goal_id = data.goalId
+      const { error } = await supabase.from('tasks').update(updatePayload).eq('id', id)
+      if (error) throw error
+      return true
+    } catch (error) {
+      console.error('Error updating task:', error)
+      setItems(prev => prev.map(i => i.id === id ? { ...i, title: item.title, description: item.description } : i))
+      return false
+    }
+  }, [items, supabase])
+
   const handleSync = async () => {
     setSyncing(true)
     try {
@@ -126,7 +421,7 @@ export function ActionItemsTab({ contentColumnRef }: ActionItemsTabProps) {
         const body = await res.json().catch(() => ({}))
         console.error('Sync failed:', body)
       } else {
-        await loadItems()
+        await loadAllItems()
       }
     } catch (error) {
       console.error('Sync error:', error)
@@ -135,17 +430,25 @@ export function ActionItemsTab({ contentColumnRef }: ActionItemsTabProps) {
     }
   }
 
+  // --- Filtering ---
+
   const filteredItems = filterSource
     ? items.filter(i => i.source === filterSource)
     : items
 
-  const newItems = filteredItems.filter(i => i.status === 'new')
-  const doneItems = filteredItems.filter(i => i.status === 'done' || i.status === 'dismissed')
+  const isItemOpen = (item: InboxItem) => {
+    if (item.origin === 'action-item') return item.status === 'new'
+    return item.status === 'active'
+  }
+  const isItemDone = (item: InboxItem) => !isItemOpen(item)
+
+  const openItems = filteredItems.filter(isItemOpen)
+  const doneItems = filteredItems.filter(isItemDone)
 
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <p className="text-muted-foreground">Loading action items...</p>
+        <p className="text-muted-foreground">Loading inbox...</p>
       </div>
     )
   }
@@ -155,8 +458,8 @@ export function ActionItemsTab({ contentColumnRef }: ActionItemsTabProps) {
       <header className="mb-6 md:mb-8">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="mb-2 text-2xl font-bold text-foreground">Action Items</h1>
-            <p className="text-muted-foreground">Tasks extracted from Slack and meetings.</p>
+            <h1 className="mb-2 text-2xl font-bold text-foreground">Inbox</h1>
+            <p className="text-muted-foreground">Everything that needs your attention.</p>
           </div>
           <button
             onClick={handleSync}
@@ -165,7 +468,7 @@ export function ActionItemsTab({ contentColumnRef }: ActionItemsTabProps) {
               "shrink-0 p-2 rounded-md text-muted-foreground hover:text-primary transition-colors",
               syncing && "animate-spin"
             )}
-            aria-label="Sync from Monday.com"
+            aria-label="Sync action items"
           >
             <RefreshCw className="h-5 w-5" />
           </button>
@@ -203,24 +506,52 @@ export function ActionItemsTab({ contentColumnRef }: ActionItemsTabProps) {
           <Video className="h-3 w-3" />
           Meetings
         </button>
+        <button
+          onClick={() => setFilterSource(filterSource === 'manual' ? null : 'manual')}
+          className={cn(
+            "rounded-full px-3 py-1 text-xs font-medium whitespace-nowrap transition-colors inline-flex items-center gap-1",
+            filterSource === 'manual' ? "bg-primary text-primary-foreground" : "bg-accent text-muted-foreground"
+          )}
+        >
+          <ClipboardList className="h-3 w-3" />
+          Manual
+        </button>
       </div>
 
-      {newItems.length > 0 ? (
+      {openItems.length > 0 ? (
         <div className="flex flex-col gap-3">
-          {newItems.map((item) => (
-            <ActionItemCard
-              key={item.id}
+          {openItems.map((item) => (
+            <InboxCard
+              key={`${item.origin}-${item.id}`}
               item={item}
               isExpanded={expandedId === item.id}
+              isExiting={exitingId === item.id}
               onToggleExpand={() => setExpandedId(expandedId === item.id ? null : item.id)}
-              onDone={() => handleStatusChange(item.id, 'done')}
-              onDismiss={() => handleStatusChange(item.id, 'dismissed')}
+              onDone={() => item.origin === 'action-item' ? handleActionItemDone(item.id) : handleTaskDone(item.id)}
+              onDismiss={item.origin === 'action-item' ? () => handleActionItemDismiss(item.id) : undefined}
+              onSnooze={
+                item.origin === 'task'
+                  ? (until: Date) => handleTaskSnooze(item.id, until)
+                  : () => handleActionItemSnooze(item.id)
+              }
+              onDelete={item.origin === 'task' ? () => handleTaskDelete(item.id) : undefined}
+              onEdit={item.origin === 'task' ? () => {
+                setEditTask({
+                  id: item.id,
+                  title: item.title,
+                  description: item.description,
+                  metadata: item.metadata,
+                  sourceType: item.sourceType,
+                  sourceUrl: item.sourceUrl,
+                  goalId: item.goalId,
+                })
+              } : undefined}
             />
           ))}
         </div>
       ) : (
         <p className="py-8 text-center text-muted-foreground">
-          {filterSource ? `No open ${filterSource === 'slack' ? 'Slack' : 'meeting'} action items.` : 'No open action items.'}
+          {filterSource ? `No open ${filterSource === 'slack' ? 'Slack' : filterSource === 'granola' ? 'meeting' : 'manual'} items.` : 'No open items in your inbox.'}
         </p>
       )}
 
@@ -231,40 +562,105 @@ export function ActionItemsTab({ contentColumnRef }: ActionItemsTabProps) {
           </h2>
           <div className="flex flex-col gap-2">
             {doneItems.map((item) => (
-              <ActionItemCard
-                key={item.id}
+              <InboxCard
+                key={`${item.origin}-${item.id}`}
                 item={item}
                 isExpanded={expandedId === item.id}
+                isExiting={false}
                 onToggleExpand={() => setExpandedId(expandedId === item.id ? null : item.id)}
-                onReopen={() => handleReopen(item.id)}
+                onReopen={item.origin === 'action-item' ? () => handleActionItemReopen(item.id) : undefined}
               />
             ))}
           </div>
         </div>
       )}
+
+      <KnotForm
+        onSubmit={handleAddTask}
+        onUpdate={handleUpdateTask}
+        editTask={editTask}
+        onEditClose={handleEditClose}
+        contentColumnRef={contentColumnRef}
+        goals={goals}
+      />
     </>
   )
 }
 
-// --- Action Item Card ---
+// --- Snooze Menu (shared) ---
 
-function ActionItemCard({ item, isExpanded, onToggleExpand, onDone, onDismiss, onReopen }: {
-  item: ActionItem
+const SNOOZE_OPTIONS = [
+  { label: 'Tomorrow', days: 1 },
+  { label: 'In 3 days', days: 3 },
+  { label: 'Next week', days: 7 },
+  { label: 'In 2 weeks', days: 14 },
+]
+
+function SnoozeMenu({ onSnooze, onClose }: {
+  onSnooze: (until: Date) => void
+  onClose: () => void
+}) {
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        onClose()
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [onClose])
+
+  return (
+    <div ref={ref} className="absolute right-0 top-full mt-1 z-50 bg-background border border-border rounded-lg shadow-lg p-1 min-w-[140px]">
+      {SNOOZE_OPTIONS.map(({ label, days }) => (
+        <button
+          key={days}
+          onClick={(e) => {
+            e.stopPropagation()
+            const d = new Date()
+            d.setDate(d.getDate() + days)
+            d.setHours(9, 0, 0, 0)
+            onSnooze(d)
+            onClose()
+          }}
+          className="w-full text-left px-3 py-1.5 text-sm text-foreground hover:bg-accent rounded transition-colors"
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+// --- Unified Inbox Card ---
+
+function InboxCard({ item, isExpanded, isExiting, onToggleExpand, onDone, onDismiss, onReopen, onSnooze, onDelete, onEdit }: {
+  item: InboxItem
   isExpanded: boolean
+  isExiting: boolean
   onToggleExpand: () => void
   onDone?: () => void
   onDismiss?: () => void
   onReopen?: () => void
+  onSnooze?: ((until: Date) => void) | (() => void)
+  onDelete?: () => void
+  onEdit?: () => void
 }) {
-  const isDone = item.status === 'done' || item.status === 'dismissed'
-  const SourceIcon = item.source === 'slack' ? MessageSquare : Video
+  const [showSnoozeMenu, setShowSnoozeMenu] = useState(false)
+  const isDone = item.origin === 'action-item'
+    ? (item.status === 'done' || item.status === 'dismissed')
+    : item.status === 'completed'
 
   return (
     <div
       className={cn(
-        "group rounded-lg bg-card p-4 transition-[background-color,opacity] duration-200 animate-in fade-in duration-300",
+        "group rounded-lg bg-card p-4 transition-[background-color,opacity,transform] duration-200",
+        !isExiting && "animate-in fade-in duration-300",
         !isDone && "hover:bg-accent-hover",
         isDone && "bg-accent-subtle opacity-75",
+        isExiting && "animate-out fade-out slide-out-to-right duration-300 fill-mode-forwards",
       )}
     >
       <div className="flex items-start gap-3">
@@ -286,34 +682,37 @@ function ActionItemCard({ item, isExpanded, onToggleExpand, onDone, onDismiss, o
         )}
 
         {/* Content */}
-        <div className="min-w-0 flex-1 cursor-pointer" onClick={onToggleExpand}>
+        <div
+          className="min-w-0 flex-1 cursor-pointer"
+          onClick={() => {
+            if (onEdit && item.origin === 'task') {
+              onEdit()
+            } else {
+              onToggleExpand()
+            }
+          }}
+        >
           <p className={cn(
             "text-base font-semibold text-foreground",
             isDone && "text-muted-foreground line-through decoration-muted-foreground/50"
           )}>
-            {item.actionItem}
+            {item.title}
           </p>
 
-          {/* Byline: source + channel + from + timestamp */}
-          <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-            <SourceIcon className="h-3 w-3 text-muted-foreground shrink-0" />
-            {item.messageFrom && (
-              <span className="text-xs text-muted-foreground">{item.messageFrom}</span>
-            )}
-            {item.sourceChannel && (
-              <span className="text-xs text-muted-foreground">
-                {item.messageFrom ? 'in' : ''} {item.sourceChannel}
-              </span>
-            )}
-            {item.messageTimestamp && (
-              <>
-                <span className="text-xs text-muted-foreground/50">&middot;</span>
-                <span className="text-xs text-muted-foreground">{formatRelativeTime(item.messageTimestamp)}</span>
-              </>
-            )}
-          </div>
+          {/* Description for task-origin items */}
+          {item.origin === 'task' && item.description && (
+            <p className={cn(
+              "mt-1 text-sm text-muted-foreground",
+              isDone && "text-muted-foreground/70"
+            )}>
+              {item.description}
+            </p>
+          )}
 
-          {/* Expanded: raw context */}
+          {/* Metadata row — origin-aware */}
+          <InboxMetadataRow item={item} />
+
+          {/* Expanded: raw context (action items only) */}
           {isExpanded && item.rawContext && (
             <div className="mt-3 p-3 rounded-md bg-accent text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">
               {item.rawContext}
@@ -322,7 +721,8 @@ function ActionItemCard({ item, isExpanded, onToggleExpand, onDone, onDismiss, o
         </div>
 
         {/* Action buttons */}
-        <div className="flex shrink-0 items-center gap-0.5">
+        <div className="flex shrink-0 items-center gap-0.5 relative">
+          {/* External link */}
           {item.messageLink && (
             <a
               href={item.messageLink}
@@ -335,6 +735,37 @@ function ActionItemCard({ item, isExpanded, onToggleExpand, onDone, onDismiss, o
               <ExternalLink className="h-4 w-4" />
             </a>
           )}
+
+          {/* Snooze button */}
+          {!isDone && onSnooze && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                if (item.origin === 'task') {
+                  setShowSnoozeMenu(!showSnoozeMenu)
+                } else {
+                  // Action items just get dismissed (no date picker)
+                  ;(onSnooze as () => void)()
+                }
+              }}
+              className={cn(
+                "shrink-0 p-1.5 rounded-md text-muted-foreground/50 hover:text-primary transition-colors opacity-100 sm:opacity-0 sm:group-hover:opacity-100",
+                showSnoozeMenu && "sm:!opacity-100"
+              )}
+              aria-label="Snooze"
+            >
+              <Clock className="h-4 w-4" />
+            </button>
+          )}
+
+          {showSnoozeMenu && item.origin === 'task' && (
+            <SnoozeMenu
+              onSnooze={(until) => (onSnooze as (until: Date) => void)(until)}
+              onClose={() => setShowSnoozeMenu(false)}
+            />
+          )}
+
+          {/* Dismiss (action items only) */}
           {!isDone && onDismiss && (
             <button
               onClick={(e) => { e.stopPropagation(); onDismiss() }}
@@ -348,4 +779,74 @@ function ActionItemCard({ item, isExpanded, onToggleExpand, onDone, onDismiss, o
       </div>
     </div>
   )
+}
+
+// --- Metadata Row: shows origin icon + context + timestamp ---
+
+function InboxMetadataRow({ item }: { item: InboxItem }) {
+  if (item.source === 'manual') {
+    // Manual tasks: clipboard icon + "Manually created" + timestamp
+    return (
+      <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+        <ClipboardList className="h-3 w-3 text-muted-foreground/70 shrink-0" />
+        <span className="text-xs text-muted-foreground/70">Manually created</span>
+        {item.createdAt && (
+          <>
+            <span className="text-xs text-muted-foreground/40">&middot;</span>
+            <span className="text-xs text-muted-foreground/70">{formatRelativeTime(item.createdAt)}</span>
+          </>
+        )}
+      </div>
+    )
+  }
+
+  if (item.origin === 'action-item') {
+    // Action items from Slack/Granola: use inline icon + from + channel + time
+    const SourceIcon = item.source === 'slack' ? MessageSquare : Video
+    return (
+      <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+        {item.source === 'slack' ? (
+          <img src="/slack-svgrepo-com.svg" alt="" className="h-3 w-3 shrink-0" aria-hidden="true" />
+        ) : (
+          <img src="/granola-icon.svg" alt="" className="h-3 w-3 shrink-0" aria-hidden="true" />
+        )}
+        {item.messageFrom && (
+          <span className="text-xs text-muted-foreground">{item.messageFrom}</span>
+        )}
+        {item.sourceChannel && (
+          <span className="text-xs text-muted-foreground">
+            {item.messageFrom ? 'in' : ''} {item.sourceChannel}
+          </span>
+        )}
+        {item.messageTimestamp && (
+          <>
+            <span className="text-xs text-muted-foreground/50">&middot;</span>
+            <span className="text-xs text-muted-foreground">{formatRelativeTime(item.messageTimestamp)}</span>
+          </>
+        )}
+      </div>
+    )
+  }
+
+  // Task-origin items from Slack/Granola: use ProvenanceRow-style rendering
+  if (item.source === 'slack' || item.source === 'granola') {
+    // Try to get author name from metadata
+    let authorName: string | undefined
+    if (isSlackMetadata(item.metadata)) {
+      authorName = item.metadata.source.author?.display_name
+    } else if (isGranolaMetadata(item.metadata)) {
+      authorName = item.metadata.source.author?.display_name
+    }
+
+    return (
+      <ProvenanceRow
+        sourceType={item.source}
+        authorName={authorName}
+        permalink={item.sourceUrl || item.messageLink || undefined}
+        className="mt-1"
+      />
+    )
+  }
+
+  return null
 }

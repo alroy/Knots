@@ -7,7 +7,6 @@ import { SignIn } from "@/components/auth/sign-in"
 import { Unauthorized } from "@/components/auth/unauthorized"
 import { ResetPassword } from "@/components/auth/reset-password"
 import { TabBar } from "@/components/tab-bar"
-import { TasksTab } from "@/components/tabs/tasks-tab"
 import { GoalsTab } from "@/components/tabs/goals-tab"
 import { PeopleTab } from "@/components/tabs/people-tab"
 import { BacklogTab } from "@/components/tabs/backlog-tab"
@@ -18,12 +17,12 @@ import type { TabId } from "@/lib/chief-of-staff-types"
 // Export content column ref type for FAB positioning
 export type ContentColumnRef = React.RefObject<HTMLDivElement | null>
 
-const VALID_TABS: readonly TabId[] = ['tasks', 'goals', 'people', 'backlog', 'action-items', 'profile']
+const VALID_TABS: readonly TabId[] = ['goals', 'people', 'backlog', 'action-items', 'profile']
 
 function getInitialTab(): TabId {
-  if (typeof window === 'undefined') return 'tasks'
+  if (typeof window === 'undefined') return 'action-items'
   const param = new URLSearchParams(window.location.search).get('tab') as TabId
-  return VALID_TABS.includes(param) ? param : 'tasks'
+  return VALID_TABS.includes(param) ? param : 'action-items'
 }
 
 export default function Page() {
@@ -80,8 +79,8 @@ function PageContent() {
     <main className="min-h-screen bg-background py-8 pb-20">
       <div ref={contentColumnRef} className="content-column">
         {/* Tab content */}
-        <div id="tab-panel-tasks" role="tabpanel" aria-labelledby="tab-tasks" className={activeTab !== 'tasks' ? 'hidden' : undefined}>
-          <TasksTab contentColumnRef={contentColumnRef} />
+        <div id="tab-panel-action-items" role="tabpanel" aria-labelledby="tab-action-items" className={activeTab !== 'action-items' ? 'hidden' : undefined}>
+          <ActionItemsTab contentColumnRef={contentColumnRef} />
         </div>
         <div id="tab-panel-goals" role="tabpanel" aria-labelledby="tab-goals" className={activeTab !== 'goals' ? 'hidden' : undefined}>
           <GoalsTab contentColumnRef={contentColumnRef} />
@@ -91,9 +90,6 @@ function PageContent() {
         </div>
         <div id="tab-panel-backlog" role="tabpanel" aria-labelledby="tab-backlog" className={activeTab !== 'backlog' ? 'hidden' : undefined}>
           <BacklogTab contentColumnRef={contentColumnRef} />
-        </div>
-        <div id="tab-panel-action-items" role="tabpanel" aria-labelledby="tab-action-items" className={activeTab !== 'action-items' ? 'hidden' : undefined}>
-          <ActionItemsTab contentColumnRef={contentColumnRef} />
         </div>
         <div id="tab-panel-profile" role="tabpanel" aria-labelledby="tab-profile" className={activeTab !== 'profile' ? 'hidden' : undefined}>
           <ProfileTab contentColumnRef={contentColumnRef} />

@@ -57,7 +57,7 @@ export interface UserProfile {
   aiInstructions: string
 }
 
-export type TabId = 'tasks' | 'goals' | 'people' | 'backlog' | 'action-items' | 'profile'
+export type TabId = 'goals' | 'people' | 'backlog' | 'action-items' | 'profile'
 
 export const PRIORITY_LABELS: Record<number, string> = {
   1: 'P0',
