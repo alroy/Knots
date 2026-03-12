@@ -147,7 +147,7 @@ export function ActionItemsTab({ contentColumnRef }: ActionItemsTabProps) {
           messageLink: row.source_url || null,
           createdAt: row.created_at,
           messageTimestamp: row.created_at,
-          status: row.status as string,
+          status: row.status as InboxItem['status'],
           metadata: row.metadata || undefined,
           sourceType: row.source_type || undefined,
           sourceUrl: row.source_url || undefined,
