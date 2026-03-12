@@ -457,10 +457,7 @@ export function ActionItemsTab({ contentColumnRef }: ActionItemsTabProps) {
     if (item.origin === 'action-item') return item.status === 'new'
     return item.status === 'active'
   }
-  const isItemDone = (item: InboxItem) => !isItemOpen(item)
-
   const openItems = items.filter(isItemOpen)
-  const doneItems = items.filter(isItemDone)
 
   if (loading) {
     return (
@@ -536,36 +533,13 @@ export function ActionItemsTab({ contentColumnRef }: ActionItemsTabProps) {
             />
           ))}
         </div>
-      ) : doneItems.length === 0 ? (
+      ) : (
         <div className="flex flex-col items-center justify-center py-24 text-center">
           <CircleCheckBig className="h-16 w-16 text-muted-foreground/30 mb-5" strokeWidth={2} />
           <p className="text-lg font-semibold text-foreground mb-1">All clear!</p>
           <p className="text-muted-foreground text-sm max-w-[260px]">
             Your knots are completely untangled for now.
           </p>
-        </div>
-      ) : (
-        <p className="py-8 text-center text-muted-foreground">No open items right now.</p>
-      )}
-
-      {doneItems.length > 0 && (
-        <div className="mt-8">
-          <h2 className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-3">
-            Completed ({doneItems.length})
-          </h2>
-          <div className="flex flex-col gap-2">
-            {doneItems.map((item) => (
-              <InboxCard
-                key={`${item.origin}-${item.id}`}
-                item={item}
-                isExpanded={expandedId === item.id}
-                isExiting={false}
-                onToggleExpand={() => setExpandedId(expandedId === item.id ? null : item.id)}
-                onReopen={item.origin === 'action-item' ? () => handleActionItemReopen(item.id) : undefined}
-                onDelete={() => handleDelete(item.id, item.origin)}
-              />
-            ))}
-          </div>
         </div>
       )}
 
