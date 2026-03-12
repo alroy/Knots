@@ -22,6 +22,8 @@ export function ProfileTab({ contentColumnRef }: ProfileTabProps) {
   const [loading, setLoading] = useState(true)
   const [editingSection, setEditingSection] = useState<string | null>(null)
   const [showTranscript, setShowTranscript] = useState(false)
+  const [editName, setEditName] = useState('')
+  const nameInputRef = useRef<HTMLInputElement>(null)
   const supabase = createClient()
 
   useEffect(() => {
@@ -150,9 +152,6 @@ export function ProfileTab({ contentColumnRef }: ProfileTabProps) {
   const aiPrefSections = [
     { key: 'aiInstructions', label: 'AI Instructions', value: profile.aiInstructions, placeholder: 'How your AI Chief of Staff should work with you...' },
   ]
-
-  const nameInputRef = useRef<HTMLInputElement>(null)
-  const [editName, setEditName] = useState(profile.name)
 
   const handleNameEdit = () => {
     setEditName(profile.name)
