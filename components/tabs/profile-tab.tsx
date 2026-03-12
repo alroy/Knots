@@ -8,7 +8,6 @@ import { Textarea } from "@/components/ui/textarea"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Pencil, Check, FileText, Camera, Plus } from "lucide-react"
-import { SlackSettings } from "@/components/settings/slack-settings"
 import { cn } from "@/lib/utils"
 import type { UserProfile } from "@/lib/chief-of-staff-types"
 
@@ -294,8 +293,6 @@ export function ProfileTab({ contentColumnRef }: ProfileTabProps) {
       {/* Settings zone */}
       <div className="border-t border-border mt-8 pt-8">
         <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-3">Settings</h3>
-        <SlackSettings />
-
         {/* Sign Out */}
         <button
           onClick={() => signOut()}

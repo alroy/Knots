@@ -57,7 +57,21 @@ export interface UserProfile {
   aiInstructions: string
 }
 
-export type TabId = 'tasks' | 'goals' | 'people' | 'backlog' | 'profile'
+export interface ActionItem {
+  id: string
+  createdAt?: string
+  scanTimestamp: string
+  source: 'slack' | 'granola'
+  sourceChannel?: string
+  messageFrom?: string
+  messageLink?: string
+  messageTimestamp?: string
+  actionItem: string
+  status: 'new' | 'done' | 'dismissed'
+  rawContext?: string
+}
+
+export type TabId = 'tasks' | 'goals' | 'people' | 'backlog' | 'profile' | 'inbox'
 
 export const PRIORITY_LABELS: Record<number, string> = {
   1: 'P0',

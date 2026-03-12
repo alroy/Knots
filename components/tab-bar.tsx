@@ -1,6 +1,6 @@
 "use client"
 
-import { CheckSquare, Target, Users, Archive, User } from "lucide-react"
+import { CheckSquare, Target, Users, Archive, User, Inbox } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { TabId } from "@/lib/chief-of-staff-types"
 
@@ -10,6 +10,7 @@ interface TabBarProps {
 }
 
 const tabs: { id: TabId; label: string; icon: React.ElementType }[] = [
+  { id: 'inbox', label: 'Inbox', icon: Inbox },
   { id: 'tasks', label: 'Tasks', icon: CheckSquare },
   { id: 'goals', label: 'Goals', icon: Target },
   { id: 'people', label: 'People', icon: Users },

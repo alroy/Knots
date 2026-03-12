@@ -7,6 +7,7 @@ import { SignIn } from "@/components/auth/sign-in"
 import { Unauthorized } from "@/components/auth/unauthorized"
 import { ResetPassword } from "@/components/auth/reset-password"
 import { TabBar } from "@/components/tab-bar"
+import { ActionItemsTab } from "@/components/tabs/action-items-tab"
 import { TasksTab } from "@/components/tabs/tasks-tab"
 import { GoalsTab } from "@/components/tabs/goals-tab"
 import { PeopleTab } from "@/components/tabs/people-tab"
@@ -17,12 +18,12 @@ import type { TabId } from "@/lib/chief-of-staff-types"
 // Export content column ref type for FAB positioning
 export type ContentColumnRef = React.RefObject<HTMLDivElement | null>
 
-const VALID_TABS: readonly TabId[] = ['tasks', 'goals', 'people', 'backlog', 'profile']
+const VALID_TABS: readonly TabId[] = ['inbox', 'tasks', 'goals', 'people', 'backlog', 'profile']
 
 function getInitialTab(): TabId {
-  if (typeof window === 'undefined') return 'tasks'
+  if (typeof window === 'undefined') return 'inbox'
   const param = new URLSearchParams(window.location.search).get('tab') as TabId
-  return VALID_TABS.includes(param) ? param : 'tasks'
+  return VALID_TABS.includes(param) ? param : 'inbox'
 }
 
 export default function Page() {
@@ -79,6 +80,9 @@ function PageContent() {
     <main className="min-h-screen bg-background py-8 pb-20">
       <div ref={contentColumnRef} className="content-column">
         {/* Tab content */}
+        <div id="tab-panel-inbox" role="tabpanel" aria-labelledby="tab-inbox" className={activeTab !== 'inbox' ? 'hidden' : undefined}>
+          <ActionItemsTab contentColumnRef={contentColumnRef} />
+        </div>
         <div id="tab-panel-tasks" role="tabpanel" aria-labelledby="tab-tasks" className={activeTab !== 'tasks' ? 'hidden' : undefined}>
           <TasksTab contentColumnRef={contentColumnRef} />
         </div>
