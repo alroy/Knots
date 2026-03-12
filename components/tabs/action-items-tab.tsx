@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react"
 import { createClient } from "@/lib/supabase-browser"
 import { useAuth } from "@/contexts/auth-context"
 import { cn, formatRelativeTime } from "@/lib/utils"
-import { Check, Trash2, MessageSquare, Video, RefreshCw, Clock, ClipboardList, CircleCheckBig } from "lucide-react"
+import { Check, Trash2, MessageSquare, Video, RefreshCw, Clock, ClipboardList } from "lucide-react"
 import { KnotForm, type EditTask, type GoalOption } from "@/components/knot-form"
 import { ProvenanceRow } from "@/components/ui/slack-badge"
 import { TaskMetadata, isSlackMetadata, isGranolaMetadata } from "@/lib/types"
@@ -535,10 +535,10 @@ export function ActionItemsTab({ contentColumnRef }: ActionItemsTabProps) {
         </div>
       ) : (
         <div className="flex flex-col items-center justify-center py-24 text-center">
-          <CircleCheckBig className="h-16 w-16 text-muted-foreground/30 mb-5" strokeWidth={2} />
-          <p className="text-lg font-semibold text-foreground mb-1">All clear!</p>
+          <img src="/inbox.svg" alt="" aria-hidden="true" className="h-20 w-20 opacity-40 mb-5" />
+          <p className="text-lg font-semibold text-foreground mb-1">Summit reached.</p>
           <p className="text-muted-foreground text-sm max-w-[260px]">
-            Your knots are completely untangled for now.
+            You have conquered today&apos;s action items.
           </p>
         </div>
       )}

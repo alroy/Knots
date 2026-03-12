@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react"
 import { createClient } from "@/lib/supabase-browser"
 import { useAuth } from "@/contexts/auth-context"
 import { cn, formatRelativeTime, groupByPriority } from "@/lib/utils"
-import { Target, Trash2, Pencil, Plus, X, FileUp, Archive, Trophy } from "lucide-react"
+import { Target, Trash2, Pencil, Plus, X, FileUp, Archive } from "lucide-react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -221,10 +221,10 @@ export function GoalsTab({ contentColumnRef }: GoalsTabProps) {
         </div>
       ) : (
         <div className="flex flex-col items-center justify-center py-24 text-center">
-          <Trophy className="h-16 w-16 text-primary/40 mb-5" strokeWidth={2} />
-          <p className="text-lg font-semibold text-foreground mb-1">Weekly goals complete.</p>
+          <img src="/goals.svg" alt="" aria-hidden="true" className="h-20 w-20 opacity-40 mb-5" />
+          <p className="text-lg font-semibold text-foreground mb-1">A winning week.</p>
           <p className="text-muted-foreground text-sm max-w-[300px]">
-            You&apos;ve cleared all your major priorities. Enjoy the quiet, or get a head start on next week.
+            All major objectives have been secured.
           </p>
         </div>
       )}
