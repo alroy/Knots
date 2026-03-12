@@ -795,18 +795,22 @@ function InboxCard({ item, isExpanded, isExiting, onToggleExpand, onDone, onReop
           )}
 
           {/* Delete button */}
-          {onDelete && (
+          {onDelete && !confirmingDelete && (
             <button
               onClick={handleDeleteClick}
-              className={cn(
-                "shrink-0 p-1.5 rounded-md transition-colors opacity-100 sm:opacity-0 sm:group-hover:opacity-100",
-                confirmingDelete
-                  ? "text-destructive sm:!opacity-100"
-                  : "text-muted-foreground/50 hover:text-destructive"
-              )}
-              aria-label={confirmingDelete ? "Confirm delete" : "Delete"}
+              className="shrink-0 p-1.5 rounded-md text-muted-foreground/50 hover:text-destructive transition-colors opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
+              aria-label="Delete"
             >
               <Trash2 className="h-4 w-4" />
+            </button>
+          )}
+          {onDelete && confirmingDelete && (
+            <button
+              onClick={handleDeleteClick}
+              className="shrink-0 px-2 py-1 rounded-md text-xs font-medium text-destructive bg-destructive/10 hover:bg-destructive/20 transition-colors"
+              aria-label="Confirm delete"
+            >
+              Delete?
             </button>
           )}
         </div>
