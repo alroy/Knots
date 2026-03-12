@@ -323,6 +323,26 @@ function BacklogCard({ item, onEdit, onDelete, onResolve, onMoveToTasks, isMovin
   isMovingToTasks?: boolean; onCancelSnooze: () => void
 }) {
   const isResolved = item.status === 'resolved'
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const confirmTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    if (confirmingDelete) {
+      confirmTimer.current = setTimeout(() => setConfirmingDelete(false), 3000)
+      return () => { if (confirmTimer.current) clearTimeout(confirmTimer.current) }
+    }
+  }, [confirmingDelete])
+
+  const handleDeleteClick = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!isResolved && !confirmingDelete) {
+      setConfirmingDelete(true)
+      return
+    }
+    if (confirmTimer.current) clearTimeout(confirmTimer.current)
+    setConfirmingDelete(false)
+    onDelete()
+  }
 
   return (
     <div
@@ -395,13 +415,24 @@ function BacklogCard({ item, onEdit, onDelete, onResolve, onMoveToTasks, isMovin
         >
           <ListTodo className="h-4 w-4" />
         </button>
-        <button
-          onClick={(e) => { e.stopPropagation(); onDelete() }}
-          className="shrink-0 p-1.5 rounded-md text-muted-foreground/50 hover:text-destructive transition-colors opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
-          aria-label={`Delete ${item.title}`}
-        >
-          <Trash2 className="h-4 w-4" />
-        </button>
+        {!confirmingDelete && (
+          <button
+            onClick={handleDeleteClick}
+            className="shrink-0 p-1.5 rounded-md text-muted-foreground/50 hover:text-destructive transition-colors opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
+            aria-label={`Delete ${item.title}`}
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        )}
+        {confirmingDelete && (
+          <button
+            onClick={handleDeleteClick}
+            className="shrink-0 px-2 py-1 rounded-md text-xs font-medium text-destructive bg-destructive/10 hover:bg-destructive/20 transition-colors"
+            aria-label="Confirm delete"
+          >
+            Delete?
+          </button>
+        )}
 
       </div>
     </div>
