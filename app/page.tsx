@@ -12,12 +12,13 @@ import { GoalsTab } from "@/components/tabs/goals-tab"
 import { PeopleTab } from "@/components/tabs/people-tab"
 import { BacklogTab } from "@/components/tabs/backlog-tab"
 import { ProfileTab } from "@/components/tabs/profile-tab"
+import { ActionItemsTab } from "@/components/tabs/action-items-tab"
 import type { TabId } from "@/lib/chief-of-staff-types"
 
 // Export content column ref type for FAB positioning
 export type ContentColumnRef = React.RefObject<HTMLDivElement | null>
 
-const VALID_TABS: readonly TabId[] = ['tasks', 'goals', 'people', 'backlog', 'profile']
+const VALID_TABS: readonly TabId[] = ['tasks', 'goals', 'people', 'backlog', 'action-items', 'profile']
 
 function getInitialTab(): TabId {
   if (typeof window === 'undefined') return 'tasks'
@@ -90,6 +91,9 @@ function PageContent() {
         </div>
         <div id="tab-panel-backlog" role="tabpanel" aria-labelledby="tab-backlog" className={activeTab !== 'backlog' ? 'hidden' : undefined}>
           <BacklogTab contentColumnRef={contentColumnRef} />
+        </div>
+        <div id="tab-panel-action-items" role="tabpanel" aria-labelledby="tab-action-items" className={activeTab !== 'action-items' ? 'hidden' : undefined}>
+          <ActionItemsTab contentColumnRef={contentColumnRef} />
         </div>
         <div id="tab-panel-profile" role="tabpanel" aria-labelledby="tab-profile" className={activeTab !== 'profile' ? 'hidden' : undefined}>
           <ProfileTab contentColumnRef={contentColumnRef} />
