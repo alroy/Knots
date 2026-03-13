@@ -21,6 +21,8 @@ export interface EditTask {
   sourceType?: string
   sourceUrl?: string
   goalId?: string | null
+  /** Set when editing an action_item — triggers promotion to tasks table on save */
+  _actionItemId?: string
 }
 
 export interface GoalOption {

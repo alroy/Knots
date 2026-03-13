@@ -487,6 +487,71 @@ export function ActionItemsTab({ contentColumnRef }: ActionItemsTabProps) {
     const item = items.find(i => i.id === id)
     if (!item) return false
 
+    // Check if this is an action-item being promoted to a task
+    const isPromotion = editTaskRef.current?._actionItemId === id
+
+    if (isPromotion && user) {
+      // Promote: insert into tasks table, delete from action_items
+      const oldItem = { ...item }
+      setItems(prev => prev.map(i => i.id === id ? {
+        ...i,
+        origin: 'task' as const,
+        title: data.title,
+        description: data.description,
+        goalId: data.goalId ?? null,
+      } : i))
+
+      try {
+        const insert: Record<string, any> = {
+          title: data.title,
+          description: data.description,
+          status: 'active',
+          user_id: user.id,
+          position: 0,
+        }
+        if (data.goalId) insert.goal_id = data.goalId
+        if (item.source !== 'manual') insert.source_type = item.source
+        if (item.messageLink) insert.source_url = item.messageLink
+
+        const { data: newTask, error: insertError } = await supabase
+          .from('tasks')
+          .insert(insert)
+          .select()
+          .single()
+        if (insertError) throw insertError
+
+        locallyCreatedIds.current.add(newTask.id)
+
+        // Delete the old action_item row
+        const { error: deleteError } = await supabase
+          .from('action_items')
+          .delete()
+          .eq('id', id)
+        if (deleteError) throw deleteError
+
+        // Update local state with the new task ID
+        setItems(prev => prev.map(i => i.id === id ? {
+          ...i,
+          id: newTask.id,
+          origin: 'task' as const,
+          title: newTask.title,
+          description: newTask.description || '',
+          status: newTask.status,
+          goalId: newTask.goal_id || null,
+          sourceType: newTask.source_type || undefined,
+          sourceUrl: newTask.source_url || undefined,
+          position: newTask.position ?? 0,
+        } : i))
+
+        return true
+      } catch (error) {
+        console.error('Error promoting action item to task:', error)
+        setItems(prev => prev.map(i => i.id === id ? oldItem : i))
+        return false
+      }
+    }
+
+    // Regular task update
     setItems(prev => prev.map(i => i.id === id ? { ...i, title: data.title, description: data.description, goalId: data.goalId ?? i.goalId } : i))
     try {
       const updatePayload: Record<string, any> = { title: data.title, description: data.description }
@@ -499,7 +564,7 @@ export function ActionItemsTab({ contentColumnRef }: ActionItemsTabProps) {
       setItems(prev => prev.map(i => i.id === id ? { ...i, title: item.title, description: item.description } : i))
       return false
     }
-  }, [items, supabase])
+  }, [items, supabase, user])
 
   const handleSync = async () => {
     setSyncing(true)
@@ -537,7 +602,7 @@ export function ActionItemsTab({ contentColumnRef }: ActionItemsTabProps) {
       <header className="mb-6 md:mb-8">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="mb-2 text-2xl font-bold text-foreground">My Knots</h1>
+            <h1 className="mb-2 text-2xl font-bold text-foreground">Inbox</h1>
             <p className="text-muted-foreground">
               {(() => {
                 const hour = new Date().getHours()
@@ -547,8 +612,8 @@ export function ActionItemsTab({ contentColumnRef }: ActionItemsTabProps) {
                 const contextual = count === 0
                   ? "You're all caught up."
                   : count === 1
-                    ? 'Just 1 knot left to untangle.'
-                    : `You have ${count} knots to untangle.`
+                    ? 'Just 1 issue to untangle.'
+                    : `You have ${count} issues to untangle.`
                 return `${greeting}${firstName ? `, ${firstName}` : ''}. ${contextual}`.trim()
               })()}
             </p>
@@ -584,17 +649,30 @@ export function ActionItemsTab({ contentColumnRef }: ActionItemsTabProps) {
               }
               onDelete={() => handleDelete(item.id, item.origin)}
               requireDeleteConfirm
-              onEdit={item.origin === 'task' ? () => {
-                setEditTask({
-                  id: item.id,
-                  title: item.title,
-                  description: item.description,
-                  metadata: item.metadata,
-                  sourceType: item.sourceType,
-                  sourceUrl: item.sourceUrl,
-                  goalId: item.goalId,
-                })
-              } : undefined}
+              onEdit={() => {
+                if (item.origin === 'task') {
+                  setEditTask({
+                    id: item.id,
+                    title: item.title,
+                    description: item.description,
+                    metadata: item.metadata,
+                    sourceType: item.sourceType,
+                    sourceUrl: item.sourceUrl,
+                    goalId: item.goalId,
+                  })
+                } else {
+                  // Action item — open edit form; promotes to tasks table on save
+                  setEditTask({
+                    id: item.id,
+                    title: item.title,
+                    description: item.rawContext || '',
+                    sourceType: item.source === 'manual' ? undefined : item.source,
+                    sourceUrl: item.messageLink || undefined,
+                    goalId: null,
+                    _actionItemId: item.id,
+                  })
+                }
+              }}
             />
           ))}
         </div>
@@ -738,7 +816,7 @@ function InboxCard({ item, isExpanded, isExiting, onToggleExpand, onDone, onReop
         <div
           className="min-w-0 flex-1 cursor-pointer"
           onClick={() => {
-            if (onEdit && item.origin === 'task') {
+            if (onEdit) {
               onEdit()
             } else {
               onToggleExpand()
