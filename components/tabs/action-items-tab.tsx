@@ -11,6 +11,7 @@ import { TaskMetadata, isSlackMetadata, isGranolaMetadata } from "@/lib/types"
 import { prepareTaskForListView, detectSlackTask } from "@/lib/slack/text-utils"
 import { StickyHeader } from "@/components/sticky-header"
 import { CardActionGroup, cardActionMutedClass, cardActionDestructiveClass } from "@/components/ui/card-action-group"
+import { SwipeTrack } from "@/components/ui/swipe-track"
 
 /** Strip "Source: https://..." from text — handles trailing, inline, and newline-prefixed */
 function stripSourceSuffix(text: string): string {
@@ -786,126 +787,129 @@ function InboxCard({ item, isExpanded, isExiting, onToggleExpand, onDone, onReop
     onDelete?.()
   }
 
-  return (
-    <div
-      className={cn(
-        "group relative rounded-lg bg-card p-4 transition-[background-color,opacity,transform] duration-200",
-        !isExiting && "animate-in fade-in duration-300",
-        !isDone && "hover:bg-accent-hover",
-        isDone && "bg-accent-subtle opacity-75",
-        isExiting && "animate-out fade-out slide-out-to-right duration-300 fill-mode-forwards overflow-hidden",
-        showSnoozeMenu && "z-10",
-      )}
-    >
-      <div className="flex items-start gap-3">
-        {/* Done/Reopen button */}
-        {isDone ? (
-          <button
-            onClick={onReopen}
-            className="mt-[3px] shrink-0 rounded-full w-5 h-5 border-2 border-primary bg-primary text-primary-foreground flex items-center justify-center transition-colors"
-            aria-label="Reopen"
-          >
-            <Check className="h-3 w-3" />
-          </button>
-        ) : (
-          <button
-            onClick={onDone}
-            className="mt-[3px] shrink-0 rounded-full w-5 h-5 border-2 border-muted-foreground/30 hover:border-primary flex items-center justify-center transition-colors"
-            aria-label="Mark done"
-          />
-        )}
-
-        {/* Content */}
-        <div
-          className="min-w-0 flex-1 cursor-pointer"
-          onClick={() => {
-            if (onEdit) {
-              onEdit()
+  const actionButtons = (
+    <>
+      {/* Snooze button */}
+      {!isDone && onSnooze && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            if (item.origin === 'task') {
+              setShowSnoozeMenu(!showSnoozeMenu)
             } else {
-              onToggleExpand()
+              ;(onSnooze as () => void)()
             }
           }}
+          className={cn(
+            cardActionMutedClass,
+            showSnoozeMenu && "sm:!opacity-100"
+          )}
+          aria-label="Snooze"
         >
-          <p className={cn(
-            "text-base font-semibold text-foreground break-words",
-            isDone && "text-muted-foreground line-through decoration-muted-foreground/50"
-          )}>
-            {item.title}
-          </p>
+          <Clock className="h-5 w-5" />
+        </button>
+      )}
 
-          {/* Description for task-origin items */}
-          {item.origin === 'task' && item.description && (
-            <p className={cn(
-              "mt-1 text-sm text-muted-foreground break-words line-clamp-2",
-              isDone && "text-muted-foreground/70"
-            )}>
-              {item.description}
-            </p>
-          )}
+      {showSnoozeMenu && item.origin === 'task' && (
+        <SnoozeMenu
+          onSnooze={(until) => (onSnooze as (until: Date) => void)(until)}
+          onClose={() => setShowSnoozeMenu(false)}
+        />
+      )}
 
-          {/* Metadata row — origin-aware */}
-          <InboxMetadataRow item={item} />
+      {/* Delete button */}
+      {onDelete && !confirmingDelete && (
+        <button
+          onClick={handleDeleteClick}
+          className={cardActionDestructiveClass}
+          aria-label="Delete"
+        >
+          <Trash2 className="h-5 w-5" />
+        </button>
+      )}
+      {onDelete && confirmingDelete && (
+        <button
+          onClick={handleDeleteClick}
+          className="shrink-0 px-2 py-1 rounded-md text-xs font-medium text-destructive bg-destructive/10 hover:bg-destructive/20 transition-colors"
+          aria-label="Confirm delete"
+        >
+          Delete?
+        </button>
+      )}
+    </>
+  )
 
-          {/* Expanded: raw context (action items only) */}
-          {isExpanded && item.rawContext && (
-            <div className="mt-3 p-3 rounded-md bg-accent text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">
-              {item.rawContext}
-            </div>
-          )}
-        </div>
-
-        {/* Action buttons */}
-        <CardActionGroup>
-          {/* Snooze button */}
-          {!isDone && onSnooze && (
+  return (
+    <SwipeTrack actions={actionButtons}>
+      <div
+        className={cn(
+          "group relative rounded-lg bg-card p-4 transition-[background-color,opacity,transform] duration-200",
+          !isExiting && "animate-in fade-in duration-300",
+          !isDone && "hover:bg-accent-hover",
+          isDone && "bg-accent-subtle opacity-75",
+          isExiting && "animate-out fade-out slide-out-to-right duration-300 fill-mode-forwards overflow-hidden",
+          showSnoozeMenu && "z-10",
+        )}
+      >
+        <div className="flex items-start gap-3">
+          {/* Done/Reopen button */}
+          {isDone ? (
             <button
-              onClick={(e) => {
-                e.stopPropagation()
-                if (item.origin === 'task') {
-                  setShowSnoozeMenu(!showSnoozeMenu)
-                } else {
-                  ;(onSnooze as () => void)()
-                }
-              }}
-              className={cn(
-                cardActionMutedClass,
-                showSnoozeMenu && "sm:!opacity-100"
-              )}
-              aria-label="Snooze"
+              onClick={onReopen}
+              className="mt-[3px] shrink-0 rounded-full w-5 h-5 border-2 border-primary bg-primary text-primary-foreground flex items-center justify-center transition-colors"
+              aria-label="Reopen"
             >
-              <Clock className="h-5 w-5" />
+              <Check className="h-3 w-3" />
             </button>
-          )}
-
-          {showSnoozeMenu && item.origin === 'task' && (
-            <SnoozeMenu
-              onSnooze={(until) => (onSnooze as (until: Date) => void)(until)}
-              onClose={() => setShowSnoozeMenu(false)}
+          ) : (
+            <button
+              onClick={onDone}
+              className="mt-[3px] shrink-0 rounded-full w-5 h-5 border-2 border-muted-foreground/30 hover:border-primary flex items-center justify-center transition-colors"
+              aria-label="Mark done"
             />
           )}
 
-          {/* Delete button */}
-          {onDelete && !confirmingDelete && (
-            <button
-              onClick={handleDeleteClick}
-              className={cardActionDestructiveClass}
-              aria-label="Delete"
-            >
-              <Trash2 className="h-5 w-5" />
-            </button>
-          )}
-          {onDelete && confirmingDelete && (
-            <button
-              onClick={handleDeleteClick}
-              className="shrink-0 px-2 py-1 rounded-md text-xs font-medium text-destructive bg-destructive/10 hover:bg-destructive/20 transition-colors"
-              aria-label="Confirm delete"
-            >
-              Delete?
-            </button>
-          )}
-        </CardActionGroup>
+          {/* Content */}
+          <div
+            className="min-w-0 flex-1 cursor-pointer"
+            onClick={() => {
+              if (onEdit) {
+                onEdit()
+              } else {
+                onToggleExpand()
+              }
+            }}
+          >
+            <p className={cn(
+              "text-base font-semibold text-foreground break-words",
+              isDone && "text-muted-foreground line-through decoration-muted-foreground/50"
+            )}>
+              {item.title}
+            </p>
+
+            {/* Description for task-origin items */}
+            {item.origin === 'task' && item.description && (
+              <p className={cn(
+                "mt-1 text-sm text-muted-foreground break-words line-clamp-2",
+                isDone && "text-muted-foreground/70"
+              )}>
+                {item.description}
+              </p>
+            )}
+
+            {/* Metadata row — origin-aware */}
+            <InboxMetadataRow item={item} />
+
+            {/* Expanded: raw context (action items only) */}
+            {isExpanded && item.rawContext && (
+              <div className="mt-3 p-3 rounded-md bg-accent text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">
+                {item.rawContext}
+              </div>
+            )}
+          </div>
+        </div>
       </div>
-    </div>
+    </SwipeTrack>
   )
 }
 

@@ -11,6 +11,7 @@ import {
   prepareTaskForListView,
   detectSlackTask,
 } from "@/lib/slack/text-utils"
+import { SwipeTrack } from "@/components/ui/swipe-track"
 
 export interface KnotCardProps {
   id: string
@@ -159,114 +160,117 @@ export default function KnotCard({
   }
 
   return (
-    <div
-      className={cn(
-        "group relative flex items-start gap-3 rounded-lg bg-card p-4 transition-[background-color,opacity,transform,box-shadow] duration-200 ease-[cubic-bezier(0.2,0,0,1)]",
-        !isOverlay && !isSnoozing && !isEntering && "animate-in fade-in duration-300",
-        !isCompleted && "hover:bg-accent-hover",
-        isCompleted && "bg-accent-subtle opacity-75",
-        isDragging && "opacity-40",
-        isOverlay && "shadow-md cursor-grabbing",
-        snoozeMenuOpen && "z-50",
-        isSnoozing && "animate-out fade-out slide-out-to-right duration-300 fill-mode-forwards",
-        isEntering && "animate-in fade-in slide-in-from-right duration-300",
-      )}
-    >
-      {/* Drag handle - separate from content to not trigger edit */}
-      {/* Desktop: hidden until hover/focus, smaller hit area */}
-      {/* Mobile: always visible for touch discoverability */}
-      <div
-        {...dragHandleProps}
-        className={cn(
-          "mt-0.5 shrink-0 rounded p-0.5 text-muted-foreground/30 transition-[opacity,color] duration-100 ease-out",
-          isOverlay && "text-muted-foreground",
-          !isOverlay && "cursor-grab active:cursor-grabbing touch-none",
-          !isOverlay && "drag-handle-desktop md:p-0.5 md:hover:text-muted-foreground"
-        )}
-        aria-hidden="true"
-        style={{ touchAction: "none" }}
-      >
-        <GripVertical className="h-4 w-4 md:h-3.5 md:w-3.5" />
-      </div>
-
-      {/* Checkbox - sibling to content area, clicks won't trigger edit */}
-      <div style={{ touchAction: "manipulation" }}>
-        <Checkbox
-          id={`knot-${id}`}
-          checked={isCompleted}
-          onCheckedChange={() => onToggle(id)}
-          className="mt-0.5 shrink-0"
+    <SwipeTrack
+      actions={
+        <SnoozeAndDelete
+          id={id}
+          title={displayText.title}
+          onSnooze={onSnooze}
+          onDelete={handleDeleteClick}
+          onMenuOpenChange={handleSnoozeMenuOpenChange}
         />
-      </div>
-
-      {/* Content area - tappable for edit */}
+      }
+    >
       <div
-        className="min-w-0 flex-1 cursor-pointer"
-        onClick={handleContentClick}
-        onPointerUp={(e) => {
-          // Use pointerUp as backup for iOS Safari
-          // Only trigger if not a drag gesture
-          if (e.pointerType === 'touch' && !isListDragging && !isDragging && !isOverlay && onEdit) {
-            // Small check - if click also fires, it will be a no-op due to modal state
-          }
-        }}
-        style={{ touchAction: "manipulation" }}
-        role="button"
-        tabIndex={onEdit ? 0 : undefined}
-        onKeyDown={(e) => {
-          if (onEdit && (e.key === 'Enter' || e.key === ' ')) {
-            e.preventDefault()
-            onEdit(id)
-          }
-        }}
-        aria-label={onEdit ? `Edit ${displayText.title}` : undefined}
+        className={cn(
+          "group relative flex items-start gap-3 rounded-lg bg-card p-4 transition-[background-color,opacity,transform,box-shadow] duration-200 ease-[cubic-bezier(0.2,0,0,1)]",
+          !isOverlay && !isSnoozing && !isEntering && "animate-in fade-in duration-300",
+          !isCompleted && "hover:bg-accent-hover",
+          isCompleted && "bg-accent-subtle opacity-75",
+          isDragging && "opacity-40",
+          isOverlay && "shadow-md cursor-grabbing",
+          snoozeMenuOpen && "z-50",
+          isSnoozing && "animate-out fade-out slide-out-to-right duration-300 fill-mode-forwards",
+          isEntering && "animate-in fade-in slide-in-from-right duration-300",
+        )}
       >
-        <span
+        {/* Drag handle - separate from content to not trigger edit */}
+        {/* Desktop: hidden until hover/focus, smaller hit area */}
+        {/* Mobile: always visible for touch discoverability */}
+        <div
+          {...dragHandleProps}
           className={cn(
-            "block text-base font-semibold text-foreground transition-[color,opacity] duration-200 ease-[cubic-bezier(0.2,0,0,1)]",
-            isCompleted && "text-muted-foreground line-through decoration-muted-foreground/50"
+            "mt-0.5 shrink-0 rounded p-0.5 text-muted-foreground/30 transition-[opacity,color] duration-100 ease-out",
+            isOverlay && "text-muted-foreground",
+            !isOverlay && "cursor-grab active:cursor-grabbing touch-none",
+            !isOverlay && "drag-handle-desktop md:p-0.5 md:hover:text-muted-foreground"
           )}
+          aria-hidden="true"
+          style={{ touchAction: "none" }}
         >
-          {displayText.title}
-        </span>
-        <span
-          className={cn(
-            "block text-xs text-muted-foreground transition-[color,opacity] duration-200 ease-[cubic-bezier(0.2,0,0,1)]",
-            isCompleted && "text-muted-foreground/70"
-          )}
+          <GripVertical className="h-4 w-4 md:h-3.5 md:w-3.5" />
+        </div>
+
+        {/* Checkbox - sibling to content area, clicks won't trigger edit */}
+        <div style={{ touchAction: "manipulation" }}>
+          <Checkbox
+            id={`knot-${id}`}
+            checked={isCompleted}
+            onCheckedChange={() => onToggle(id)}
+            className="mt-0.5 shrink-0"
+          />
+        </div>
+
+        {/* Content area - tappable for edit */}
+        <div
+          className="min-w-0 flex-1 cursor-pointer"
+          onClick={handleContentClick}
+          onPointerUp={(e) => {
+            // Use pointerUp as backup for iOS Safari
+            // Only trigger if not a drag gesture
+            if (e.pointerType === 'touch' && !isListDragging && !isDragging && !isOverlay && onEdit) {
+              // Small check - if click also fires, it will be a no-op due to modal state
+            }
+          }}
+          style={{ touchAction: "manipulation" }}
+          role="button"
+          tabIndex={onEdit ? 0 : undefined}
+          onKeyDown={(e) => {
+            if (onEdit && (e.key === 'Enter' || e.key === ' ')) {
+              e.preventDefault()
+              onEdit(id)
+            }
+          }}
+          aria-label={onEdit ? `Edit ${displayText.title}` : undefined}
         >
-          {formattedTime || 'just now'}
-        </span>
-        {displayText.description && (
-          <p
+          <span
             className={cn(
-              "mt-1 text-sm text-muted-foreground transition-[color,opacity] duration-200 ease-[cubic-bezier(0.2,0,0,1)]",
+              "block text-base font-semibold text-foreground transition-[color,opacity] duration-200 ease-[cubic-bezier(0.2,0,0,1)]",
+              isCompleted && "text-muted-foreground line-through decoration-muted-foreground/50"
+            )}
+          >
+            {displayText.title}
+          </span>
+          <span
+            className={cn(
+              "block text-xs text-muted-foreground transition-[color,opacity] duration-200 ease-[cubic-bezier(0.2,0,0,1)]",
               isCompleted && "text-muted-foreground/70"
             )}
           >
-            {displayText.description}
-          </p>
-        )}
-        {/* Provenance badge for Slack/Granola-origin tasks */}
-        {provenance.hasProvenance && (
-          <ProvenanceRow
-            sourceType={'sourceType' in provenance ? provenance.sourceType : 'slack'}
-            authorName={'authorName' in provenance ? provenance.authorName : undefined}
-            permalink={'permalink' in provenance ? provenance.permalink : undefined}
-            className="mt-2"
-          />
-        )}
+            {formattedTime || 'just now'}
+          </span>
+          {displayText.description && (
+            <p
+              className={cn(
+                "mt-1 text-sm text-muted-foreground transition-[color,opacity] duration-200 ease-[cubic-bezier(0.2,0,0,1)]",
+                isCompleted && "text-muted-foreground/70"
+              )}
+            >
+              {displayText.description}
+            </p>
+          )}
+          {/* Provenance badge for Slack/Granola-origin tasks */}
+          {provenance.hasProvenance && (
+            <ProvenanceRow
+              sourceType={'sourceType' in provenance ? provenance.sourceType : 'slack'}
+              authorName={'authorName' in provenance ? provenance.authorName : undefined}
+              permalink={'permalink' in provenance ? provenance.permalink : undefined}
+              className="mt-2"
+            />
+          )}
+        </div>
       </div>
-
-      {/* Action buttons - clicks should not trigger edit */}
-      <SnoozeAndDelete
-        id={id}
-        title={displayText.title}
-        onSnooze={onSnooze}
-        onDelete={handleDeleteClick}
-        onMenuOpenChange={handleSnoozeMenuOpenChange}
-      />
-    </div>
+    </SwipeTrack>
   )
 }
 

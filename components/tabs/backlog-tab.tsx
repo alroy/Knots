@@ -7,6 +7,7 @@ import { cn, formatRelativeTime } from "@/lib/utils"
 import { Trash2, Plus, Check, ListTodo, Clock } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { CardActionGroup, cardActionMutedClass, cardActionDestructiveClass } from "@/components/ui/card-action-group"
+import { SwipeTrack } from "@/components/ui/swipe-track"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
@@ -328,89 +329,92 @@ function BacklogCard({ item, onEdit, onDelete, onResolve, onMoveToTasks, isMovin
     onDelete()
   }
 
-  return (
-    <div
-      className={cn(
-        "group flex items-start gap-3 rounded-lg bg-card p-4 transition-[background-color,opacity] duration-200",
-        !isResolved && "hover:bg-accent-hover",
-        isResolved && "bg-accent-subtle opacity-75",
-        isMovingToTasks && "animate-out fade-out slide-out-to-left duration-300 fill-mode-forwards",
-      )}
-    >
-      {/* Resolve button */}
+  const actionButtons = (
+    <>
       <button
-        onClick={onResolve}
-        className={cn(
-          "mt-[3px] shrink-0 rounded-full w-5 h-5 border-2 flex items-center justify-center transition-colors",
-          isResolved
-            ? "border-primary bg-primary text-primary-foreground"
-            : "border-muted-foreground/30 hover:border-primary"
-        )}
-        aria-label={isResolved ? "Reopen" : "Resolve"}
+        onClick={(e) => { e.stopPropagation(); onMoveToTasks() }}
+        className={cardActionMutedClass}
+        aria-label={`Move ${item.title} to tasks`}
       >
-        {isResolved && <Check className="h-3 w-3" />}
+        <ListTodo className="h-5 w-5" />
       </button>
-
-      {/* Content */}
-      <div className="min-w-0 flex-1 cursor-pointer" onClick={onEdit}>
-        <span className={cn(
-          "text-base font-semibold text-foreground truncate block",
-          isResolved && "text-muted-foreground line-through decoration-muted-foreground/50"
-        )}>
-          {item.title}
-        </span>
-        {!(item.snoozedUntil && !isResolved) && (
-          <span className="text-xs text-muted-foreground">{formatRelativeTime(item.createdAt)}</span>
-        )}
-        {item.snoozedUntil && !isResolved && (
-          <button
-            onClick={(e) => { e.stopPropagation(); onCancelSnooze() }}
-            className="mt-1 inline-flex items-center gap-1 text-xs text-primary/70 hover:text-primary transition-colors"
-          >
-            <Clock className="h-3 w-3" />
-            Snoozed until {new Date(item.snoozedUntil).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-            <span className="text-muted-foreground/50 ml-0.5">&times;</span>
-          </button>
-        )}
-        {item.description && (
-          <p className={cn(
-            "mt-1 text-sm text-muted-foreground line-clamp-2",
-            isResolved && "text-muted-foreground/70"
-          )}>
-            {item.description}
-          </p>
-        )}
-      </div>
-
-      {/* Action buttons */}
-      <CardActionGroup>
+      {!confirmingDelete && (
         <button
-          onClick={(e) => { e.stopPropagation(); onMoveToTasks() }}
-          className={cardActionMutedClass}
-          aria-label={`Move ${item.title} to tasks`}
+          onClick={handleDeleteClick}
+          className={cardActionDestructiveClass}
+          aria-label={`Delete ${item.title}`}
         >
-          <ListTodo className="h-5 w-5" />
+          <Trash2 className="h-5 w-5" />
         </button>
-        {!confirmingDelete && (
-          <button
-            onClick={handleDeleteClick}
-            className={cardActionDestructiveClass}
-            aria-label={`Delete ${item.title}`}
-          >
-            <Trash2 className="h-5 w-5" />
-          </button>
+      )}
+      {confirmingDelete && (
+        <button
+          onClick={handleDeleteClick}
+          className="shrink-0 px-2 py-1 rounded-md text-xs font-medium text-destructive bg-destructive/10 hover:bg-destructive/20 transition-colors"
+          aria-label="Confirm delete"
+        >
+          Delete?
+        </button>
+      )}
+    </>
+  )
+
+  return (
+    <SwipeTrack actions={actionButtons}>
+      <div
+        className={cn(
+          "group flex items-start gap-3 rounded-lg bg-card p-4 transition-[background-color,opacity] duration-200",
+          !isResolved && "hover:bg-accent-hover",
+          isResolved && "bg-accent-subtle opacity-75",
+          isMovingToTasks && "animate-out fade-out slide-out-to-left duration-300 fill-mode-forwards",
         )}
-        {confirmingDelete && (
-          <button
-            onClick={handleDeleteClick}
-            className="shrink-0 px-2 py-1 rounded-md text-xs font-medium text-destructive bg-destructive/10 hover:bg-destructive/20 transition-colors"
-            aria-label="Confirm delete"
-          >
-            Delete?
-          </button>
-        )}
-      </CardActionGroup>
-    </div>
+      >
+        {/* Resolve button */}
+        <button
+          onClick={onResolve}
+          className={cn(
+            "mt-[3px] shrink-0 rounded-full w-5 h-5 border-2 flex items-center justify-center transition-colors",
+            isResolved
+              ? "border-primary bg-primary text-primary-foreground"
+              : "border-muted-foreground/30 hover:border-primary"
+          )}
+          aria-label={isResolved ? "Reopen" : "Resolve"}
+        >
+          {isResolved && <Check className="h-3 w-3" />}
+        </button>
+
+        {/* Content */}
+        <div className="min-w-0 flex-1 cursor-pointer" onClick={onEdit}>
+          <span className={cn(
+            "text-base font-semibold text-foreground truncate block",
+            isResolved && "text-muted-foreground line-through decoration-muted-foreground/50"
+          )}>
+            {item.title}
+          </span>
+          {!(item.snoozedUntil && !isResolved) && (
+            <span className="text-xs text-muted-foreground">{formatRelativeTime(item.createdAt)}</span>
+          )}
+          {item.snoozedUntil && !isResolved && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onCancelSnooze() }}
+              className="mt-1 inline-flex items-center gap-1 text-xs text-primary/70 hover:text-primary transition-colors"
+            >
+              <Clock className="h-3 w-3" />
+              Snoozed until {new Date(item.snoozedUntil).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+              <span className="text-muted-foreground/50 ml-0.5">&times;</span>
+            </button>
+          )}
+          {item.description && (
+            <p className={cn(
+              "mt-1 text-sm text-muted-foreground line-clamp-2",
+              isResolved && "text-muted-foreground/70"
+            )}>
+              {item.description}
+            </p>
+          )}
+        </div>
+      </div>
+    </SwipeTrack>
   )
 }
 

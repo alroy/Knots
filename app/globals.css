@@ -225,3 +225,106 @@
     color: var(--muted-foreground);
   }
 }
+
+/*
+ * Swipe-to-Reveal Track
+ *
+ * CSS Scroll Snap based swipe pattern for mobile card actions.
+ * Uses native scroll behavior for jank-free performance without
+ * complex touch-event JavaScript.
+ *
+ * Structure:
+ *   .swipe-track  (outer scroll container)
+ *     .swipe-train  (inner flex rail)
+ *       .swipe-content  (Element A — full-width card)
+ *       .swipe-actions  (Element B — action buttons)
+ */
+
+/* ---- Touch devices: CSS Scroll Snap ---- */
+@media (pointer: coarse) {
+  .swipe-track {
+    display: flex;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;                     /* Firefox */
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;                       /* Lock: vertical scroll OK, horizontal stays inside */
+  }
+
+  .swipe-track::-webkit-scrollbar {
+    display: none;                             /* Chrome / Safari */
+  }
+
+  .swipe-train {
+    display: flex;
+    flex-shrink: 0;
+    min-width: 100%;
+  }
+
+  .swipe-content {
+    flex-shrink: 0;
+    width: 100%;
+    scroll-snap-align: start;
+  }
+
+  .swipe-actions {
+    flex-shrink: 0;
+    scroll-snap-align: start;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding-left: 0.5rem;
+    padding-right: 0.25rem;
+  }
+
+  /* Action buttons inside swipe panel: always full opacity on mobile */
+  .swipe-actions button {
+    opacity: 1 !important;
+  }
+}
+
+/* ---- Desktop: hover reveal (no scroll) ---- */
+@media (hover: hover) and (pointer: fine) {
+  .swipe-track {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .swipe-train {
+    display: flex;
+    width: 100%;
+  }
+
+  .swipe-content {
+    flex-shrink: 0;
+    width: 100%;
+  }
+
+  .swipe-actions {
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding-right: 0.75rem;
+    padding-left: 1.5rem;
+    opacity: 0;
+    transform: translateX(8px);
+    transition: opacity 150ms ease-out, transform 150ms ease-out;
+    background: linear-gradient(to right, transparent, var(--card) 40%);
+    pointer-events: none;
+  }
+
+  .swipe-track:hover .swipe-actions {
+    opacity: 1;
+    transform: translateX(0);
+    pointer-events: auto;
+  }
+
+  /* Action buttons inside swipe panel: full opacity on desktop hover */
+  .swipe-actions button {
+    opacity: 1 !important;
+  }
+}

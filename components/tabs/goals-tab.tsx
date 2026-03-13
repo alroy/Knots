@@ -9,6 +9,7 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { CardActionGroup, cardActionMutedClass, cardActionDestructiveClass } from "@/components/ui/card-action-group"
+import { SwipeTrack } from "@/components/ui/swipe-track"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
@@ -310,101 +311,104 @@ function GoalCard({ goal, taskCount, isExpanded, isArchiving, onToggleExpand, on
     return diffDays <= 2
   })()
 
+  const actionButtons = (
+    <>
+      <button
+        onClick={onEdit}
+        className={cardActionMutedClass}
+        aria-label="Edit goal"
+      >
+        <Pencil className="h-5 w-5" />
+      </button>
+      {!confirmingDelete && (
+        <button
+          onClick={handleDeleteClick}
+          className={cardActionDestructiveClass}
+          aria-label="Delete goal"
+        >
+          <Trash2 className="h-5 w-5" />
+        </button>
+      )}
+      {confirmingDelete && (
+        <button
+          onClick={handleDeleteClick}
+          className="shrink-0 px-2 py-1 rounded-md text-xs font-medium text-destructive bg-destructive/10 hover:bg-destructive/20 transition-colors"
+          aria-label="Confirm delete"
+        >
+          Delete?
+        </button>
+      )}
+    </>
+  )
+
   return (
-    <div
-      className={cn(
-        "group rounded-lg bg-card p-4 transition-[background-color,opacity] duration-200",
-        !isCompleted && !isAtRisk && "hover:bg-accent-hover",
-        isCompleted && "bg-accent-subtle opacity-75",
-        isAtRisk && "bg-red-50 dark:bg-red-950/30 hover:bg-red-100/80 dark:hover:bg-red-950/40",
-        isArchiving && "animate-out fade-out slide-out-to-right duration-300 fill-mode-forwards",
-        !isArchiving && "animate-in fade-in duration-300",
-      )}
-    >
-      <div className="flex items-start gap-3">
-        {/* Checkbox */}
-        <div style={{ touchAction: "manipulation" }}>
-          <Checkbox
-            id={`goal-${goal.id}`}
-            checked={isCompleted}
-            onCheckedChange={() => onArchive()}
-            className="mt-[3px] shrink-0"
-          />
-        </div>
+    <SwipeTrack actions={actionButtons}>
+      <div
+        className={cn(
+          "group rounded-lg bg-card p-4 transition-[background-color,opacity] duration-200",
+          !isCompleted && !isAtRisk && "hover:bg-accent-hover",
+          isCompleted && "bg-accent-subtle opacity-75",
+          isAtRisk && "bg-red-50 dark:bg-red-950/30 hover:bg-red-100/80 dark:hover:bg-red-950/40",
+          isArchiving && "animate-out fade-out slide-out-to-right duration-300 fill-mode-forwards",
+          !isArchiving && "animate-in fade-in duration-300",
+        )}
+      >
+        <div className="flex items-start gap-3">
+          {/* Checkbox */}
+          <div style={{ touchAction: "manipulation" }}>
+            <Checkbox
+              id={`goal-${goal.id}`}
+              checked={isCompleted}
+              onCheckedChange={() => onArchive()}
+              className="mt-[3px] shrink-0"
+            />
+          </div>
 
-        {/* Priority badge */}
-        <span className={cn(
-          "mt-[3px] shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide",
-          PRIORITY_COLORS[goal.priority]
-        )}>
-          {PRIORITY_LABELS[goal.priority]}
-        </span>
-
-        {/* Content */}
-        <div className="min-w-0 flex-1 cursor-pointer" onClick={onToggleExpand}>
+          {/* Priority badge */}
           <span className={cn(
-            "text-base font-semibold text-foreground",
-            isCompleted && "text-muted-foreground line-through decoration-muted-foreground/50"
+            "mt-[3px] shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide",
+            PRIORITY_COLORS[goal.priority]
           )}>
-            {goal.title}
+            {PRIORITY_LABELS[goal.priority]}
           </span>
-          <span className="block text-xs text-muted-foreground">
-            {goal.deadline ? `Due ${goal.deadline}` : formatRelativeTime(goal.createdAt)}
-            {taskCount > 0 && <> · {taskCount} linked {taskCount === 1 ? 'task' : 'tasks'}</>}
-          </span>
-          {goal.description && !isExpanded && (
-            <p className="mt-1 text-sm text-muted-foreground line-clamp-2">{goal.description}</p>
-          )}
+
+          {/* Content */}
+          <div className="min-w-0 flex-1 cursor-pointer" onClick={onToggleExpand}>
+            <span className={cn(
+              "text-base font-semibold text-foreground",
+              isCompleted && "text-muted-foreground line-through decoration-muted-foreground/50"
+            )}>
+              {goal.title}
+            </span>
+            <span className="block text-xs text-muted-foreground">
+              {goal.deadline ? `Due ${goal.deadline}` : formatRelativeTime(goal.createdAt)}
+              {taskCount > 0 && <> · {taskCount} linked {taskCount === 1 ? 'task' : 'tasks'}</>}
+            </span>
+            {goal.description && !isExpanded && (
+              <p className="mt-1 text-sm text-muted-foreground line-clamp-2">{goal.description}</p>
+            )}
+          </div>
         </div>
 
-        {/* Actions */}
-        <CardActionGroup>
-          <button
-            onClick={onEdit}
-            className={cardActionMutedClass}
-            aria-label="Edit goal"
-          >
-            <Pencil className="h-5 w-5" />
-          </button>
-          {!confirmingDelete && (
-            <button
-              onClick={handleDeleteClick}
-              className={cardActionDestructiveClass}
-              aria-label="Delete goal"
-            >
-              <Trash2 className="h-5 w-5" />
-            </button>
-          )}
-          {confirmingDelete && (
-            <button
-              onClick={handleDeleteClick}
-              className="shrink-0 px-2 py-1 rounded-md text-xs font-medium text-destructive bg-destructive/10 hover:bg-destructive/20 transition-colors"
-              aria-label="Confirm delete"
-            >
-              Delete?
-            </button>
-          )}
-        </CardActionGroup>
+        {/* Expanded details */}
+        {isExpanded && (
+          <div className="mt-4 ml-10 space-y-3 text-sm">
+            {goal.description && (
+              <div>
+                <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Description</span>
+                <p className="mt-1 text-foreground whitespace-pre-wrap">{goal.description}</p>
+              </div>
+            )}
+            {goal.risks && (
+              <div>
+                <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Dependencies & Risks</span>
+                <p className="mt-1 text-foreground whitespace-pre-wrap">{goal.risks}</p>
+              </div>
+            )}
+          </div>
+        )}
       </div>
-
-      {/* Expanded details */}
-      {isExpanded && (
-        <div className="mt-4 ml-10 space-y-3 text-sm">
-          {goal.description && (
-            <div>
-              <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Description</span>
-              <p className="mt-1 text-foreground whitespace-pre-wrap">{goal.description}</p>
-            </div>
-          )}
-          {goal.risks && (
-            <div>
-              <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Dependencies & Risks</span>
-              <p className="mt-1 text-foreground whitespace-pre-wrap">{goal.risks}</p>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
+    </SwipeTrack>
   )
 }
 
