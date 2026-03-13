@@ -800,7 +800,7 @@ function InboxCard({ item, isExpanded, isExiting, onToggleExpand, onDone, onReop
         {isDone ? (
           <button
             onClick={onReopen}
-            className="mt-0.5 shrink-0 rounded-full w-5 h-5 border-2 border-primary bg-primary text-primary-foreground flex items-center justify-center transition-colors"
+            className="mt-[3px] shrink-0 rounded-full w-5 h-5 border-2 border-primary bg-primary text-primary-foreground flex items-center justify-center transition-colors"
             aria-label="Reopen"
           >
             <Check className="h-3 w-3" />
@@ -808,7 +808,7 @@ function InboxCard({ item, isExpanded, isExiting, onToggleExpand, onDone, onReop
         ) : (
           <button
             onClick={onDone}
-            className="mt-0.5 shrink-0 rounded-full w-5 h-5 border-2 border-muted-foreground/30 hover:border-primary flex items-center justify-center transition-colors"
+            className="mt-[3px] shrink-0 rounded-full w-5 h-5 border-2 border-muted-foreground/30 hover:border-primary flex items-center justify-center transition-colors"
             aria-label="Mark done"
           />
         )}
@@ -834,7 +834,7 @@ function InboxCard({ item, isExpanded, isExiting, onToggleExpand, onDone, onReop
           {/* Description for task-origin items */}
           {item.origin === 'task' && item.description && (
             <p className={cn(
-              "mt-1 text-sm text-muted-foreground break-words",
+              "mt-1 text-sm text-muted-foreground break-words line-clamp-2",
               isDone && "text-muted-foreground/70"
             )}>
               {item.description}
@@ -853,7 +853,7 @@ function InboxCard({ item, isExpanded, isExiting, onToggleExpand, onDone, onReop
         </div>
 
         {/* Action buttons */}
-        <div className="flex shrink-0 items-center gap-0.5 relative">
+        <div className="flex shrink-0 items-center gap-3 relative mt-[3px]">
           {/* Snooze button */}
           {!isDone && onSnooze && (
             <button
@@ -866,12 +866,12 @@ function InboxCard({ item, isExpanded, isExiting, onToggleExpand, onDone, onReop
                 }
               }}
               className={cn(
-                "shrink-0 p-1.5 rounded-md text-muted-foreground/50 hover:text-primary transition-colors opacity-100 sm:opacity-0 sm:group-hover:opacity-100",
+                "shrink-0 flex items-center justify-center w-11 h-11 rounded-md text-muted-foreground/50 hover:text-primary hover:opacity-100 transition-[color,opacity] opacity-50 sm:opacity-0 sm:group-hover:opacity-50 sm:group-hover:hover:opacity-100",
                 showSnoozeMenu && "sm:!opacity-100"
               )}
               aria-label="Snooze"
             >
-              <Clock className="h-4 w-4" />
+              <Clock className="h-5 w-5" />
             </button>
           )}
 
@@ -886,10 +886,10 @@ function InboxCard({ item, isExpanded, isExiting, onToggleExpand, onDone, onReop
           {onDelete && !confirmingDelete && (
             <button
               onClick={handleDeleteClick}
-              className="shrink-0 p-1.5 rounded-md text-muted-foreground/50 hover:text-destructive transition-colors opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
+              className="shrink-0 flex items-center justify-center w-11 h-11 rounded-md text-muted-foreground/50 hover:text-destructive hover:opacity-100 transition-[color,opacity] opacity-50 sm:opacity-0 sm:group-hover:opacity-50 sm:group-hover:hover:opacity-100"
               aria-label="Delete"
             >
-              <Trash2 className="h-4 w-4" />
+              <Trash2 className="h-5 w-5" />
             </button>
           )}
           {onDelete && confirmingDelete && (
@@ -913,7 +913,7 @@ function InboxMetadataRow({ item }: { item: InboxItem }) {
   if (item.source === 'manual') {
     // Manual tasks: clipboard icon + "Manually created" + timestamp
     return (
-      <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+      <div className="flex items-center gap-1.5 mt-3 flex-wrap">
         <ClipboardList className="h-3 w-3 text-muted-foreground/70 shrink-0" />
         <span className="text-xs text-muted-foreground/70">Manually created</span>
         {item.createdAt && (
@@ -930,7 +930,7 @@ function InboxMetadataRow({ item }: { item: InboxItem }) {
     // Action items from Slack/Granola: use inline icon + from + channel + time
     const SourceIcon = item.source === 'slack' ? MessageSquare : Video
     return (
-      <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+      <div className="flex items-center gap-1.5 mt-3 flex-wrap">
         {item.source === 'slack' ? (
           <img src="/slack-svgrepo-com.svg" alt="" className="h-3 w-3 shrink-0" aria-hidden="true" />
         ) : (
@@ -969,7 +969,7 @@ function InboxMetadataRow({ item }: { item: InboxItem }) {
         sourceType={item.source}
         authorName={authorName}
         permalink={item.sourceUrl || item.messageLink || undefined}
-        className="mt-1"
+        className="mt-3"
       />
     )
   }
