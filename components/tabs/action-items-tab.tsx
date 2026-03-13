@@ -106,9 +106,17 @@ export function ActionItemsTab({ contentColumnRef }: ActionItemsTabProps) {
       })
       .subscribe()
 
+    const goalsChannel = supabase
+      .channel('inbox-goals-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'goals', filter: `user_id=eq.${user.id}` }, () => {
+        loadGoals()
+      })
+      .subscribe()
+
     return () => {
       supabase.removeChannel(actionChannel)
       supabase.removeChannel(tasksChannel)
+      supabase.removeChannel(goalsChannel)
     }
   }, [user])
 

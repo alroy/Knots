@@ -132,7 +132,14 @@ export function TasksTab({ contentColumnRef }: TasksTabProps) {
       )
       .subscribe()
 
-    return () => { supabase.removeChannel(channel) }
+    const goalsChannel = supabase
+      .channel('tasks-goals-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'goals', filter: `user_id=eq.${user.id}` }, () => {
+        loadGoals()
+      })
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel); supabase.removeChannel(goalsChannel) }
   }, [user])
 
   const loadKnots = async () => {

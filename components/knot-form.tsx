@@ -373,7 +373,7 @@ export function KnotForm({ onSubmit, onUpdate, editTask, onEditClose, contentCol
             </div>
 
             {/* Goal selector */}
-            {goals && goals.length > 0 && (
+            {goals && (
               <div className="space-y-2 mb-6">
                 <Label htmlFor="goal" className="text-sm text-muted-foreground">
                   Goal <span className="text-muted-foreground/60">(optional)</span>
@@ -382,9 +382,10 @@ export function KnotForm({ onSubmit, onUpdate, editTask, onEditClose, contentCol
                   id="goal"
                   value={selectedGoalId}
                   onChange={(e) => setSelectedGoalId(e.target.value)}
-                  className="flex h-10 w-full rounded-md border border-border/60 bg-card px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  disabled={goals.length === 0}
+                  className={`flex h-10 w-full rounded-md border border-border/60 bg-card px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring${goals.length === 0 ? ' opacity-50 cursor-not-allowed' : ''}`}
                 >
-                  <option value="">No goal</option>
+                  <option value="">{goals.length === 0 ? "No active goals" : "No goal"}</option>
                   {goals
                     .sort((a, b) => a.priority - b.priority)
                     .map((g) => (
