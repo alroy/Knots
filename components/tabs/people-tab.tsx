@@ -188,7 +188,13 @@ export function PeopleTab({ contentColumnRef }: PeopleTabProps) {
     <>
       <StickyHeader
         title="People"
-        byline={<p>Your key relationships.</p>}
+        byline={<p>{
+          people.length === 0
+            ? "Your stakeholder directory is empty."
+            : people.length === 1
+              ? "Managing 1 key relationship."
+              : `Managing ${people.length} key relationships.`
+        }</p>}
       />
 
       {people.length > 0 ? (

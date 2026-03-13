@@ -195,7 +195,13 @@ export function GoalsTab({ contentColumnRef }: GoalsTabProps) {
     <>
       <StickyHeader
         title="Weekly Goals"
-        byline={<p>Your highest priorities for the week.</p>}
+        byline={<p>{
+          goals.length === 0
+            ? "All weekly priorities are clear."
+            : goals.length === 1
+              ? "1 active priority for the week."
+              : `${goals.length} active priorities for the week.`
+        }</p>}
       />
 
       {goals.length > 0 ? (

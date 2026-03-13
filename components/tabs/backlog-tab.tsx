@@ -225,7 +225,13 @@ export function BacklogTab({ contentColumnRef }: BacklogTabProps) {
     <>
       <StickyHeader
         title="Backlog"
-        byline={<p>Things to think about, decide, or fix.</p>}
+        byline={<p>{
+          items.length === 0
+            ? "Your parking lot is clear."
+            : items.length === 1
+              ? "1 item parked for future review."
+              : `${items.length} items parked for future review.`
+        }</p>}
       />
 
       {items.length === 0 ? (
