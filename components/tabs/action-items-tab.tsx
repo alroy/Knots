@@ -9,6 +9,7 @@ import { KnotForm, type EditTask, type GoalOption } from "@/components/knot-form
 import { ProvenanceRow } from "@/components/ui/slack-badge"
 import { TaskMetadata, isSlackMetadata, isGranolaMetadata } from "@/lib/types"
 import { prepareTaskForListView, detectSlackTask } from "@/lib/slack/text-utils"
+import { StickyHeader } from "@/components/sticky-header"
 
 /** Strip "Source: https://..." from text — handles trailing, inline, and newline-prefixed */
 function stripSourceSuffix(text: string): string {
@@ -599,25 +600,25 @@ export function ActionItemsTab({ contentColumnRef }: ActionItemsTabProps) {
 
   return (
     <>
-      <header className="mb-6 md:mb-8">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="mb-2 text-2xl font-bold text-foreground">Inbox</h1>
-            <p className="text-muted-foreground">
-              {(() => {
-                const hour = new Date().getHours()
-                const greeting = hour >= 5 && hour < 12 ? 'Good morning' : hour >= 12 && hour < 17 ? 'Good afternoon' : 'Good evening'
-                const firstName = user?.user_metadata?.full_name?.split(' ')[0] || user?.email?.split('@')[0] || ''
-                const count = openItems.length
-                const contextual = count === 0
-                  ? "You're all caught up."
-                  : count === 1
-                    ? 'Just 1 issue to untangle.'
-                    : `You have ${count} issues to untangle.`
-                return `${greeting}${firstName ? `, ${firstName}` : ''}. ${contextual}`.trim()
-              })()}
-            </p>
-          </div>
+      <StickyHeader
+        title="Inbox"
+        byline={
+          <p>
+            {(() => {
+              const hour = new Date().getHours()
+              const greeting = hour >= 5 && hour < 12 ? 'Good morning' : hour >= 12 && hour < 17 ? 'Good afternoon' : 'Good evening'
+              const firstName = user?.user_metadata?.full_name?.split(' ')[0] || user?.email?.split('@')[0] || ''
+              const count = openItems.length
+              const contextual = count === 0
+                ? "You're all caught up."
+                : count === 1
+                  ? 'Just 1 issue to untangle.'
+                  : `You have ${count} issues to untangle.`
+              return `${greeting}${firstName ? `, ${firstName}` : ''}. ${contextual}`.trim()
+            })()}
+          </p>
+        }
+        actions={
           <button
             onClick={handleSync}
             disabled={syncing}
@@ -629,8 +630,8 @@ export function ActionItemsTab({ contentColumnRef }: ActionItemsTabProps) {
           >
             <RefreshCw className="h-5 w-5" />
           </button>
-        </div>
-      </header>
+        }
+      />
 
       {openItems.length > 0 ? (
         <div className="flex flex-col gap-3">

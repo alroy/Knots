@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import type { BacklogItem } from "@/lib/chief-of-staff-types"
+import { StickyHeader } from "@/components/sticky-header"
 
 interface BacklogTabProps {
   contentColumnRef: React.RefObject<HTMLDivElement | null>
@@ -221,10 +222,10 @@ export function BacklogTab({ contentColumnRef }: BacklogTabProps) {
 
   return (
     <>
-      <header className="mb-6 md:mb-8">
-        <h1 className="mb-2 text-2xl font-bold text-foreground">Backlog</h1>
-        <p className="text-muted-foreground">Things to think about, decide, or fix.</p>
-      </header>
+      <StickyHeader
+        title="Backlog"
+        byline={<p>Things to think about, decide, or fix.</p>}
+      />
 
       {items.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-24 text-center">

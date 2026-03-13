@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import type { Person } from "@/lib/chief-of-staff-types"
 import { RELATIONSHIP_LABELS, RELATIONSHIP_COLORS } from "@/lib/chief-of-staff-types"
+import { StickyHeader } from "@/components/sticky-header"
 
 interface PeopleTabProps {
   contentColumnRef: React.RefObject<HTMLDivElement | null>
@@ -184,10 +185,10 @@ export function PeopleTab({ contentColumnRef }: PeopleTabProps) {
 
   return (
     <>
-      <header className="mb-10 md:mb-12">
-        <h1 className="mb-2 text-2xl font-bold text-foreground">People</h1>
-        <p className="text-muted-foreground">Your key relationships.</p>
-      </header>
+      <StickyHeader
+        title="People"
+        byline={<p>Your key relationships.</p>}
+      />
 
       {people.length > 0 ? (
         <div className="space-y-6">

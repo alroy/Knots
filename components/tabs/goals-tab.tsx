@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import type { Goal } from "@/lib/chief-of-staff-types"
 import { PRIORITY_LABELS, PRIORITY_COLORS } from "@/lib/chief-of-staff-types"
+import { StickyHeader } from "@/components/sticky-header"
 
 interface GoalsTabProps {
   contentColumnRef: React.RefObject<HTMLDivElement | null>
@@ -191,10 +192,10 @@ export function GoalsTab({ contentColumnRef }: GoalsTabProps) {
 
   return (
     <>
-      <header className="mb-6 md:mb-8">
-        <h1 className="mb-2 text-2xl font-bold text-foreground">Weekly Goals</h1>
-        <p className="text-muted-foreground">Your highest priorities for the week.</p>
-      </header>
+      <StickyHeader
+        title="Weekly Goals"
+        byline={<p>Your highest priorities for the week.</p>}
+      />
 
       {goals.length > 0 ? (
         <div className="flex flex-col gap-6">

@@ -187,7 +187,7 @@
   padding-right: var(--content-gutter);
   width: 100%;
   position: relative;
-  overflow-x: hidden;
+  overflow-x: clip;
 }
 
 /* Desktop breakpoint - wider gutters and proper spacing */
