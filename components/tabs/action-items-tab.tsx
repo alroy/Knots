@@ -209,9 +209,9 @@ export function ActionItemsTab({ contentColumnRef }: ActionItemsTabProps) {
     try {
       const { data, error } = await supabase
         .from('goals')
-        .select('id, title, priority')
+        .select('id, title, priority, status')
         .eq('user_id', user.id)
-        .eq('status', 'active')
+        .in('status', ['active', 'at_risk'])
         .order('priority', { ascending: true })
       if (error) throw error
       setGoals((data || []).map((g: any) => ({ id: g.id, title: g.title, priority: g.priority })))
