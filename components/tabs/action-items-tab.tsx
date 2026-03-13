@@ -602,7 +602,7 @@ export function ActionItemsTab({ contentColumnRef }: ActionItemsTabProps) {
       <header className="mb-6 md:mb-8">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="mb-2 text-2xl font-bold text-foreground">My Knots</h1>
+            <h1 className="mb-2 text-2xl font-bold text-foreground">Inbox</h1>
             <p className="text-muted-foreground">
               {(() => {
                 const hour = new Date().getHours()
@@ -612,8 +612,8 @@ export function ActionItemsTab({ contentColumnRef }: ActionItemsTabProps) {
                 const contextual = count === 0
                   ? "You're all caught up."
                   : count === 1
-                    ? 'Just 1 knot left to untangle.'
-                    : `You have ${count} knots to untangle.`
+                    ? 'Just 1 issue to untangle.'
+                    : `You have ${count} issues to untangle.`
                 return `${greeting}${firstName ? `, ${firstName}` : ''}. ${contextual}`.trim()
               })()}
             </p>
