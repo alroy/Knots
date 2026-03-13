@@ -135,9 +135,13 @@ export default function GoalsArchivePage() {
             ))}
           </div>
         ) : (
-          <p className="py-8 text-center text-muted-foreground">
-            No archived goals yet. Goals you mark as done will appear here.
-          </p>
+          <div className="flex flex-col items-center justify-center py-24 text-center">
+            <img src="/backlog.png" alt="Empty Archive" className="h-20 w-20 opacity-40 mb-5" />
+            <p className="text-lg font-semibold text-foreground mb-1">Archive empty.</p>
+            <p className="text-muted-foreground text-sm max-w-[300px]">
+              Completed priorities will be stored here for future reference.
+            </p>
+          </div>
         )}
       </div>
     </main>
