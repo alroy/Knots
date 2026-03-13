@@ -788,11 +788,12 @@ function InboxCard({ item, isExpanded, isExiting, onToggleExpand, onDone, onReop
   return (
     <div
       className={cn(
-        "group rounded-lg bg-card p-4 overflow-hidden transition-[background-color,opacity,transform] duration-200",
+        "group relative rounded-lg bg-card p-4 transition-[background-color,opacity,transform] duration-200",
         !isExiting && "animate-in fade-in duration-300",
         !isDone && "hover:bg-accent-hover",
         isDone && "bg-accent-subtle opacity-75",
-        isExiting && "animate-out fade-out slide-out-to-right duration-300 fill-mode-forwards",
+        isExiting && "animate-out fade-out slide-out-to-right duration-300 fill-mode-forwards overflow-hidden",
+        showSnoozeMenu && "z-10",
       )}
     >
       <div className="flex items-start gap-3">
