@@ -53,7 +53,7 @@ export function KnotForm({ onSubmit, onUpdate, editTask, onEditClose, contentCol
   const [error, setError] = React.useState("")
   const [touched, setTouched] = React.useState(false)
   const [isSubmitting, setIsSubmitting] = React.useState(false)
-  const [isHovering, setIsHovering] = React.useState(false)
+
   const titleInputRef = React.useRef<HTMLInputElement>(null)
   const fabRef = React.useRef<HTMLDivElement>(null)
 
@@ -265,21 +265,8 @@ export function KnotForm({ onSubmit, onUpdate, editTask, onEditClose, contentCol
             right: fabPosition?.right ?? 24,
             transition: 'right 150ms ease-out',
           }}
-          onMouseEnter={() => setIsHovering(true)}
-          onMouseLeave={() => setIsHovering(false)}
         >
-          {/* Hover label - desktop only */}
-          <span
-            className={`
-              hidden md:block text-sm font-medium text-muted-foreground
-              transition-all duration-200 ease-out whitespace-nowrap
-              ${isHovering ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-2'}
-            `}
-            aria-hidden="true"
-          >
-            New knot
-          </span>
-          <Button
+<Button
             type="button"
             onClick={() => setIsCreateOpen(true)}
             size="icon"
