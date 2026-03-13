@@ -214,9 +214,20 @@ export function PeopleTab({ contentColumnRef }: PeopleTabProps) {
           })}
         </div>
       ) : (
-        <p className="py-8 text-center text-muted-foreground">
-          No people added yet. Add your manager, reports, and key stakeholders.
-        </p>
+        <div className="flex flex-col items-center justify-center py-24 text-center">
+          <img src="/people.svg" alt="" aria-hidden="true" className="h-20 w-20 opacity-40 mb-5" />
+          <p className="text-lg font-semibold text-foreground mb-1">Stakeholder directory.</p>
+          <p className="text-muted-foreground text-sm max-w-[300px]">
+            Your network is currently empty. Add the managers, team members, and stakeholders you work with to track their priorities and preferences.
+          </p>
+          <button
+            type="button"
+            onClick={() => { setEditPerson(null); setIsFormOpen(true) }}
+            className="mt-6 inline-flex items-center justify-center rounded-md bg-primary text-primary-foreground px-5 h-9 text-sm font-medium hover:bg-primary/90 active:scale-[0.98] transition-transform duration-75"
+          >
+            Add your first connection
+          </button>
+        </div>
       )}
 
       <FAB onClick={() => { setEditPerson(null); setIsFormOpen(true) }} contentColumnRef={contentColumnRef} />
