@@ -164,8 +164,26 @@ export function ActionItemsTab({ contentColumnRef }: ActionItemsTabProps) {
         }
       })
 
-      // Merge: tasks first (they have explicit positions), then action items
-      setItems([...taskItems, ...actionItems])
+      // Cross-table deduplication: if an action_item has the same title as a task,
+      // prefer the task (richer data: metadata, goal_id, source provenance).
+      // Also deduplicate by message_link matching source_url.
+      const taskTitles = new Set(taskItems.map(t => t.title.toLowerCase().trim()))
+      const taskSourceUrls = new Set(
+        taskItems
+          .map(t => t.messageLink || t.sourceUrl)
+          .filter((url): url is string => !!url)
+      )
+
+      const dedupedActionItems = actionItems.filter(ai => {
+        // Skip action items whose title already exists as a task
+        if (taskTitles.has(ai.title.toLowerCase().trim())) return false
+        // Skip action items whose message_link matches a task's source_url
+        if (ai.messageLink && taskSourceUrls.has(ai.messageLink)) return false
+        return true
+      })
+
+      // Merge: tasks first (they have explicit positions), then deduplicated action items
+      setItems([...taskItems, ...dedupedActionItems])
     } catch (error) {
       console.error('Error loading inbox items:', error)
     } finally {

@@ -1187,6 +1187,17 @@ export async function processSlackEvent(
     const description = formatTaskDescription(event.text || '', userMap)
     const subtype = check.isDM ? 'dm' : 'mention'
 
+    // Fetch permalink for source tracking (legacy path)
+    let legacyPermalink: string | undefined
+    if (access_token) {
+      try {
+        const fetched = await ensurePermalink(access_token, event.channel, event.ts)
+        if (fetched) legacyPermalink = fetched
+      } catch {
+        // Continue without permalink
+      }
+    }
+
     // Build metadata for Slack context (stored separately from description)
     const metadata = buildSlackMetadata(
       event,
@@ -1194,9 +1205,20 @@ export async function processSlackEvent(
       subtype,
       event.user, // sender's Slack user ID
       senderDisplayName,
-      undefined, // permalink (could generate with additional API call)
+      legacyPermalink,
       userMap
     )
+
+    // Source ID for deduplication (same format as the LLM pipeline)
+    const legacySourceId = `${team_id}:${event.channel}:${event.ts}`
+
+    // Append permalink to description for consistency with other paths
+    let legacyDescription = description
+    if (legacyPermalink && !legacyDescription.includes(legacyPermalink)) {
+      legacyDescription = legacyDescription
+        ? `${legacyDescription}\n\nSource: ${legacyPermalink}`
+        : `Source: ${legacyPermalink}`
+    }
 
     // Insert task at position 0 (top of list)
     // The database trigger (set_task_position_trigger) automatically shifts
@@ -1205,14 +1227,24 @@ export async function processSlackEvent(
       .from('tasks')
       .insert({
         title,
-        description,
+        description: legacyDescription,
         status: 'active',
         user_id,
         position: 0,
         metadata,
+        source_type: 'slack',
+        source_id: legacySourceId,
+        source_url: legacyPermalink || '',
+        ingest_trigger: subtype,
       })
       .select('id')
       .single()
+
+    // Unique constraint violation → deduplicated
+    if (taskError?.code === '23505') {
+      await updateIngestStatus(supabase, team_id, event_id, 'ignored', undefined, 'deduped')
+      return { status: 'ignored', reason: 'deduped' }
+    }
 
     if (taskError) {
       await updateIngestStatus(supabase, team_id, event_id, 'failed', undefined, taskError.message)
