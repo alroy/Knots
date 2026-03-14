@@ -508,7 +508,7 @@ function PersonFormModal({ person, onSubmit, onClose }: {
         aria-modal="true"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="bg-background rounded-lg shadow-xl p-6">
+        <div className="bg-background rounded-lg shadow-xl p-6 overflow-x-hidden">
           <div className="mb-4">
             <h2 className="text-lg font-bold text-foreground mb-2">{person ? "Edit Person" : "Add Person"}</h2>
             <p className="text-sm text-muted-foreground">Add a new colleague or stakeholder to your network.</p>
@@ -530,7 +530,7 @@ function PersonFormModal({ person, onSubmit, onClose }: {
 
               <div className="space-y-2">
                 <Label className="text-sm text-muted-foreground">Relationship</Label>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   {(['manager', 'team', 'report', 'stakeholder'] as const).map((rel) => (
                     <button key={rel} type="button" onClick={() => setRelationship(rel)}
                       className={cn(
