@@ -186,11 +186,8 @@ function VelocityChart({ velocity, chartReady }: { velocity: VelocityWeek[]; cha
       chartRef.current.destroy()
     }
 
-    // Read CSS custom properties for colors
-    const style = getComputedStyle(document.documentElement)
-    const primaryColor = style.getPropertyValue('--primary').trim()
-    const mutedColor = style.getPropertyValue('--muted-foreground').trim()
-    const borderColor = style.getPropertyValue('--border').trim()
+    const COMPLETED_COLOR = '#1D9E75'
+    const ADDED_COLOR = '#B4B2A9'
 
     const ctx = canvasRef.current.getContext('2d')
     if (!ctx) return
@@ -203,7 +200,7 @@ function VelocityChart({ velocity, chartReady }: { velocity: VelocityWeek[]; cha
           {
             label: 'Completed',
             data: velocity.map(w => w.completed),
-            backgroundColor: `oklch(${primaryColor})`,
+            backgroundColor: COMPLETED_COLOR,
             borderRadius: 3,
             barPercentage: 0.7,
             categoryPercentage: 0.7,
@@ -211,7 +208,7 @@ function VelocityChart({ velocity, chartReady }: { velocity: VelocityWeek[]; cha
           {
             label: 'Added',
             data: velocity.map(w => w.added),
-            backgroundColor: `oklch(${borderColor})`,
+            backgroundColor: ADDED_COLOR,
             borderRadius: 3,
             barPercentage: 0.7,
             categoryPercentage: 0.7,
@@ -222,17 +219,7 @@ function VelocityChart({ velocity, chartReady }: { velocity: VelocityWeek[]; cha
         responsive: true,
         maintainAspectRatio: false,
         plugins: {
-          legend: {
-            display: true,
-            position: 'bottom' as const,
-            labels: {
-              boxWidth: 10,
-              boxHeight: 10,
-              padding: 16,
-              font: { size: 11 },
-              color: `oklch(${mutedColor})`,
-            },
-          },
+          legend: { display: false },
           tooltip: {
             callbacks: {
               title: (items: any[]) => items[0]?.label || '',
@@ -244,18 +231,18 @@ function VelocityChart({ velocity, chartReady }: { velocity: VelocityWeek[]; cha
             grid: { display: false },
             ticks: {
               font: { size: 10 },
-              color: `oklch(${mutedColor})`,
+              color: '#888',
             },
             border: { display: false },
           },
           y: {
             beginAtZero: true,
             grid: {
-              color: `oklch(${borderColor})`,
+              color: '#e5e5e5',
             },
             ticks: {
               font: { size: 10 },
-              color: `oklch(${mutedColor})`,
+              color: '#888',
               stepSize: 1,
             },
             border: { display: false },
@@ -282,6 +269,17 @@ function VelocityChart({ velocity, chartReady }: { velocity: VelocityWeek[]; cha
       </h2>
       <div className="h-48">
         <canvas ref={canvasRef} />
+      </div>
+      {/* Custom HTML legend */}
+      <div className="flex items-center justify-center gap-6 mt-3">
+        <div className="flex items-center gap-1.5">
+          <span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: '#1D9E75' }} />
+          <span className="text-xs text-muted-foreground">Completed</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: '#B4B2A9' }} />
+          <span className="text-xs text-muted-foreground">Added</span>
+        </div>
       </div>
     </div>
   )
@@ -334,8 +332,8 @@ function GoalCoveragePanel({ coverage, orphanCount }: { coverage: GoalCoverageIt
               <div className="flex items-center gap-2">
                 <span className="text-sm italic text-muted-foreground">No goal assigned</span>
                 <span
-                  className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium"
-                  style={{ backgroundColor: '#FAEEDA', color: '#854F0B' }}
+                  className="inline-flex items-center text-xs font-medium"
+                  style={{ backgroundColor: '#FAEEDA', color: '#854F0B', borderRadius: '999px', padding: '2px 8px' }}
                 >
                   {orphanCount}
                 </span>
