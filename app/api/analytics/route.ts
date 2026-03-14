@@ -76,8 +76,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to fetch goals' }, { status: 500 })
   }
 
-  // Merge active tasks with resolved backlog items into a unified list
-  const activeTasks = (tasks || []).map(t => ({
+  // Merge tasks table rows with resolved backlog items into a unified list
+  const taskRows = (tasks || []).map(t => ({
     id: t.id,
     title: t.title,
     status: t.status as string,
@@ -97,7 +97,7 @@ export async function GET(request: NextRequest) {
     completed_at: b.resolved_at,
   }))
 
-  const allTasks = [...activeTasks, ...completedFromBacklog]
+  const allTasks = [...taskRows, ...completedFromBacklog]
   const allGoals = goals || []
 
   // --- Summary Metrics ---
