@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react"
 import { createClient } from "@/lib/supabase-browser"
 import { useAuth } from "@/contexts/auth-context"
 import { cn, formatRelativeTime, groupByPriority } from "@/lib/utils"
-import { Target, Trash2, Pencil, Plus, X, FileUp, Archive } from "lucide-react"
+import { Target, Trash2, Pencil, Plus, X, FileUp, Archive, BarChart3 } from "lucide-react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -509,7 +509,22 @@ function SpeedDialFAB({ onCreateGoal, onUploadGoals, contentColumnRef }: {
               </span>
             </button>
 
-            {/* Bottom item: Goals archive */}
+            {/* Analytics */}
+            <Link
+              href="/analytics"
+              onClick={() => setIsOpen(false)}
+              className="flex items-center gap-3 group min-h-[48px]"
+              style={{ touchAction: "manipulation" }}
+            >
+              <span className="rounded-full bg-background px-3 py-1.5 text-sm font-medium text-foreground shadow-md whitespace-nowrap">
+                Analytics
+              </span>
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-background text-foreground shadow-md">
+                <BarChart3 className="h-5 w-5" />
+              </span>
+            </Link>
+
+            {/* Goals archive */}
             <Link
               href="/goals-archive"
               onClick={() => setIsOpen(false)}
