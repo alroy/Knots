@@ -4,14 +4,14 @@ import { useState, useEffect, useRef } from "react"
 import { createClient } from "@/lib/supabase-browser"
 import { useAuth } from "@/contexts/auth-context"
 import { cn } from "@/lib/utils"
-import { Trash2, Plus, ChevronRight, ArrowLeft } from "lucide-react"
+import { Trash2, Plus, ChevronRight, ArrowLeft, Moon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { CardActionGroup, cardActionDestructiveClass } from "@/components/ui/card-action-group"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import type { Person, PersonLocation } from "@/lib/chief-of-staff-types"
-import { RELATIONSHIP_LABELS, RELATIONSHIP_COLORS, LOCATION_OPTIONS } from "@/lib/chief-of-staff-types"
+import { RELATIONSHIP_LABELS, RELATIONSHIP_COLORS, LOCATION_OPTIONS, isOffHours } from "@/lib/chief-of-staff-types"
 import { StickyHeader } from "@/components/sticky-header"
 
 interface PeopleTabProps {
@@ -292,6 +292,9 @@ function PersonCard({ person, onClick, onDelete }: { person: Person; onClick: ()
         {(person.role || person.location) && (
           <span className="block text-xs text-muted-foreground">
             {[person.role, person.location].filter(Boolean).join(' · ')}
+            {person.location && isOffHours(person.location) && (
+              <Moon className="inline-block ml-1 h-3 w-3 opacity-60" style={{ verticalAlign: '-1px' }} />
+            )}
           </span>
         )}
         {person.currentFocus && (
@@ -345,6 +348,9 @@ function PersonDetail({ person, onBack, onEdit, onDelete }: {
           <h1 className="text-2xl font-bold text-foreground">{person.name}</h1>
           <p className="text-sm text-muted-foreground">
             {[person.role, person.location].filter(Boolean).join(' · ')}
+            {person.location && isOffHours(person.location) && (
+              <Moon className="inline-block ml-1 h-3.5 w-3.5 opacity-60" style={{ verticalAlign: '-1px' }} />
+            )}
           </p>
           <span className={cn(
             "inline-block mt-1 rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide",

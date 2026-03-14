@@ -37,6 +37,22 @@ export interface Person {
 
 export const LOCATION_OPTIONS: PersonLocation[] = ['Tel Aviv', 'London', 'New York', 'Vancouver']
 
+export const LOCATION_TIMEZONES: Record<PersonLocation, string> = {
+  'Tel Aviv': 'Asia/Jerusalem',
+  'London': 'Europe/London',
+  'New York': 'America/New_York',
+  'Vancouver': 'America/Vancouver',
+}
+
+export function isOffHours(location: PersonLocation | null): boolean {
+  if (!location) return false
+  const tz = LOCATION_TIMEZONES[location]
+  if (!tz) return false
+  const hour = new Date().toLocaleString('en-US', { timeZone: tz, hour: 'numeric', hour12: false })
+  const h = parseInt(hour, 10)
+  return h >= 20 || h < 8
+}
+
 export interface BacklogItem {
   id: string
   title: string
