@@ -6,6 +6,7 @@ import { useAuth } from "@/contexts/auth-context"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { cn } from "@/lib/utils"
 import { LOCATION_OPTIONS } from "@/lib/chief-of-staff-types"
 import type { PersonLocation } from "@/lib/chief-of-staff-types"
 
@@ -18,7 +19,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
   const [step, setStep] = useState<'profile' | 'monday'>('profile')
   const [name, setName] = useState('')
   const [roleTitle, setRoleTitle] = useState('')
-  const [location, setLocation] = useState<PersonLocation | ''>('')
+  const [location, setLocation] = useState<PersonLocation | null>(null)
   const [boardId, setBoardId] = useState('')
   const [testing, setTesting] = useState(false)
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null)
@@ -222,19 +223,19 @@ export function Onboarding({ onComplete }: OnboardingProps) {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="onboarding-location">Location <span className="text-muted-foreground font-normal">(optional)</span></Label>
-              <select
-                id="onboarding-location"
-                value={location}
-                onChange={(e) => setLocation(e.target.value as PersonLocation | '')}
-                disabled={saving}
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <option value="">Select location...</option>
+              <Label>Location <span className="text-muted-foreground font-normal">(optional)</span></Label>
+              <div className="flex flex-wrap" style={{ gap: '8px' }}>
                 {LOCATION_OPTIONS.map((loc) => (
-                  <option key={loc} value={loc}>{loc}</option>
+                  <button key={loc} type="button" onClick={() => setLocation(location === loc ? null : loc)}
+                    disabled={saving}
+                    className={cn(
+                      "rounded px-3 py-1.5 text-xs font-bold uppercase tracking-wide transition-colors",
+                      location === loc ? "text-purple-600 bg-purple-50 dark:text-purple-400 dark:bg-purple-950" : "bg-accent text-muted-foreground"
+                    )}>
+                    {loc}
+                  </button>
                 ))}
-              </select>
+              </div>
             </div>
 
             {error && (
