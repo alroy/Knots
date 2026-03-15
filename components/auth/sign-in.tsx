@@ -5,10 +5,10 @@ import { useAuth } from '@/contexts/auth-context'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 
-type AuthMode = 'password' | 'magic-link'
+type AuthMode = 'password' | 'magic-link' | 'sign-up'
 
 export function SignIn() {
-  const { sendMagicLink, signInWithPassword, loading } = useAuth()
+  const { sendMagicLink, signInWithPassword, signUp, loading } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [mode, setMode] = useState<AuthMode>('password')
@@ -24,7 +24,7 @@ export function SignIn() {
       return
     }
 
-    if (mode === 'password' && !password) {
+    if ((mode === 'password' || mode === 'sign-up') && !password) {
       setStatus('error')
       setErrorMessage('Please enter your password')
       return
@@ -40,6 +40,14 @@ export function SignIn() {
       } else {
         setStatus('error')
         setErrorMessage(result.error || 'Failed to send magic link')
+      }
+    } else if (mode === 'sign-up') {
+      const result = await signUp(email.trim(), password)
+      if (result.success) {
+        setStatus('sent')
+      } else {
+        setStatus('error')
+        setErrorMessage(result.error || 'Failed to create account')
       }
     } else {
       const result = await signInWithPassword(email.trim(), password)
@@ -61,10 +69,10 @@ export function SignIn() {
               <div className="mb-4 text-4xl">✉️</div>
               <h1 className="mb-2 text-2xl font-bold text-foreground">Check your email</h1>
               <p className="text-muted-foreground">
-                We sent a magic link to <strong>{email}</strong>
+                We sent a {mode === 'sign-up' ? 'confirmation' : 'magic'} link to <strong>{email}</strong>
               </p>
               <p className="mt-2 text-sm text-muted-foreground">
-                Click the link in the email to sign in. You can close this tab.
+                Click the link in the email to {mode === 'sign-up' ? 'confirm your account' : 'sign in'}. You can close this tab.
               </p>
             </div>
             <Button
@@ -89,7 +97,11 @@ export function SignIn() {
           <div className="text-center">
             <h1 className="mb-2 text-3xl font-bold text-foreground">Welcome to Knots</h1>
             <p className="text-muted-foreground">
-              {mode === 'password' ? 'Sign in with your email and password' : 'Enter your email to receive a sign-in link'}
+              {mode === 'sign-up'
+                ? 'Create your account'
+                : mode === 'password'
+                  ? 'Sign in with your email and password'
+                  : 'Enter your email to receive a sign-in link'}
             </p>
           </div>
 
@@ -103,7 +115,7 @@ export function SignIn() {
               autoFocus
             />
 
-            {mode === 'password' && (
+            {(mode === 'password' || mode === 'sign-up') && (
               <Input
                 type="password"
                 placeholder="Password"
@@ -124,21 +136,48 @@ export function SignIn() {
               className="w-full"
             >
               {status === 'sending'
-                ? (mode === 'password' ? 'Signing in...' : 'Sending...')
-                : (mode === 'password' ? 'Sign in' : 'Send magic link')}
+                ? (mode === 'sign-up' ? 'Creating account...' : mode === 'password' ? 'Signing in...' : 'Sending...')
+                : (mode === 'sign-up' ? 'Create account' : mode === 'password' ? 'Sign in' : 'Send magic link')}
             </Button>
           </form>
 
-          <Button
-            variant="ghost"
-            onClick={() => {
-              setMode(mode === 'password' ? 'magic-link' : 'password')
-              setStatus('idle')
-              setErrorMessage('')
-            }}
-          >
-            {mode === 'password' ? 'Use magic link instead' : 'Use password instead'}
-          </Button>
+          <div className="flex flex-col items-center gap-2">
+            {mode === 'sign-up' ? (
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  setMode('password')
+                  setStatus('idle')
+                  setErrorMessage('')
+                }}
+              >
+                Already have an account? Sign in
+              </Button>
+            ) : (
+              <>
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    setMode(mode === 'password' ? 'magic-link' : 'password')
+                    setStatus('idle')
+                    setErrorMessage('')
+                  }}
+                >
+                  {mode === 'password' ? 'Use magic link instead' : 'Use password instead'}
+                </Button>
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    setMode('sign-up')
+                    setStatus('idle')
+                    setErrorMessage('')
+                  }}
+                >
+                  Create an account
+                </Button>
+              </>
+            )}
+          </div>
         </div>
       </div>
     </main>
