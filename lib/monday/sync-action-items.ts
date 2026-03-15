@@ -1,7 +1,7 @@
 import 'server-only'
 
 import { createAdminClient } from '@/lib/supabase-admin'
-import { fetchMondayItems } from '@/lib/monday/sync'
+import { fetchMondayItems, type MondayConnectionParams } from '@/lib/monday/sync'
 
 export interface SyncResult {
   ok: boolean
@@ -17,8 +17,8 @@ export interface SyncResult {
  * for rows that pre-date the monday_item_id column.
  * Records the sync timestamp in the sync_state table.
  */
-export async function syncActionItems(userId: string): Promise<SyncResult> {
-  const mondayItems = await fetchMondayItems()
+export async function syncActionItems(userId: string, connectionParams?: MondayConnectionParams): Promise<SyncResult> {
+  const mondayItems = await fetchMondayItems(connectionParams)
 
   if (mondayItems.length === 0) {
     return { ok: true, synced: 0, skipped: 0, message: 'No items on board' }

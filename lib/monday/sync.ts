@@ -1,6 +1,6 @@
 import 'server-only'
 
-const MONDAY_BOARD_ID = '18403632593'
+const DEFAULT_BOARD_ID = '18403632593'
 
 /** Column IDs on the Monday.com "Action Items" board */
 const COLUMNS = {
@@ -122,21 +122,27 @@ function parseMondayItem(item: MondayItem): ParsedActionItem {
   }
 }
 
+export interface MondayConnectionParams {
+  apiKey: string
+  boardId: string
+}
+
 /**
- * Fetch action items from the Monday.com board.
- * Queries for items (optionally filtering by status).
+ * Fetch action items from a Monday.com board.
+ * Accepts explicit connection params, or falls back to env vars for backward compatibility.
  */
-export async function fetchMondayItems(): Promise<ParsedActionItem[]> {
-  const apiKey = process.env.MONDAY_API_KEY
+export async function fetchMondayItems(params?: MondayConnectionParams): Promise<ParsedActionItem[]> {
+  const apiKey = params?.apiKey || process.env.MONDAY_API_KEY
   if (!apiKey) {
-    throw new Error('MONDAY_API_KEY environment variable is not set')
+    throw new Error('No Monday.com API key: provide connection params or set MONDAY_API_KEY env var')
   }
+  const boardId = params?.boardId || DEFAULT_BOARD_ID
 
   const columnIds = Object.values(COLUMNS)
 
   // Query items from the board, requesting all column values we need
   const query = `query {
-    boards(ids: [${MONDAY_BOARD_ID}]) {
+    boards(ids: [${boardId}]) {
       items_page(limit: 100) {
         cursor
         items {
