@@ -197,6 +197,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       })
 
       if (error) {
+        if (error.message.toLowerCase().includes('already registered') || error.message.toLowerCase().includes('already exists')) {
+          return { success: false, error: 'An account with this email already exists. Try signing in instead.' }
+        }
         return { success: false, error: error.message }
       }
 

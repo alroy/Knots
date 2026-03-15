@@ -30,6 +30,12 @@ export function SignIn() {
       return
     }
 
+    if (mode === 'sign-up' && password.length < 6) {
+      setStatus('error')
+      setErrorMessage('Password must be at least 6 characters')
+      return
+    }
+
     setStatus('sending')
     setErrorMessage('')
 
