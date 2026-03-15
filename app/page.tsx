@@ -3,9 +3,11 @@
 import { useState, useRef, useEffect, Suspense } from "react"
 import { useSearchParams } from "next/navigation"
 import { useAuth } from "@/contexts/auth-context"
+import { createClient } from "@/lib/supabase-browser"
 import { SignIn } from "@/components/auth/sign-in"
 import { Unauthorized } from "@/components/auth/unauthorized"
 import { ResetPassword } from "@/components/auth/reset-password"
+import { Onboarding } from "@/components/onboarding"
 import { TabBar } from "@/components/tab-bar"
 import { GoalsTab } from "@/components/tabs/goals-tab"
 import { PeopleTab } from "@/components/tabs/people-tab"
@@ -38,6 +40,21 @@ function PageContent() {
   const searchParams = useSearchParams()
   const [activeTab, setActiveTab] = useState<TabId>(getInitialTab)
   const contentColumnRef = useRef<HTMLDivElement>(null)
+  const [needsOnboarding, setNeedsOnboarding] = useState<boolean | null>(null)
+
+  // Check if user needs onboarding (no name set in profile)
+  useEffect(() => {
+    if (!user || !isAuthorized) return
+    const supabase = createClient()
+    supabase
+      .from('user_profile')
+      .select('name')
+      .eq('user_id', user.id)
+      .single()
+      .then(({ data }) => {
+        setNeedsOnboarding(!data?.name)
+      })
+  }, [user, isAuthorized])
 
   // Sync active tab when URL search params change (e.g., navigating back via Link)
   useEffect(() => {
@@ -73,6 +90,23 @@ function PageContent() {
   // Show unauthorized page if user email is not whitelisted
   if (!isAuthorized) {
     return <Unauthorized />
+  }
+
+  // Show onboarding for new users (profile name not yet set)
+  if (needsOnboarding === null) {
+    return (
+      <main className="min-h-screen bg-background py-12">
+        <div className="content-column">
+          <div className="flex items-center justify-center py-12">
+            <p className="text-muted-foreground">Loading...</p>
+          </div>
+        </div>
+      </main>
+    )
+  }
+
+  if (needsOnboarding) {
+    return <Onboarding onComplete={() => setNeedsOnboarding(false)} />
   }
 
   return (

@@ -10,6 +10,7 @@ interface AuthContextType {
   isPasswordRecovery: boolean
   sendMagicLink: (email: string) => Promise<{ success: boolean; error?: string }>
   signInWithPassword: (email: string, password: string) => Promise<{ success: boolean; error?: string }>
+  signUp: (email: string, password: string) => Promise<{ success: boolean; error?: string }>
   signOut: () => Promise<void>
   clearPasswordRecovery: () => void
   isAuthorized: boolean
@@ -17,7 +18,16 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
-const ALLOWED_EMAIL = 'gil.alroy@gmail.com'
+function getAllowedEmails(): string[] {
+  const raw = process.env.NEXT_PUBLIC_ALLOWED_EMAILS || ''
+  return raw.split(',').map(e => e.trim().toLowerCase()).filter(Boolean)
+}
+
+function isEmailAllowed(email: string): boolean {
+  const allowed = getAllowedEmails()
+  if (allowed.length === 0) return true
+  return allowed.includes(email.toLowerCase())
+}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
@@ -78,7 +88,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Check active session
     supabase.auth.getSession().then(({ data: { session } }) => {
       const currentUser = session?.user ?? null
-      const authorized = currentUser?.email === ALLOWED_EMAIL
+      const authorized = currentUser?.email ? isEmailAllowed(currentUser.email) : false
 
       setUser(currentUser)
       setIsAuthorized(authorized)
@@ -100,7 +110,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } = supabase.auth.onAuthStateChange((event, session) => {
       const currentUser = session?.user ?? null
       setUser(currentUser)
-      setIsAuthorized(currentUser?.email === ALLOWED_EMAIL)
+      setIsAuthorized(currentUser?.email ? isEmailAllowed(currentUser.email) : false)
       setLoading(false)
 
       // Detect password recovery mode
@@ -122,7 +132,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const sendMagicLink = async (email: string): Promise<{ success: boolean; error?: string }> => {
     // Check if email is allowed before sending
-    if (email.toLowerCase() !== ALLOWED_EMAIL.toLowerCase()) {
+    if (!isEmailAllowed(email)) {
       return { success: false, error: 'This email is not authorized to access this app.' }
     }
 
@@ -148,7 +158,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const signInWithPassword = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
-    if (email.toLowerCase() !== ALLOWED_EMAIL.toLowerCase()) {
+    if (!isEmailAllowed(email)) {
       return { success: false, error: 'This email is not authorized to access this app.' }
     }
 
@@ -158,6 +168,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
+      })
+
+      if (error) {
+        return { success: false, error: error.message }
+      }
+
+      return { success: true }
+    } catch (err: any) {
+      return { success: false, error: err.message || 'An unexpected error occurred' }
+    }
+  }
+
+  const signUp = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
+    if (!isEmailAllowed(email)) {
+      return { success: false, error: 'This email is not authorized to access this app.' }
+    }
+
+    try {
+      const supabase = createClient()
+
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/`,
+        },
       })
 
       if (error) {
@@ -180,7 +216,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, isPasswordRecovery, sendMagicLink, signInWithPassword, signOut, clearPasswordRecovery, isAuthorized }}>
+    <AuthContext.Provider value={{ user, loading, isPasswordRecovery, sendMagicLink, signInWithPassword, signUp, signOut, clearPasswordRecovery, isAuthorized }}>
       {children}
     </AuthContext.Provider>
   )

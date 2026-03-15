@@ -1,9 +1,13 @@
 import { NextResponse } from 'next/server'
+import { createAdminClient } from '@/lib/supabase-admin'
 import { syncActionItems } from '@/lib/monday/sync-action-items'
 
 /**
- * Cron endpoint: Sync action items from Monday.com board.
+ * Cron endpoint: Sync action items from Monday.com boards.
  * Runs every 30 minutes via Vercel Cron.
+ *
+ * Iterates all users with a monday_connections row.
+ * Falls back to AUTH_USER_ID + MONDAY_API_KEY env vars if no connections exist.
  */
 export async function GET(request: Request) {
   const authHeader = request.headers.get('authorization')
@@ -12,19 +16,53 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const userId = process.env.AUTH_USER_ID
-  if (!userId) {
-    return NextResponse.json({ error: 'AUTH_USER_ID not configured' }, { status: 500 })
+  const supabase = createAdminClient()
+  const results: { userId: string; result?: any; error?: string }[] = []
+
+  // Try per-user connections from DB first
+  const { data: connections, error: connError } = await supabase
+    .from('monday_connections')
+    .select('user_id, api_key, board_id')
+
+  if (connError) {
+    // Table may not exist yet — fall through to env var fallback
+    console.error('Error fetching monday_connections:', connError.message)
   }
 
-  try {
-    const result = await syncActionItems(userId)
-    return NextResponse.json(result)
-  } catch (error) {
-    console.error('Action items cron sync error:', error)
-    return NextResponse.json(
-      { error: 'Sync failed', details: error instanceof Error ? error.message : String(error) },
-      { status: 500 }
-    )
+  if (connections && connections.length > 0) {
+    // Multi-user: sync each user's board
+    for (const conn of connections) {
+      try {
+        const result = await syncActionItems(conn.user_id, {
+          apiKey: conn.api_key,
+          boardId: conn.board_id,
+        })
+        results.push({ userId: conn.user_id, result })
+      } catch (error) {
+        console.error(`Sync error for user ${conn.user_id}:`, error)
+        results.push({ userId: conn.user_id, error: error instanceof Error ? error.message : String(error) })
+      }
+    }
   }
+
+  // Env var fallback: sync for AUTH_USER_ID if no DB connection exists for that user
+  const fallbackUserId = process.env.AUTH_USER_ID
+  if (fallbackUserId) {
+    const alreadySynced = results.some(r => r.userId === fallbackUserId)
+    if (!alreadySynced) {
+      try {
+        const result = await syncActionItems(fallbackUserId)
+        results.push({ userId: fallbackUserId, result })
+      } catch (error) {
+        console.error('Action items cron sync error (env var fallback):', error)
+        results.push({ userId: fallbackUserId, error: error instanceof Error ? error.message : String(error) })
+      }
+    }
+  }
+
+  if (results.length === 0) {
+    return NextResponse.json({ error: 'No Monday.com connections configured' }, { status: 500 })
+  }
+
+  return NextResponse.json({ results })
 }

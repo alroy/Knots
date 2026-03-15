@@ -9,8 +9,10 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Pencil, Check, FileText, Camera, Plus } from "lucide-react"
 import { SlackSettings } from "@/components/settings/slack-settings"
+import { MondaySettings } from "@/components/settings/monday-settings"
 import { cn } from "@/lib/utils"
-import type { UserProfile } from "@/lib/chief-of-staff-types"
+import type { UserProfile, PersonLocation } from "@/lib/chief-of-staff-types"
+import { LOCATION_OPTIONS } from "@/lib/chief-of-staff-types"
 
 interface ProfileTabProps {
   contentColumnRef: React.RefObject<HTMLDivElement | null>
@@ -65,6 +67,7 @@ export function ProfileTab({ contentColumnRef }: ProfileTabProps) {
     name: data.name || '',
     avatarUrl: data.avatar_url || '',
     roleTitle: data.role_title || '',
+    location: data.location || '',
     roleDescription: data.role_description || '',
     communicationStyle: data.communication_style || '',
     thinkingStyle: data.thinking_style || '',
@@ -82,6 +85,7 @@ export function ProfileTab({ contentColumnRef }: ProfileTabProps) {
       : field === 'blindSpots' ? 'blind_spots'
       : field === 'energyDrains' ? 'energy_drains'
       : field === 'aiInstructions' ? 'ai_instructions'
+      : field === 'location' ? 'location'
       : field
 
     setProfile({ ...profile, [field]: value })
@@ -139,6 +143,7 @@ export function ProfileTab({ contentColumnRef }: ProfileTabProps) {
 
   const profileSections = [
     { key: 'roleTitle', label: 'Role', value: profile.roleTitle, placeholder: 'e.g. VP of Engineering', isInput: true },
+    { key: 'location', label: 'Location', value: profile.location, placeholder: 'Select your location', isSelect: true, options: LOCATION_OPTIONS },
     { key: 'roleDescription', label: 'Responsibilities', value: profile.roleDescription, placeholder: 'Core responsibilities and scope...' },
   ]
 
@@ -234,7 +239,7 @@ export function ProfileTab({ contentColumnRef }: ProfileTabProps) {
       <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-3">Profile</h3>
       <div className="rounded-lg bg-card p-4 mb-6">
         <div className="space-y-1">
-          {profileSections.map(({ key, label, value, placeholder, isInput }) => (
+          {profileSections.map(({ key, label, value, placeholder, isInput, isSelect, options }) => (
             <ProfileSection
               key={key}
               sectionKey={key}
@@ -242,6 +247,8 @@ export function ProfileTab({ contentColumnRef }: ProfileTabProps) {
               value={value}
               placeholder={placeholder}
               isInput={isInput}
+              isSelect={isSelect}
+              selectOptions={options}
               isEditing={editingSection === key}
               onStartEdit={() => setEditingSection(key)}
               onSave={(v) => handleSave(key, v)}
@@ -295,6 +302,7 @@ export function ProfileTab({ contentColumnRef }: ProfileTabProps) {
       <div className="border-t border-border mt-8 pt-8">
         <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-3">Settings</h3>
         <SlackSettings />
+        <MondaySettings />
 
         {/* Sign Out */}
         <button
@@ -324,12 +332,14 @@ export function ProfileTab({ contentColumnRef }: ProfileTabProps) {
 
 // --- Profile Section ---
 
-function ProfileSection({ sectionKey, label, value, placeholder, isInput, isEditing, onStartEdit, onSave, onCancel }: {
+function ProfileSection({ sectionKey, label, value, placeholder, isInput, isSelect, selectOptions, isEditing, onStartEdit, onSave, onCancel }: {
   sectionKey: string
   label: string
   value: string
   placeholder: string
   isInput?: boolean
+  isSelect?: boolean
+  selectOptions?: readonly string[]
   isEditing: boolean
   onStartEdit: () => void
   onSave: (value: string) => void
@@ -341,9 +351,9 @@ function ProfileSection({ sectionKey, label, value, placeholder, isInput, isEdit
   useEffect(() => {
     if (isEditing) {
       setEditValue(value)
-      setTimeout(() => inputRef.current?.focus(), 50)
+      if (!isSelect) setTimeout(() => inputRef.current?.focus(), 50)
     }
-  }, [isEditing, value])
+  }, [isEditing, value, isSelect])
 
   const handleSave = () => {
     onSave(editValue.trim())
@@ -362,7 +372,18 @@ function ProfileSection({ sectionKey, label, value, placeholder, isInput, isEdit
       <div className="p-4">
         <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</Label>
         <div className="mt-2">
-          {isInput ? (
+          {isSelect && selectOptions ? (
+            <select
+              value={editValue}
+              onChange={(e) => { setEditValue(e.target.value); onSave(e.target.value); }}
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            >
+              <option value="">None</option>
+              {selectOptions.map((opt) => (
+                <option key={opt} value={opt}>{opt}</option>
+              ))}
+            </select>
+          ) : isInput ? (
             <Input
               ref={inputRef as React.RefObject<HTMLInputElement>}
               value={editValue}
@@ -382,14 +403,16 @@ function ProfileSection({ sectionKey, label, value, placeholder, isInput, isEdit
               className="bg-background border-border/60 shadow-none resize-none"
             />
           )}
-          <div className="flex gap-2 mt-2">
-            <Button size="sm" onClick={handleSave} className="text-xs h-7 gap-1">
-              <Check className="h-3 w-3" /> Save
-            </Button>
-            <button onClick={onCancel} className="text-xs text-muted-foreground hover:text-foreground transition-colors">
-              Cancel
-            </button>
-          </div>
+          {!isSelect && (
+            <div className="flex gap-2 mt-2">
+              <Button size="sm" onClick={handleSave} className="text-xs h-7 gap-1">
+                <Check className="h-3 w-3" /> Save
+              </Button>
+              <button onClick={onCancel} className="text-xs text-muted-foreground hover:text-foreground transition-colors">
+                Cancel
+              </button>
+            </div>
+          )}
         </div>
       </div>
     )

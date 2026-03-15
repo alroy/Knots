@@ -73,6 +73,7 @@ export interface UserProfile {
   name: string
   avatarUrl: string
   roleTitle: string
+  location: PersonLocation | ''
   roleDescription: string
   communicationStyle: string
   thinkingStyle: string
