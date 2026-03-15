@@ -152,7 +152,7 @@ export function MondaySettings() {
 
   return (
     <>
-      <div className="flex items-center gap-3 p-3 rounded-lg bg-accent mt-3">
+      <div className="flex items-center gap-3 p-3 rounded-lg bg-accent">
         {/* Monday.com Icon */}
         <div className="w-8 h-8 flex items-center justify-center">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
