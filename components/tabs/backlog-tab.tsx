@@ -48,6 +48,7 @@ export function BacklogTab({ contentColumnRef }: BacklogTabProps) {
         .from('backlog')
         .select('*')
         .eq('user_id', user.id)
+        .is('deleted_at', null)
         .order('position', { ascending: true })
       if (error) throw error
       setItems((data || []).map((b: any) => ({
@@ -98,10 +99,17 @@ export function BacklogTab({ contentColumnRef }: BacklogTabProps) {
   }
 
   const handleDelete = async (id: string) => {
+    const item = items.find(b => b.id === id)
     setItems((prev) => prev.filter((b) => b.id !== id))
     try {
-      const { error } = await supabase.from('backlog').delete().eq('id', id)
-      if (error) throw error
+      if (item?.status === 'resolved') {
+        // Soft-delete resolved items so analytics still counts them
+        const { error } = await supabase.from('backlog').update({ deleted_at: new Date().toISOString() }).eq('id', id)
+        if (error) throw error
+      } else {
+        const { error } = await supabase.from('backlog').delete().eq('id', id)
+        if (error) throw error
+      }
     } catch (error) {
       console.error('Error deleting backlog item:', error)
       loadItems()
