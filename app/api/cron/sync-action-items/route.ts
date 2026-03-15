@@ -22,19 +22,21 @@ export async function GET(request: Request) {
   // Try per-user connections from DB first
   const { data: connections, error: connError } = await supabase
     .from('monday_connections')
-    .select('user_id, api_key, board_id')
+    .select('user_id, board_id')
 
   if (connError) {
     // Table may not exist yet — fall through to env var fallback
     console.error('Error fetching monday_connections:', connError.message)
   }
 
-  if (connections && connections.length > 0) {
-    // Multi-user: sync each user's board
+  const sharedApiKey = process.env.MONDAY_API_KEY
+
+  if (connections && connections.length > 0 && sharedApiKey) {
+    // Multi-user: sync each user's board using the shared API key
     for (const conn of connections) {
       try {
         const result = await syncActionItems(conn.user_id, {
-          apiKey: conn.api_key,
+          apiKey: sharedApiKey,
           boardId: conn.board_id,
         })
         results.push({ userId: conn.user_id, result })

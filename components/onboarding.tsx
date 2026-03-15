@@ -15,13 +15,17 @@ interface OnboardingProps {
 
 export function Onboarding({ onComplete }: OnboardingProps) {
   const { user } = useAuth()
+  const [step, setStep] = useState<'profile' | 'monday'>('profile')
   const [name, setName] = useState('')
   const [roleTitle, setRoleTitle] = useState('')
   const [location, setLocation] = useState<PersonLocation | ''>('')
+  const [boardId, setBoardId] = useState('')
+  const [testing, setTesting] = useState(false)
+  const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleProfileSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
     if (!name.trim()) {
@@ -46,12 +50,138 @@ export function Onboarding({ onComplete }: OnboardingProps) {
         .eq('user_id', user.id)
 
       if (dbError) throw dbError
-      onComplete()
+      setStep('monday')
+      setSaving(false)
     } catch (err: any) {
       console.error('Error saving profile:', err)
       setError('Something went wrong. Please try again.')
       setSaving(false)
     }
+  }
+
+  const handleTestBoard = async () => {
+    if (!boardId.trim()) return
+
+    setTesting(true)
+    setTestResult(null)
+
+    try {
+      const res = await fetch("/api/monday/test-board", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ boardId: boardId.trim() }),
+      })
+
+      const json = await res.json()
+      if (!res.ok) {
+        setTestResult({ ok: false, message: json.error || `Failed (${res.status})` })
+        return
+      }
+
+      setTestResult({ ok: true, message: `Found "${json.boardName}" (${json.itemsCount} items)` })
+    } catch (err: any) {
+      setTestResult({ ok: false, message: err.message || "Connection failed" })
+    } finally {
+      setTesting(false)
+    }
+  }
+
+  const handleMondaySubmit = async () => {
+    if (!user || !boardId.trim()) return
+
+    setSaving(true)
+    setError('')
+
+    try {
+      const supabase = createClient()
+      const { error: upsertError } = await supabase
+        .from('monday_connections')
+        .upsert(
+          {
+            user_id: user.id,
+            api_key: 'shared',
+            board_id: boardId.trim(),
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: 'user_id' }
+        )
+
+      if (upsertError) throw upsertError
+      onComplete()
+    } catch (err: any) {
+      console.error('Error saving Monday connection:', err)
+      setError('Something went wrong. Please try again.')
+      setSaving(false)
+    }
+  }
+
+  if (step === 'monday') {
+    return (
+      <main className="min-h-screen bg-background px-4 py-12">
+        <div className="mx-auto max-w-xl">
+          <div className="flex min-h-[60vh] flex-col items-center justify-center space-y-6">
+            <div className="text-center">
+              <h1 className="mb-2 text-3xl font-bold text-foreground">Connect your Monday board</h1>
+              <p className="text-muted-foreground">
+                Knots syncs action items from your Monday.com board. Paste the Board ID below — you can find it in the board URL after <code className="text-xs bg-accent px-1 py-0.5 rounded">/boards/</code>.
+              </p>
+            </div>
+
+            <div className="w-full max-w-sm space-y-5">
+              <div className="space-y-2">
+                <Label htmlFor="onboarding-board-id">Board ID</Label>
+                <Input
+                  id="onboarding-board-id"
+                  type="text"
+                  placeholder="e.g. 18403632593"
+                  value={boardId}
+                  onChange={(e) => { setBoardId(e.target.value); setTestResult(null); setError('') }}
+                  disabled={saving}
+                  autoFocus
+                />
+              </div>
+
+              {testResult && (
+                <p className={`text-sm ${testResult.ok ? "text-green-600" : "text-destructive"}`}>
+                  {testResult.message}
+                </p>
+              )}
+
+              {error && (
+                <p className="text-sm text-red-600">{error}</p>
+              )}
+
+              <div className="flex gap-3">
+                <Button
+                  variant="ghost"
+                  size="lg"
+                  onClick={handleTestBoard}
+                  disabled={testing || !boardId.trim()}
+                  className="flex-1"
+                >
+                  {testing ? 'Testing...' : 'Test connection'}
+                </Button>
+                <Button
+                  size="lg"
+                  onClick={handleMondaySubmit}
+                  disabled={saving || !boardId.trim()}
+                  className="flex-1"
+                >
+                  {saving ? 'Saving...' : 'Connect'}
+                </Button>
+              </div>
+
+              <button
+                onClick={onComplete}
+                className="w-full text-center text-sm text-muted-foreground hover:text-foreground transition-colors"
+              >
+                Skip for now
+              </button>
+            </div>
+          </div>
+        </div>
+      </main>
+    )
   }
 
   return (
@@ -65,7 +195,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
             </p>
           </div>
 
-          <form onSubmit={handleSubmit} className="w-full max-w-sm space-y-5">
+          <form onSubmit={handleProfileSubmit} className="w-full max-w-sm space-y-5">
             <div className="space-y-2">
               <Label htmlFor="onboarding-name">Name</Label>
               <Input
@@ -117,7 +247,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
               size="lg"
               className="w-full"
             >
-              {saving ? 'Setting up...' : 'Get started'}
+              {saving ? 'Setting up...' : 'Next'}
             </Button>
           </form>
         </div>

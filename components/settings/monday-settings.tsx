@@ -22,7 +22,6 @@ export function MondaySettings() {
   const [showForm, setShowForm] = useState(false)
   const [showDisconnectModal, setShowDisconnectModal] = useState(false)
   const [disconnecting, setDisconnecting] = useState(false)
-  const [apiKey, setApiKey] = useState("")
   const [boardId, setBoardId] = useState("")
   const [error, setError] = useState("")
   const [featureAvailable, setFeatureAvailable] = useState(true)
@@ -60,8 +59,8 @@ export function MondaySettings() {
   }, [user])
 
   const handleTest = async () => {
-    if (!apiKey.trim() || !boardId.trim()) {
-      setError("Please enter both API key and board ID")
+    if (!boardId.trim()) {
+      setError("Please enter a board ID")
       return
     }
 
@@ -70,36 +69,19 @@ export function MondaySettings() {
     setError("")
 
     try {
-      const res = await fetch("https://api.monday.com/v2", {
+      const res = await fetch("/api/monday/test-board", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: apiKey.trim(),
-          "API-Version": "2024-10",
-        },
-        body: JSON.stringify({
-          query: `query { boards(ids: [${boardId.trim()}]) { name items_count } }`,
-        }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ boardId: boardId.trim() }),
       })
 
-      if (!res.ok) {
-        setTestResult({ ok: false, message: `API returned ${res.status}` })
-        return
-      }
-
       const json = await res.json()
-      if (json.errors?.length) {
-        setTestResult({ ok: false, message: json.errors[0].message })
+      if (!res.ok) {
+        setTestResult({ ok: false, message: json.error || `API returned ${res.status}` })
         return
       }
 
-      const board = json.data?.boards?.[0]
-      if (!board) {
-        setTestResult({ ok: false, message: "Board not found. Check the board ID." })
-        return
-      }
-
-      setTestResult({ ok: true, message: `Connected to "${board.name}" (${board.items_count} items)` })
+      setTestResult({ ok: true, message: `Connected to "${json.boardName}" (${json.itemsCount} items)` })
     } catch (err: any) {
       setTestResult({ ok: false, message: err.message || "Connection failed" })
     } finally {
@@ -108,8 +90,8 @@ export function MondaySettings() {
   }
 
   const handleSave = async () => {
-    if (!user || !apiKey.trim() || !boardId.trim()) {
-      setError("Please enter both API key and board ID")
+    if (!user || !boardId.trim()) {
+      setError("Please enter a board ID")
       return
     }
 
@@ -122,7 +104,7 @@ export function MondaySettings() {
         .upsert(
           {
             user_id: user.id,
-            api_key: apiKey.trim(),
+            api_key: "shared",
             board_id: boardId.trim(),
             updated_at: new Date().toISOString(),
           },
@@ -135,7 +117,6 @@ export function MondaySettings() {
 
       setConnection(data)
       setShowForm(false)
-      setApiKey("")
       setBoardId("")
       setTestResult(null)
     } catch (err: any) {
@@ -239,27 +220,19 @@ export function MondaySettings() {
             <div className="bg-background rounded-lg shadow-xl p-6">
               <h2 className="text-lg font-bold text-foreground mb-2">Connect Monday.com</h2>
               <p className="text-sm text-muted-foreground mb-4">
-                Enter your Monday.com API key and board ID to sync action items.
+                Enter the Board ID of the Monday board you want to sync action items from.
+                You can find it in the board URL — it&apos;s the number after <code className="text-xs bg-accent px-1 py-0.5 rounded">/boards/</code>.
               </p>
 
               <div className="space-y-3 mb-4">
-                <div>
-                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">API Key</label>
-                  <Input
-                    type="password"
-                    value={apiKey}
-                    onChange={(e) => { setApiKey(e.target.value); setError("") }}
-                    placeholder="eyJhbG..."
-                    className="mt-1"
-                  />
-                </div>
                 <div>
                   <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Board ID</label>
                   <Input
                     value={boardId}
                     onChange={(e) => { setBoardId(e.target.value); setError("") }}
-                    placeholder="18403632593"
+                    placeholder="e.g. 18403632593"
                     className="mt-1"
+                    autoFocus
                   />
                 </div>
               </div>
@@ -283,14 +256,14 @@ export function MondaySettings() {
                   variant="ghost"
                   size="sm"
                   onClick={handleTest}
-                  disabled={testing || !apiKey.trim() || !boardId.trim()}
+                  disabled={testing || !boardId.trim()}
                 >
                   {testing ? "Testing..." : "Test"}
                 </Button>
                 <Button
                   size="sm"
                   onClick={handleSave}
-                  disabled={saving || !apiKey.trim() || !boardId.trim()}
+                  disabled={saving || !boardId.trim()}
                 >
                   {saving ? "Saving..." : "Save"}
                 </Button>

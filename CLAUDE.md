@@ -138,6 +138,37 @@ Retry up to 4 times with exponential backoff (2s, 4s, 8s, 16s) on network failur
 2. Create PR via GitHub: `https://github.com/alroy/To-Do/compare/main...<branch-name>`
 3. Merge to main triggers auto-deployment to Vercel
 
+## Monday.com Integration
+
+### Architecture
+- **Shared API key** via `MONDAY_API_KEY` env var (all users are in the same Monday org)
+- **Per-user Board ID** stored in `monday_connections` table
+- Users only need to enter their Board ID — no individual API keys
+
+### Onboarding
+After profile setup, new users see a second step to connect their Monday board:
+- Enter Board ID (found in the board URL after `/boards/`)
+- Test connection button validates board exists
+- "Skip for now" option available
+- Can also connect later via Me tab → Monday.com settings
+
+### Settings
+- **Component:** `components/settings/monday-settings.tsx`
+- Shows connected board ID or "Connect" button
+- Test button calls `POST /api/monday/test-board` (uses shared env var key server-side)
+- Board ID saved to `monday_connections` table with `api_key = 'shared'`
+
+### Sync
+- **Cron:** `app/api/cron/sync-action-items/route.ts` — runs every 30 min, syncs all users
+- **Manual:** `app/api/sync/action-items/route.ts` — per-user trigger
+- Both use `MONDAY_API_KEY` env var + per-user `board_id` from DB
+- Column IDs are hardcoded in `lib/monday/sync.ts` for the standard board layout
+
+### Environment Variables
+```
+MONDAY_API_KEY=your-shared-monday-api-key   # Required for Monday.com sync
+```
+
 ## Current State
 - ✅ Supabase integration complete (CRUD operations)
 - ✅ Real-time sync across devices via Supabase Realtime (create, update, delete, reorder)
@@ -163,6 +194,9 @@ Retry up to 4 times with exponential backoff (2s, 4s, 8s, 16s) on network failur
 - ✅ Timestamp preservation across snooze/unsnoozed round-trips
 - ✅ Goals tab: byline (timestamp + linked tasks) on its own line below title
 - ✅ Backlog cards do not show snooze CTA (snooze only in Tasks tab)
+- ✅ Monday.com integration with shared API key (env var) and per-user Board ID
+- ✅ Onboarding flow: profile setup → Monday board connection
+- ✅ Morning Brief removed (no longer part of UI)
 
 ## Animations & Transitions
 

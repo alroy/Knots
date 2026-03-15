@@ -3,7 +3,6 @@
 import { useState, useEffect, useRef, useCallback } from "react"
 import { SortableKnotList } from "@/components/sortable-knot-list"
 import { KnotForm, type EditTask, type GoalOption } from "@/components/knot-form"
-import { MorningBrief } from "@/components/morning-brief"
 import { createClient } from "@/lib/supabase-browser"
 import { useAuth } from "@/contexts/auth-context"
 import { TaskMetadata } from "@/lib/types"
@@ -31,7 +30,6 @@ export function TasksTab({ contentColumnRef }: TasksTabProps) {
   const [goals, setGoals] = useState<GoalOption[]>([])
   const [loading, setLoading] = useState(true)
   const [editTask, setEditTask] = useState<EditTask | null>(null)
-  const [briefRevision, setBriefRevision] = useState(0)
   const [snoozingId, setSnoozingId] = useState<string | null>(null)
   const [completingId, setCompletingId] = useState<string | null>(null)
   const [enteringId, setEnteringId] = useState<string | null>(null)
@@ -248,7 +246,6 @@ export function TasksTab({ contentColumnRef }: TasksTabProps) {
           try {
             const { error: deleteError } = await supabase.from('tasks').delete().eq('id', id)
             if (deleteError) throw deleteError
-            setBriefRevision(r => r + 1)
           } catch (error) {
             console.error('Error deleting completed task:', error)
             loadKnots()
@@ -268,7 +265,6 @@ export function TasksTab({ contentColumnRef }: TasksTabProps) {
           .update({ status: newStatus, completed_at: null })
           .eq('id', id)
         if (error) throw error
-        setBriefRevision(r => r + 1)
       } catch (error) {
         console.error('Error toggling knot:', error)
         locallyModifiedIds.current.delete(id)
@@ -282,7 +278,6 @@ export function TasksTab({ contentColumnRef }: TasksTabProps) {
     try {
       const { error } = await supabase.from('tasks').delete().eq('id', id)
       if (error) throw error
-      setBriefRevision(r => r + 1)
     } catch (error) {
       console.error('Error deleting knot:', error)
       loadKnots()
@@ -369,7 +364,6 @@ export function TasksTab({ contentColumnRef }: TasksTabProps) {
       const { error } = await supabase.from('tasks').update(updatePayload).eq('id', id)
       if (error) throw error
       if (data.goalId !== undefined && data.goalId !== knot.goalId) {
-        setBriefRevision(r => r + 1)
       }
       return true
     } catch (error) {
@@ -408,27 +402,12 @@ export function TasksTab({ contentColumnRef }: TasksTabProps) {
         const { error: deleteError } = await supabase.from('tasks').delete().eq('id', id)
         if (deleteError) throw deleteError
 
-        setBriefRevision(r => r + 1)
       } catch (error) {
         console.error('Error snoozing task:', error)
         loadKnots() // Rollback
       }
     }, 300) // Match animation duration
   }
-
-  // Apply AI-suggested task order from morning brief
-  const handleApplyBriefOrder = useCallback(async (taskIds: string[]) => {
-    // Build new order: prioritized tasks first, then remaining tasks in original order
-    const prioritized = taskIds
-      .map(id => knots.find(k => k.id === id))
-      .filter((k): k is Knot => k !== undefined)
-    const remaining = knots.filter(k => !taskIds.includes(k.id))
-    const reordered = [...prioritized, ...remaining]
-
-    if (reordered.length > 0) {
-      handleReorder(reordered)
-    }
-  }, [knots, handleReorder])
 
   if (loading) {
     return (
@@ -444,9 +423,6 @@ export function TasksTab({ contentColumnRef }: TasksTabProps) {
         <h1 className="mb-2 text-2xl font-bold text-foreground">My Knots</h1>
         <p className="text-muted-foreground">What you meant to come back to.</p>
       </header>
-
-      {/* Morning Brief — AI-generated daily priorities */}
-      <MorningBrief onApplyOrder={handleApplyBriefOrder} revision={briefRevision} />
 
       {knots.length > 0 ? (
         <SortableKnotList

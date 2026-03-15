@@ -31,16 +31,16 @@ export async function POST(request: Request) {
   }
 
   try {
-    // Look up per-user Monday connection
+    // Look up per-user Monday board ID (API key is shared via env var)
     const admin = createAdminClient()
     const { data: conn } = await admin
       .from('monday_connections')
-      .select('api_key, board_id')
+      .select('board_id')
       .eq('user_id', userId)
       .maybeSingle()
 
     const connectionParams = conn
-      ? { apiKey: conn.api_key, boardId: conn.board_id }
+      ? { apiKey: process.env.MONDAY_API_KEY!, boardId: conn.board_id }
       : undefined
 
     const result = await syncActionItems(userId, connectionParams)
