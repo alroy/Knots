@@ -24,7 +24,6 @@ export function MondaySettings() {
   const [disconnecting, setDisconnecting] = useState(false)
   const [boardId, setBoardId] = useState("")
   const [error, setError] = useState("")
-  const [featureAvailable, setFeatureAvailable] = useState(true)
 
   const supabase = createClient()
 
@@ -40,16 +39,13 @@ export function MondaySettings() {
           .maybeSingle()
 
         if (error) {
-          if (error.code === "42P01" || error.message.includes("does not exist")) {
-            setFeatureAvailable(false)
-          } else {
-            console.error("Error fetching Monday connection:", error)
-          }
+          // Table missing or RLS — treat as "no connection yet", still show UI
+          console.warn("Monday connection fetch:", error.message)
         } else {
           setConnection(data)
         }
-      } catch {
-        setFeatureAvailable(false)
+      } catch (err) {
+        console.warn("Monday connection fetch failed:", err)
       } finally {
         setLoading(false)
       }
@@ -147,8 +143,6 @@ export function MondaySettings() {
       setShowDisconnectModal(false)
     }
   }
-
-  if (!featureAvailable) return null
 
   return (
     <>
