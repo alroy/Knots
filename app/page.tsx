@@ -50,8 +50,14 @@ function PageContent() {
       .from('user_profile')
       .select('name')
       .eq('user_id', user.id)
-      .single()
-      .then(({ data }) => {
+      .maybeSingle()
+      .then(({ data, error }) => {
+        if (error) {
+          // On error, skip onboarding so existing users aren't blocked
+          setNeedsOnboarding(false)
+          return
+        }
+        // Only onboard if row exists but has no name, or no row at all
         setNeedsOnboarding(!data?.name)
       })
   }, [user, isAuthorized])
