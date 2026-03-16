@@ -305,7 +305,7 @@ export function ProfileTab({ contentColumnRef }: ProfileTabProps) {
         {/* Sign Out */}
         <button
           onClick={() => signOut()}
-          className="mt-6 text-sm font-medium text-red-600 py-3 px-4 -ml-4 rounded-lg active:bg-red-50 transition-colors"
+          className="mt-6 block text-sm font-medium text-red-600 py-3 px-4 rounded-lg hover:bg-red-50 active:bg-red-100 dark:hover:bg-red-950/30 dark:active:bg-red-950/50 transition-colors"
         >
           Sign out
         </button>
