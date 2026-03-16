@@ -120,7 +120,7 @@ function PageContent() {
       <div ref={contentColumnRef} className="content-column">
         {/* Tab content */}
         <div id="tab-panel-action-items" role="tabpanel" aria-labelledby="tab-action-items" className={activeTab !== 'action-items' ? 'hidden' : undefined}>
-          <ActionItemsTab contentColumnRef={contentColumnRef} />
+          <ActionItemsTab contentColumnRef={contentColumnRef} isActive={activeTab === 'action-items'} />
         </div>
         <div id="tab-panel-goals" role="tabpanel" aria-labelledby="tab-goals" className={activeTab !== 'goals' ? 'hidden' : undefined}>
           <GoalsTab contentColumnRef={contentColumnRef} />
@@ -129,7 +129,7 @@ function PageContent() {
           <PeopleTab contentColumnRef={contentColumnRef} />
         </div>
         <div id="tab-panel-backlog" role="tabpanel" aria-labelledby="tab-backlog" className={activeTab !== 'backlog' ? 'hidden' : undefined}>
-          <BacklogTab contentColumnRef={contentColumnRef} />
+          <BacklogTab contentColumnRef={contentColumnRef} isActive={activeTab === 'backlog'} />
         </div>
         <div id="tab-panel-profile" role="tabpanel" aria-labelledby="tab-profile" className={activeTab !== 'profile' ? 'hidden' : undefined}>
           <ProfileTab contentColumnRef={contentColumnRef} />

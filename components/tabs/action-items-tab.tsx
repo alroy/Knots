@@ -72,9 +72,10 @@ interface InboxItem {
 
 interface ActionItemsTabProps {
   contentColumnRef: React.RefObject<HTMLDivElement | null>
+  isActive?: boolean
 }
 
-export function ActionItemsTab({ contentColumnRef }: ActionItemsTabProps) {
+export function ActionItemsTab({ contentColumnRef, isActive }: ActionItemsTabProps) {
   const { user } = useAuth()
   const [items, setItems] = useState<InboxItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -95,6 +96,11 @@ export function ActionItemsTab({ contentColumnRef }: ActionItemsTabProps) {
       loadGoals()
     }
   }, [user])
+
+  // Reload when tab becomes active (catches unsnooze/move-to-tasks changes from other tabs)
+  useEffect(() => {
+    if (isActive && user) loadAllItems()
+  }, [isActive])
 
   // Reload goals when editing starts to include assigned (possibly completed) goal
   useEffect(() => {
@@ -276,25 +282,42 @@ export function ActionItemsTab({ contentColumnRef }: ActionItemsTabProps) {
 
   const handleActionItemDone = async (id: string) => {
     const item = items.find(i => i.id === id)
-    if (!item || item.origin !== 'action-item') return
+    if (!item || item.origin !== 'action-item' || !user) return
 
-    // Animate out then update
+    // Animate out then move to backlog as completed
     setExitingId(id)
-    setTimeout(async () => {
-      setExitingId(null)
-      setItems(prev => prev.map(i => i.id === id ? { ...i, status: 'done' } : i))
+    try {
+      const { error: insertError } = await supabase.from('backlog').insert({
+        title: item.title,
+        description: item.rawContext || '',
+        category: 'action',
+        status: 'resolved',
+        resolved_at: new Date().toISOString(),
+        user_id: user.id,
+        position: 0,
+        source_type: item.source === 'manual' ? null : item.source,
+        original_created_at: item.createdAt || null,
+      })
+      if (insertError) throw insertError
 
-      try {
-        const { error } = await supabase
-          .from('action_items')
-          .update({ status: 'done' })
-          .eq('id', id)
-        if (error) throw error
-      } catch (error) {
-        console.error('Error updating action item status:', error)
-        setItems(prev => prev.map(i => i.id === id ? { ...i, status: item.status } : i))
-      }
-    }, 300)
+      setTimeout(async () => {
+        setExitingId(null)
+        setItems(prev => prev.filter(i => i.id !== id))
+        try {
+          const { error } = await supabase
+            .from('action_items')
+            .delete()
+            .eq('id', id)
+          if (error) throw error
+        } catch (error) {
+          console.error('Error deleting completed action item:', error)
+          loadAllItems()
+        }
+      }, 300)
+    } catch (error) {
+      console.error('Error completing action item:', error)
+      setExitingId(null)
+    }
   }
 
   const handleActionItemDismiss = async (id: string) => {
