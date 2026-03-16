@@ -39,7 +39,7 @@ interface MondayResponse {
 export interface ParsedActionItem {
   mondayItemId: string
   actionItem: string
-  source: 'slack' | 'granola'
+  source: 'slack' | 'granola' | 'gmail'
   sourceChannel: string | null
   messageFrom: string | null
   messageLink: string | null
@@ -96,8 +96,9 @@ function getLongText(item: MondayItem, columnId: string): string | null {
   }
 }
 
-function parseSource(text: string | null): 'slack' | 'granola' {
+function parseSource(text: string | null): 'slack' | 'granola' | 'gmail' {
   if (text?.toLowerCase() === 'granola') return 'granola'
+  if (text?.toLowerCase() === 'gmail') return 'gmail'
   return 'slack'
 }
 
@@ -107,14 +108,32 @@ function parseStatus(text: string | null): 'new' | 'done' | 'dismissed' {
   return 'new'
 }
 
+/** Detect Gmail from message link URL (e.g. mail.google.com) */
+function isGmailLink(url: string | null): boolean {
+  if (!url) return false
+  try {
+    const host = new URL(url).hostname
+    return host === 'mail.google.com' || host.endsWith('.mail.google.com')
+  } catch {
+    return url.includes('mail.google.com')
+  }
+}
+
 function parseMondayItem(item: MondayItem): ParsedActionItem {
+  const messageLink = getColumnLink(item, COLUMNS.messageLink)
+  let source = parseSource(getColumnStatus(item, COLUMNS.source))
+  // Override source when the link points to Gmail but the column says slack
+  if (source === 'slack' && isGmailLink(messageLink)) {
+    source = 'gmail'
+  }
+
   return {
     mondayItemId: item.id,
     actionItem: item.name,
-    source: parseSource(getColumnStatus(item, COLUMNS.source)),
+    source,
     sourceChannel: getColumnText(item, COLUMNS.sourceChannel),
     messageFrom: getColumnText(item, COLUMNS.messageFrom),
-    messageLink: getColumnLink(item, COLUMNS.messageLink),
+    messageLink,
     messageTimestamp: getColumnDate(item, COLUMNS.messageTimestamp),
     status: parseStatus(getColumnStatus(item, COLUMNS.status)),
     rawContext: getLongText(item, COLUMNS.rawContext),

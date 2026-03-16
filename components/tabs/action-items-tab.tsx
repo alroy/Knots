@@ -19,6 +19,16 @@ function stripSourceSuffix(text: string): string {
     .trim()
 }
 
+/** Detect Gmail from message link URL */
+function isGmailLink(url: string | null): boolean {
+  if (!url) return false
+  try {
+    return new URL(url).hostname === 'mail.google.com'
+  } catch {
+    return url.includes('mail.google.com')
+  }
+}
+
 /** Normalize a Slack permalink for dedup comparison — strips varying query params */
 function normalizeSlackUrl(url: string): string {
   try {
@@ -41,7 +51,7 @@ interface InboxItem {
   title: string
   description: string
   // Source provenance
-  source: 'slack' | 'granola' | 'manual'
+  source: 'slack' | 'granola' | 'gmail' | 'manual'
   sourceChannel: string | null
   messageFrom: string | null
   messageLink: string | null
@@ -151,28 +161,37 @@ export function ActionItemsTab({ contentColumnRef }: ActionItemsTabProps) {
       if (actionResult.error) throw actionResult.error
       if (tasksResult.error) throw tasksResult.error
 
-      const actionItems: InboxItem[] = (actionResult.data || []).map((row: any) => ({
-        id: row.id,
-        origin: 'action-item' as const,
-        title: stripSourceSuffix(row.action_item),
-        description: '',
-        source: row.source as 'slack' | 'granola',
-        sourceChannel: row.source_channel,
-        messageFrom: row.message_from,
-        messageLink: row.message_link,
-        createdAt: row.created_at,
-        messageTimestamp: row.message_timestamp,
-        status: row.status,
-        rawContext: row.raw_context,
-      }))
+      const actionItems: InboxItem[] = (actionResult.data || []).map((row: any) => {
+        // Infer gmail from link when DB source column says slack
+        let source: InboxItem['source'] = row.source as 'slack' | 'granola' | 'gmail'
+        if (source === 'slack' && isGmailLink(row.message_link)) {
+          source = 'gmail'
+        }
+        return {
+          id: row.id,
+          origin: 'action-item' as const,
+          title: stripSourceSuffix(row.action_item),
+          description: '',
+          source,
+          sourceChannel: row.source_channel,
+          messageFrom: row.message_from,
+          messageLink: row.message_link,
+          createdAt: row.created_at,
+          messageTimestamp: row.message_timestamp,
+          status: row.status,
+          rawContext: row.raw_context,
+        }
+      })
 
       const taskItems: InboxItem[] = (tasksResult.data || []).map((row: any) => {
         // Determine source for tasks
-        let source: 'slack' | 'granola' | 'manual' = 'manual'
+        let source: 'slack' | 'granola' | 'gmail' | 'manual' = 'manual'
         if (row.source_type === 'slack') source = 'slack'
         else if (row.source_type === 'granola') source = 'granola'
+        else if (row.source_type === 'gmail') source = 'gmail'
         else if (row.metadata?.source?.type === 'slack') source = 'slack'
         else if (row.metadata?.source?.type === 'granola') source = 'granola'
+        else if (row.metadata?.source?.type === 'gmail') source = 'gmail'
 
         return {
           id: row.id,
@@ -932,15 +951,15 @@ function InboxMetadataRow({ item }: { item: InboxItem }) {
   }
 
   if (item.origin === 'action-item') {
-    // Action items from Slack/Granola: use inline icon + from + channel + time
-    const SourceIcon = item.source === 'slack' ? MessageSquare : Video
+    // Action items from Slack/Granola/Gmail: use inline icon + from + channel + time
+    const sourceIcon = item.source === 'slack'
+      ? '/slack-svgrepo-com.svg'
+      : item.source === 'gmail'
+        ? '/gmail.svg'
+        : '/granola-icon.svg'
     return (
       <div className="flex items-center gap-1.5 mt-3 flex-wrap">
-        {item.source === 'slack' ? (
-          <img src="/slack-svgrepo-com.svg" alt="" className="h-3 w-3 shrink-0" aria-hidden="true" />
-        ) : (
-          <img src="/granola-icon.svg" alt="" className="h-3 w-3 shrink-0" aria-hidden="true" />
-        )}
+        <img src={sourceIcon} alt="" className="h-3 w-3 shrink-0" aria-hidden="true" />
         {item.messageFrom && (
           <span className="text-xs text-muted-foreground">{item.messageFrom}</span>
         )}
@@ -959,8 +978,8 @@ function InboxMetadataRow({ item }: { item: InboxItem }) {
     )
   }
 
-  // Task-origin items from Slack/Granola: use ProvenanceRow-style rendering
-  if (item.source === 'slack' || item.source === 'granola') {
+  // Task-origin items from Slack/Granola/Gmail: use ProvenanceRow-style rendering
+  if (item.source === 'slack' || item.source === 'granola' || item.source === 'gmail') {
     // Try to get author name from metadata
     let authorName: string | undefined
     if (isSlackMetadata(item.metadata)) {

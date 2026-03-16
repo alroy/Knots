@@ -92,7 +92,17 @@ export default function KnotCard({
       }
     }
 
-    // Priority 1: Direct Slack source fields from database columns
+    // Priority 1a: Gmail provenance
+    if (sourceType === 'gmail' && sourceUrl) {
+      return {
+        hasProvenance: true,
+        sourceType: 'gmail' as const,
+        permalink: sourceUrl,
+        authorName: undefined,
+      }
+    }
+
+    // Priority 1b: Direct Slack source fields from database columns
     if (sourceType === 'slack' && sourceUrl) {
       const authorName = isSlackMetadata(metadata)
         ? metadata.source.author?.display_name

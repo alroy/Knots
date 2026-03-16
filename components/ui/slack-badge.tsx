@@ -1,6 +1,6 @@
 "use client"
 
-type SourceType = 'slack' | 'granola'
+type SourceType = 'slack' | 'granola' | 'gmail'
 
 interface ProvenanceRowProps {
   sourceType?: SourceType
@@ -23,9 +23,17 @@ function GranolaIcon({ className }: { className?: string }) {
   return <img src="/granola-icon.svg" alt="" className={className} aria-hidden="true" />
 }
 
+/**
+ * Gmail icon component
+ */
+function GmailIcon({ className }: { className?: string }) {
+  return <img src="/gmail.svg" alt="" className={className} aria-hidden="true" />
+}
+
 const SOURCE_CONFIG: Record<SourceType, { fallbackName: string; linkText: string; Icon: typeof SlackIcon }> = {
   slack: { fallbackName: 'Slack', linkText: 'View in Slack', Icon: SlackIcon },
   granola: { fallbackName: 'Granola', linkText: 'View in Granola', Icon: GranolaIcon },
+  gmail: { fallbackName: 'Gmail', linkText: 'View in Gmail', Icon: GmailIcon },
 }
 
 /**
