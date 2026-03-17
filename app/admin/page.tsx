@@ -15,11 +15,12 @@ interface PendingUser {
 }
 
 export default function AdminPage() {
-  const { user, loading, isAuthorized } = useAuth()
+  const { user, loading } = useAuth()
   const router = useRouter()
   const [users, setUsers] = useState<PendingUser[]>([])
   const [fetching, setFetching] = useState(true)
   const [approvingId, setApprovingId] = useState<string | null>(null)
+  const [denyingId, setDenyingId] = useState<string | null>(null)
   const [error, setError] = useState('')
 
   const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL || 'gil.alroy@gmail.com'
@@ -27,14 +28,14 @@ export default function AdminPage() {
 
   // Redirect non-admin users
   useEffect(() => {
-    if (!loading && (!user || !isAdmin || !isAuthorized)) {
+    if (!loading && (!user || !isAdmin)) {
       router.replace('/')
     }
-  }, [loading, user, isAdmin, isAuthorized, router])
+  }, [loading, user, isAdmin, router])
 
   // Fetch pending users
   useEffect(() => {
-    if (!isAdmin || !isAuthorized) return
+    if (!isAdmin) return
 
     fetch('/api/admin/pending-users')
       .then(res => res.json())
@@ -47,7 +48,7 @@ export default function AdminPage() {
       })
       .catch(() => setError('Failed to load pending users'))
       .finally(() => setFetching(false))
-  }, [isAdmin, isAuthorized])
+  }, [isAdmin])
 
   const handleApprove = async (userId: string) => {
     setApprovingId(userId)
@@ -70,6 +71,30 @@ export default function AdminPage() {
       setError('Failed to approve user')
     } finally {
       setApprovingId(null)
+    }
+  }
+
+  const handleDeny = async (userId: string) => {
+    setDenyingId(userId)
+    const prev = [...users]
+    setUsers(users.filter(u => u.userId !== userId))
+
+    try {
+      const res = await fetch('/api/admin/deny-user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId }),
+      })
+      const data = await res.json()
+      if (!res.ok || data.error) {
+        setUsers(prev)
+        setError(data.error || 'Failed to deny user')
+      }
+    } catch {
+      setUsers(prev)
+      setError('Failed to deny user')
+    } finally {
+      setDenyingId(null)
     }
   }
 
@@ -133,13 +158,24 @@ export default function AdminPage() {
                     {formatRelativeTime(u.createdAt)}
                   </p>
                 </div>
-                <Button
-                  size="sm"
-                  onClick={() => handleApprove(u.userId)}
-                  disabled={approvingId === u.userId}
-                >
-                  {approvingId === u.userId ? 'Approving...' : 'Approve'}
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => handleDeny(u.userId)}
+                    disabled={denyingId === u.userId || approvingId === u.userId}
+                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                  >
+                    {denyingId === u.userId ? 'Denying...' : 'Deny'}
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={() => handleApprove(u.userId)}
+                    disabled={approvingId === u.userId || denyingId === u.userId}
+                  >
+                    {approvingId === u.userId ? 'Approving...' : 'Approve'}
+                  </Button>
+                </div>
               </div>
             ))}
           </div>
