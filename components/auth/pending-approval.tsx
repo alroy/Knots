@@ -44,7 +44,7 @@ export function PendingApproval() {
               target="_blank"
               rel="noopener noreferrer"
             >
-              <Button variant="outline" className="w-full">
+              <Button variant="ghost" className="w-full border border-border">
                 Get the Setup Prompt
               </Button>
             </a>
