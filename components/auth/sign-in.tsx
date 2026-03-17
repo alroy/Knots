@@ -1,6 +1,7 @@
 "use client"
 
-import { useState } from 'react'
+import { useState, useEffect, Suspense } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { useAuth } from '@/contexts/auth-context'
 import { Button } from '@/components/ui/button'
 
@@ -16,9 +17,26 @@ function GoogleIcon() {
 }
 
 export function SignIn() {
+  return (
+    <Suspense fallback={null}>
+      <SignInInner />
+    </Suspense>
+  )
+}
+
+function SignInInner() {
   const { signInWithGoogle, loading } = useAuth()
+  const searchParams = useSearchParams()
   const [status, setStatus] = useState<'idle' | 'signing-in' | 'error'>('idle')
   const [errorMessage, setErrorMessage] = useState('')
+
+  useEffect(() => {
+    const error = searchParams.get('error')
+    if (error) {
+      setStatus('error')
+      setErrorMessage(decodeURIComponent(error))
+    }
+  }, [searchParams])
 
   const handleGoogleSignIn = async () => {
     setStatus('signing-in')
