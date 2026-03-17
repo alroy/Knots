@@ -143,7 +143,7 @@ export function SignIn() {
             </Button>
           </form>
 
-          <div className="flex flex-col items-center mt-4">
+          <div className="flex h-14 flex-col items-center justify-start mt-4">
             {mode === 'sign-up' ? (
               <button
                 type="button"
