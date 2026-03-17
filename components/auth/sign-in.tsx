@@ -179,7 +179,7 @@ export function SignIn() {
                     setErrorMessage('')
                   }}
                 >
-                  Create an account
+                  New here? Create an account
                 </button>
               </>
             )}
