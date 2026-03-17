@@ -1,0 +1,36 @@
+"use client"
+
+import { useAuth } from '@/contexts/auth-context'
+import { Button } from '@/components/ui/button'
+
+export function PendingApproval() {
+  const { signOut, user } = useAuth()
+
+  return (
+    <main className="min-h-screen bg-background px-4 py-12">
+      <div className="mx-auto max-w-xl">
+        <div className="flex min-h-[60vh] flex-col items-center justify-center space-y-6">
+          <div className="text-center">
+            <div className="mb-4 text-4xl">⏳</div>
+            <h1 className="mb-2 text-2xl font-bold text-foreground">Registration Pending</h1>
+            <p className="mb-4 text-muted-foreground">
+              Your account has been created and is waiting for admin approval.
+            </p>
+            <p className="text-sm text-muted-foreground">
+              You&apos;ll be able to access Knots once your account is approved.
+            </p>
+            {user?.email && (
+              <p className="mt-4 text-sm text-muted-foreground">
+                Signed in as: <span className="font-medium">{user.email}</span>
+              </p>
+            )}
+          </div>
+
+          <Button onClick={signOut}>
+            Sign out
+          </Button>
+        </div>
+      </div>
+    </main>
+  )
+}

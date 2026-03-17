@@ -13,27 +13,33 @@ interface AuthContextType {
   signUp: (email: string, password: string) => Promise<{ success: boolean; error?: string }>
   signOut: () => Promise<void>
   clearPasswordRecovery: () => void
-  isAuthorized: boolean
+  isApproved: boolean | null
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
-function getAllowedEmails(): string[] {
-  const raw = process.env.NEXT_PUBLIC_ALLOWED_EMAILS || ''
-  return raw.split(',').map(e => e.trim().toLowerCase()).filter(Boolean)
-}
-
-function isEmailAllowed(email: string): boolean {
-  const allowed = getAllowedEmails()
-  if (allowed.length === 0) return true
-  return allowed.includes(email.toLowerCase())
-}
-
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
-  const [isAuthorized, setIsAuthorized] = useState(false)
+  const [isApproved, setIsApproved] = useState<boolean | null>(null)
   const [isPasswordRecovery, setIsPasswordRecovery] = useState(false)
+
+  // Fetch approval status from user_profile
+  const checkApproval = async (userId: string) => {
+    const supabase = createClient()
+    const { data, error } = await supabase
+      .from('user_profile')
+      .select('approved')
+      .eq('user_id', userId)
+      .maybeSingle()
+
+    if (error || !data) {
+      // Profile may not exist yet (trigger hasn't fired), treat as not approved
+      setIsApproved(false)
+      return
+    }
+    setIsApproved(data.approved)
+  }
 
   useEffect(() => {
     // Check URL BEFORE creating Supabase client (which might clear the hash)
@@ -88,10 +94,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Check active session
     supabase.auth.getSession().then(({ data: { session } }) => {
       const currentUser = session?.user ?? null
-      const authorized = currentUser?.email ? isEmailAllowed(currentUser.email) : false
-
       setUser(currentUser)
-      setIsAuthorized(authorized)
+
+      if (currentUser) {
+        checkApproval(currentUser.id)
+      } else {
+        setIsApproved(null)
+      }
 
       // Only stop loading if NOT waiting for recovery session
       if (!(isRecoveryFromHash || isRecoveryFromQuery) || currentUser) {
@@ -110,8 +119,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } = supabase.auth.onAuthStateChange((event, session) => {
       const currentUser = session?.user ?? null
       setUser(currentUser)
-      setIsAuthorized(currentUser?.email ? isEmailAllowed(currentUser.email) : false)
       setLoading(false)
+
+      if (currentUser) {
+        checkApproval(currentUser.id)
+      } else {
+        setIsApproved(null)
+      }
 
       // Detect password recovery mode
       if (event === 'PASSWORD_RECOVERY') {
@@ -131,11 +145,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const sendMagicLink = async (email: string): Promise<{ success: boolean; error?: string }> => {
-    // Check if email is allowed before sending
-    if (!isEmailAllowed(email)) {
-      return { success: false, error: 'This email is not authorized to access this app.' }
-    }
-
     try {
       const supabase = createClient()
 
@@ -158,10 +167,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const signInWithPassword = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
-    if (!isEmailAllowed(email)) {
-      return { success: false, error: 'This email is not authorized to access this app.' }
-    }
-
     try {
       const supabase = createClient()
 
@@ -181,10 +186,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const signUp = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
-    if (!isEmailAllowed(email)) {
-      return { success: false, error: 'This email is not authorized to access this app.' }
-    }
-
     try {
       const supabase = createClient()
 
@@ -219,7 +220,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, isPasswordRecovery, sendMagicLink, signInWithPassword, signUp, signOut, clearPasswordRecovery, isAuthorized }}>
+    <AuthContext.Provider value={{ user, loading, isPasswordRecovery, sendMagicLink, signInWithPassword, signUp, signOut, clearPasswordRecovery, isApproved }}>
       {children}
     </AuthContext.Provider>
   )

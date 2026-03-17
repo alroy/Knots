@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation"
 import { useAuth } from "@/contexts/auth-context"
 import { createClient } from "@/lib/supabase-browser"
 import { SignIn } from "@/components/auth/sign-in"
-import { Unauthorized } from "@/components/auth/unauthorized"
+import { PendingApproval } from "@/components/auth/pending-approval"
 import { ResetPassword } from "@/components/auth/reset-password"
 import { Onboarding } from "@/components/onboarding"
 import { TabBar } from "@/components/tab-bar"
@@ -36,7 +36,7 @@ export default function Page() {
 }
 
 function PageContent() {
-  const { user, loading: authLoading, isAuthorized, isPasswordRecovery, clearPasswordRecovery } = useAuth()
+  const { user, loading: authLoading, isApproved, isPasswordRecovery, clearPasswordRecovery } = useAuth()
   const searchParams = useSearchParams()
   const [activeTab, setActiveTab] = useState<TabId>(getInitialTab)
   const contentColumnRef = useRef<HTMLDivElement>(null)
@@ -44,7 +44,7 @@ function PageContent() {
 
   // Check if user needs onboarding (no name set in profile)
   useEffect(() => {
-    if (!user || !isAuthorized) return
+    if (!user || !isApproved) return
     const supabase = createClient()
     supabase
       .from('user_profile')
@@ -60,7 +60,7 @@ function PageContent() {
         // Only onboard if row exists but has no name, or no row at all
         setNeedsOnboarding(!data?.name)
       })
-  }, [user, isAuthorized])
+  }, [user, isApproved])
 
   // Sync active tab when URL search params change (e.g., navigating back via Link)
   useEffect(() => {
@@ -93,9 +93,21 @@ function PageContent() {
     return <ResetPassword onComplete={clearPasswordRecovery} />
   }
 
-  // Show unauthorized page if user email is not whitelisted
-  if (!isAuthorized) {
-    return <Unauthorized />
+  // Show pending approval page if user is not yet approved
+  if (isApproved === null) {
+    return (
+      <main className="min-h-screen bg-background py-12">
+        <div className="content-column">
+          <div className="flex items-center justify-center py-12">
+            <p className="text-muted-foreground">Loading...</p>
+          </div>
+        </div>
+      </main>
+    )
+  }
+
+  if (!isApproved) {
+    return <PendingApproval />
   }
 
   // Show onboarding for new users (profile name not yet set)
