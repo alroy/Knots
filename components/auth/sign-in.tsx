@@ -101,6 +101,7 @@ export function SignIn() {
       <div className="mx-auto max-w-xl">
         <div className="flex min-h-[60vh] flex-col items-center justify-center">
           <div className="text-center">
+            <img src="/knot_logo.svg" alt="Knots logo" className="mx-auto mb-4 h-16 w-16" />
             <h1 className="mb-2 text-3xl font-bold text-foreground">Welcome to ZC Knots</h1>
             <p className="mx-auto max-w-sm leading-relaxed text-gray-500">
               Your AI-powered to-do list. Track priorities manually, or let AI extract your action items automatically.
@@ -178,7 +179,7 @@ export function SignIn() {
                     setErrorMessage('')
                   }}
                 >
-                  Create an account
+                  New here? Create an account
                 </button>
               </>
             )}
