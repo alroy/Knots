@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label"
 import { cn } from "@/lib/utils"
 import { LOCATION_OPTIONS } from "@/lib/chief-of-staff-types"
 import type { PersonLocation } from "@/lib/chief-of-staff-types"
+import { SetupInstructionCard } from "@/components/ui/setup-instruction-card"
 
 interface OnboardingProps {
   onComplete: () => void
@@ -125,6 +126,10 @@ export function Onboarding({ onComplete }: OnboardingProps) {
               <p className="text-muted-foreground">
                 Knots syncs action items from your Monday.com board. Paste the Board ID below — you can find it in the board URL after <code className="text-xs bg-accent px-1 py-0.5 rounded">/boards/</code>.
               </p>
+            </div>
+
+            <div className="w-full max-w-sm">
+              <SetupInstructionCard />
             </div>
 
             <div className="w-full max-w-sm space-y-5">

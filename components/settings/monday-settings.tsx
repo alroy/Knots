@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { createClient } from "@/lib/supabase-browser"
 import { useAuth } from "@/contexts/auth-context"
+import { SetupInstructionCard } from "@/components/ui/setup-instruction-card"
 
 interface MondayConnection {
   id: string
@@ -24,6 +25,7 @@ export function MondaySettings() {
   const [disconnecting, setDisconnecting] = useState(false)
   const [boardId, setBoardId] = useState("")
   const [error, setError] = useState("")
+  const [showInstructions, setShowInstructions] = useState(false)
 
   const supabase = createClient()
 
@@ -186,6 +188,23 @@ export function MondaySettings() {
           )
         )}
       </div>
+
+      {/* Setup instructions accordion — only shown when not connected */}
+      {!loading && !connection && (
+        <div className="mt-2">
+          <button
+            onClick={() => setShowInstructions(!showInstructions)}
+            className="text-xs text-muted-foreground/70 hover:text-muted-foreground transition-colors"
+          >
+            {showInstructions ? "Hide setup instructions" : "Need instructions to set up your Monday board?"}
+          </button>
+          {showInstructions && (
+            <div className="mt-2">
+              <SetupInstructionCard />
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Connection form modal */}
       {showForm && (
