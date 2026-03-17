@@ -15,23 +15,26 @@ interface PendingUser {
 }
 
 export default function AdminPage() {
-  const { user, loading, isAdmin, isApproved } = useAuth()
+  const { user, loading, isAuthorized } = useAuth()
   const router = useRouter()
   const [users, setUsers] = useState<PendingUser[]>([])
   const [fetching, setFetching] = useState(true)
   const [approvingId, setApprovingId] = useState<string | null>(null)
   const [error, setError] = useState('')
 
+  const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL || 'gil.alroy@gmail.com'
+  const isAdmin = user?.email?.toLowerCase() === adminEmail.toLowerCase()
+
   // Redirect non-admin users
   useEffect(() => {
-    if (!loading && (!user || !isAdmin || !isApproved)) {
+    if (!loading && (!user || !isAdmin || !isAuthorized)) {
       router.replace('/')
     }
-  }, [loading, user, isAdmin, isApproved, router])
+  }, [loading, user, isAdmin, isAuthorized, router])
 
   // Fetch pending users
   useEffect(() => {
-    if (!isAdmin || !isApproved) return
+    if (!isAdmin || !isAuthorized) return
 
     fetch('/api/admin/pending-users')
       .then(res => res.json())
@@ -44,7 +47,7 @@ export default function AdminPage() {
       })
       .catch(() => setError('Failed to load pending users'))
       .finally(() => setFetching(false))
-  }, [isAdmin, isApproved])
+  }, [isAdmin, isAuthorized])
 
   const handleApprove = async (userId: string) => {
     setApprovingId(userId)

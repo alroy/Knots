@@ -5,8 +5,8 @@ import { useSearchParams } from "next/navigation"
 import { useAuth } from "@/contexts/auth-context"
 import { createClient } from "@/lib/supabase-browser"
 import { SignIn } from "@/components/auth/sign-in"
-import { DomainNotAllowed } from "@/components/auth/domain-not-allowed"
-import { PendingApproval } from "@/components/auth/pending-approval"
+import { Unauthorized } from "@/components/auth/unauthorized"
+import { ResetPassword } from "@/components/auth/reset-password"
 import { Onboarding } from "@/components/onboarding"
 import { TabBar } from "@/components/tab-bar"
 import { GoalsTab } from "@/components/tabs/goals-tab"
@@ -36,7 +36,7 @@ export default function Page() {
 }
 
 function PageContent() {
-  const { user, loading: authLoading, isApproved, isDomainValid } = useAuth()
+  const { user, loading: authLoading, isAuthorized, isPasswordRecovery, clearPasswordRecovery } = useAuth()
   const searchParams = useSearchParams()
   const [activeTab, setActiveTab] = useState<TabId>(getInitialTab)
   const contentColumnRef = useRef<HTMLDivElement>(null)
@@ -44,7 +44,7 @@ function PageContent() {
 
   // Check if user needs onboarding (no name set in profile)
   useEffect(() => {
-    if (!user || !isApproved) return
+    if (!user || !isAuthorized) return
     const supabase = createClient()
     supabase
       .from('user_profile')
@@ -60,7 +60,7 @@ function PageContent() {
         // Only onboard if row exists but has no name, or no row at all
         setNeedsOnboarding(!data?.name)
       })
-  }, [user, isApproved])
+  }, [user, isAuthorized])
 
   // Sync active tab when URL search params change (e.g., navigating back via Link)
   useEffect(() => {
@@ -88,14 +88,14 @@ function PageContent() {
     return <SignIn />
   }
 
-  // Show domain restriction if user email is not from allowed domain
-  if (!isDomainValid) {
-    return <DomainNotAllowed />
+  // Show password reset form if in recovery mode
+  if (isPasswordRecovery) {
+    return <ResetPassword onComplete={clearPasswordRecovery} />
   }
 
-  // Show pending approval if user is not yet approved
-  if (!isApproved) {
-    return <PendingApproval />
+  // Show unauthorized page if user email is not whitelisted
+  if (!isAuthorized) {
+    return <Unauthorized />
   }
 
   // Show onboarding for new users (profile name not yet set)

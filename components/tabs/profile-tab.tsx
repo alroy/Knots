@@ -18,7 +18,9 @@ interface ProfileTabProps {
 }
 
 export function ProfileTab({ contentColumnRef }: ProfileTabProps) {
-  const { user, signOut, isAdmin } = useAuth()
+  const { user, signOut } = useAuth()
+  const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL || 'gil.alroy@gmail.com'
+  const isAdmin = user?.email?.toLowerCase() === adminEmail.toLowerCase()
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [loading, setLoading] = useState(true)
   const [editingSection, setEditingSection] = useState<string | null>(null)

@@ -1,74 +1,105 @@
 "use client"
 
-import { createContext, useContext, useEffect, useState, useCallback } from 'react'
+import { createContext, useContext, useEffect, useState } from 'react'
 import { User } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase-browser'
-
-const ADMIN_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL || 'gil.alroy@gmail.com'
-const ALLOWED_DOMAIN = 'zencity.io'
 
 interface AuthContextType {
   user: User | null
   loading: boolean
-  signInWithGoogle: () => Promise<{ success: boolean; error?: string }>
+  isPasswordRecovery: boolean
+  sendMagicLink: (email: string) => Promise<{ success: boolean; error?: string }>
+  signInWithPassword: (email: string, password: string) => Promise<{ success: boolean; error?: string }>
+  signUp: (email: string, password: string) => Promise<{ success: boolean; error?: string }>
   signOut: () => Promise<void>
-  isApproved: boolean
-  isAdmin: boolean
-  isDomainValid: boolean
-  recheckApproval: () => Promise<void>
+  clearPasswordRecovery: () => void
+  isAuthorized: boolean
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
-function isDomainAllowed(email: string): boolean {
-  const lower = email.toLowerCase()
-  return lower === ADMIN_EMAIL.toLowerCase() || lower.endsWith(`@${ALLOWED_DOMAIN}`)
+function getAllowedEmails(): string[] {
+  const raw = process.env.NEXT_PUBLIC_ALLOWED_EMAILS || ''
+  return raw.split(',').map(e => e.trim().toLowerCase()).filter(Boolean)
+}
+
+function isEmailAllowed(email: string): boolean {
+  const allowed = getAllowedEmails()
+  if (allowed.length === 0) return true
+  return allowed.includes(email.toLowerCase())
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
-  const [isApproved, setIsApproved] = useState(false)
-  const [isDomainValid, setIsDomainValid] = useState(false)
+  const [isAuthorized, setIsAuthorized] = useState(false)
+  const [isPasswordRecovery, setIsPasswordRecovery] = useState(false)
 
-  const isAdmin = user?.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase()
+  useEffect(() => {
+    // Check URL BEFORE creating Supabase client (which might clear the hash)
+    const hashParams = new URLSearchParams(window.location.hash.substring(1))
+    const accessToken = hashParams.get('access_token')
+    const refreshToken = hashParams.get('refresh_token')
+    const hashType = hashParams.get('type')
 
-  const checkApproval = useCallback(async (currentUser: User) => {
-    const email = currentUser.email || ''
-    const domainOk = isDomainAllowed(email)
-    setIsDomainValid(domainOk)
+    const queryParams = new URLSearchParams(window.location.search)
+    const code = queryParams.get('code')
+    const queryType = queryParams.get('type')
 
-    if (!domainOk) {
-      setIsApproved(false)
-      return
+    const isRecoveryFromHash = hashType === 'recovery' && accessToken
+    const isRecoveryFromQuery = queryType === 'recovery' && code
+
+    if (isRecoveryFromHash || isRecoveryFromQuery) {
+      setIsPasswordRecovery(true)
     }
 
     const supabase = createClient()
-    const { data } = await supabase
-      .from('user_profile')
-      .select('approved')
-      .eq('user_id', currentUser.id)
-      .maybeSingle()
 
-    setIsApproved(data?.approved ?? false)
-  }, [])
+    // Handle hash-based recovery (implicit flow) - manually set session
+    const handleHashRecovery = async () => {
+      if (isRecoveryFromHash && accessToken) {
+        const { error } = await supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken || '',
+        })
+        if (!error) {
+          window.history.replaceState({}, '', window.location.pathname)
+        }
+      }
+    }
 
-  useEffect(() => {
-    const supabase = createClient()
+    // Handle code-based auth (PKCE flow) from URL
+    const handleCodeFromUrl = async () => {
+      if (code) {
+        const { error } = await supabase.auth.exchangeCodeForSession(code)
+        if (!error) {
+          window.history.replaceState({}, '', window.location.pathname)
+        }
+      }
+    }
+
+    // Run the appropriate handler
+    if (isRecoveryFromHash) {
+      handleHashRecovery()
+    } else if (code) {
+      handleCodeFromUrl()
+    }
 
     // Check active session
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
       const currentUser = session?.user ?? null
+      const authorized = currentUser?.email ? isEmailAllowed(currentUser.email) : false
+
       setUser(currentUser)
+      setIsAuthorized(authorized)
 
-      if (currentUser) {
-        await checkApproval(currentUser)
+      // Only stop loading if NOT waiting for recovery session
+      if (!(isRecoveryFromHash || isRecoveryFromQuery) || currentUser) {
+        setLoading(false)
       }
-
-      setLoading(false)
     })
 
-    // Timeout fallback
+    // Timeout fallback: stop loading after 5 seconds regardless
     const loadingTimeout = setTimeout(() => {
       setLoading(false)
     }, 5000)
@@ -76,54 +107,102 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Listen for auth changes
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    } = supabase.auth.onAuthStateChange((event, session) => {
       const currentUser = session?.user ?? null
       setUser(currentUser)
+      setIsAuthorized(currentUser?.email ? isEmailAllowed(currentUser.email) : false)
+      setLoading(false)
 
-      if (currentUser) {
-        await checkApproval(currentUser)
-      } else {
-        setIsDomainValid(false)
-        setIsApproved(false)
+      // Detect password recovery mode
+      if (event === 'PASSWORD_RECOVERY') {
+        setIsPasswordRecovery(true)
       }
 
-      setLoading(false)
+      // Clean up URL hash after Supabase processes it
+      if (window.location.hash) {
+        window.history.replaceState({}, '', window.location.pathname)
+      }
     })
 
     return () => {
       subscription.unsubscribe()
       clearTimeout(loadingTimeout)
     }
-  }, [checkApproval])
+  }, [])
 
-  const signInWithGoogle = async (): Promise<{ success: boolean; error?: string }> => {
+  const sendMagicLink = async (email: string): Promise<{ success: boolean; error?: string }> => {
+    // Check if email is allowed before sending
+    if (!isEmailAllowed(email)) {
+      return { success: false, error: 'This email is not authorized to access this app.' }
+    }
+
     try {
       const supabase = createClient()
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
+
+      const { error } = await supabase.auth.signInWithOtp({
+        email,
         options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
-          queryParams: {
-            hd: ALLOWED_DOMAIN,
-          },
-          skipBrowserRedirect: true,
+          // Redirect to root - client-side handles the code exchange
+          emailRedirectTo: `${window.location.origin}/`,
         },
       })
 
-      console.log('[Auth] signInWithOAuth result:', { data, error })
-
       if (error) {
-        console.error('[Auth] OAuth error:', error)
         return { success: false, error: error.message }
       }
 
-      if (!data?.url) {
-        console.error('[Auth] No OAuth URL returned. Is Google provider enabled in Supabase?')
-        return { success: false, error: 'Google sign-in is not configured. Please contact the administrator.' }
+      return { success: true }
+    } catch (err: any) {
+      return { success: false, error: err.message || 'An unexpected error occurred' }
+    }
+  }
+
+  const signInWithPassword = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
+    if (!isEmailAllowed(email)) {
+      return { success: false, error: 'This email is not authorized to access this app.' }
+    }
+
+    try {
+      const supabase = createClient()
+
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      })
+
+      if (error) {
+        return { success: false, error: error.message }
       }
 
-      console.log('[Auth] Redirecting to:', data.url)
-      window.location.href = data.url
+      return { success: true }
+    } catch (err: any) {
+      return { success: false, error: err.message || 'An unexpected error occurred' }
+    }
+  }
+
+  const signUp = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
+    if (!isEmailAllowed(email)) {
+      return { success: false, error: 'This email is not authorized to access this app.' }
+    }
+
+    try {
+      const supabase = createClient()
+
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/`,
+        },
+      })
+
+      if (error) {
+        if (error.message.toLowerCase().includes('already registered') || error.message.toLowerCase().includes('already exists')) {
+          return { success: false, error: 'An account with this email already exists. Try signing in instead.' }
+        }
+        return { success: false, error: error.message }
+      }
+
       return { success: true }
     } catch (err: any) {
       return { success: false, error: err.message || 'An unexpected error occurred' }
@@ -135,14 +214,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await supabase.auth.signOut()
   }
 
-  const recheckApproval = async () => {
-    if (user) {
-      await checkApproval(user)
-    }
+  const clearPasswordRecovery = () => {
+    setIsPasswordRecovery(false)
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, signInWithGoogle, signOut, isApproved, isAdmin, isDomainValid, recheckApproval }}>
+    <AuthContext.Provider value={{ user, loading, isPasswordRecovery, sendMagicLink, signInWithPassword, signUp, signOut, clearPasswordRecovery, isAuthorized }}>
       {children}
     </AuthContext.Provider>
   )

@@ -76,28 +76,17 @@ Floating Action Button (FAB) with modal form:
 - Custom KnotIcon SVG component
 
 ### `/components/auth/sign-in.tsx`
-Google OAuth sign-in page:
-- Single "Sign in with Google" button
-- Restricted to @zencity.io domain accounts (+ admin gmail)
-- Uses `signInWithGoogle()` from auth context
+Email/password and magic link sign-in page:
+- Three auth modes: password, magic-link, sign-up
+- Email + password inputs with mode toggle buttons
+- "Check your email" confirmation screen for magic link/sign-up
+- Access controlled via `NEXT_PUBLIC_ALLOWED_EMAILS` env var
 
-### `/components/auth/pending-approval.tsx`
-Shown when a user has signed in but has not been approved by admin:
-- Shows user avatar, email, and "Pending Approval" message
-- "Check again" button to re-fetch approval status
-- "Sign out" button
-
-### `/components/auth/domain-not-allowed.tsx`
-Shown when a user signs in with a non-allowed email domain:
-- Explains access is restricted to Zencity team members
-- "Sign out" button to try a different account
-
-### `/app/admin/page.tsx`
-Admin-only page for user approvals:
-- Lists pending (unapproved) users with avatar, email, name, signup date
-- "Approve" button per user with optimistic update
-- Only accessible to super admin (gil.alroy@gmail.com)
-- Linked from Profile tab settings section
+### `/components/auth/reset-password.tsx`
+Password recovery form:
+- New password + confirm password inputs
+- Triggered via recovery link in email
+- Success message with auto-redirect
 
 ### `/components/sortable-knot-list.tsx`
 Drag-and-drop list using @dnd-kit:
@@ -187,6 +176,7 @@ After profile setup, new users see a second step to connect their Monday board:
 MONDAY_API_KEY=your-shared-monday-api-key   # Required for Monday.com sync
 ADMIN_EMAIL=gil.alroy@gmail.com             # Server-side: admin email for API routes
 NEXT_PUBLIC_ADMIN_EMAIL=gil.alroy@gmail.com # Client-side: admin check in auth context
+NEXT_PUBLIC_ALLOWED_EMAILS=email1@example.com,email2@example.com  # Comma-separated email allowlist
 ```
 
 ## Current State
@@ -217,11 +207,9 @@ NEXT_PUBLIC_ADMIN_EMAIL=gil.alroy@gmail.com # Client-side: admin check in auth c
 - ✅ Monday.com integration with shared API key (env var) and per-user Board ID
 - ✅ Onboarding flow: profile setup → Monday board connection
 - ✅ Morning Brief removed (no longer part of UI)
-- ✅ Google OAuth login (replaces email/password and magic link)
-- ✅ Domain restriction: only @zencity.io and admin gmail allowed
-- ✅ User approval system: new users require admin approval
-- ✅ Admin page at /admin for user approvals (super admin only)
-- ✅ Auto-approval for super admin (gil.alroy@gmail.com) via DB trigger
+- ✅ Email/password + magic link authentication
+- ✅ Email allowlist via NEXT_PUBLIC_ALLOWED_EMAILS env var
+- ✅ Password recovery flow
 
 ## Animations & Transitions
 
