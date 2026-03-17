@@ -99,15 +99,15 @@ export function SignIn() {
   return (
     <main className="min-h-screen bg-background px-4 py-12">
       <div className="mx-auto max-w-xl">
-        <div className="flex min-h-[60vh] flex-col items-center justify-center space-y-6">
+        <div className="flex min-h-[60vh] flex-col items-center justify-center">
           <div className="text-center">
             <h1 className="mb-2 text-3xl font-bold text-foreground">Welcome to ZC Knots</h1>
-            <p className="text-muted-foreground">
-              Your AI-powered to-do list and much more. Track priorities manually, or let AI extract action items automatically.
+            <p className="leading-relaxed text-muted-foreground">
+              Your AI Chief of Staff. Track priorities manually, or let AI extract your action items automatically.
             </p>
           </div>
 
-          <form onSubmit={handleSubmit} className="w-full max-w-sm space-y-4">
+          <form onSubmit={handleSubmit} className="mt-6 w-full max-w-sm space-y-4">
             <Input
               type="email"
               placeholder="your@email.com"
@@ -143,10 +143,11 @@ export function SignIn() {
             </Button>
           </form>
 
-          <div className="flex flex-col items-center gap-2">
+          <div className="flex flex-col items-center mt-4">
             {mode === 'sign-up' ? (
-              <Button
-                variant="ghost"
+              <button
+                type="button"
+                className="text-sm text-gray-500 hover:text-gray-700 transition-colors"
                 onClick={() => {
                   setMode('password')
                   setStatus('idle')
@@ -154,11 +155,12 @@ export function SignIn() {
                 }}
               >
                 Already have an account? Sign in
-              </Button>
+              </button>
             ) : (
               <>
-                <Button
-                  variant="ghost"
+                <button
+                  type="button"
+                  className="text-sm text-gray-500 hover:text-gray-700 transition-colors"
                   onClick={() => {
                     setMode(mode === 'password' ? 'magic-link' : 'password')
                     setStatus('idle')
@@ -166,23 +168,23 @@ export function SignIn() {
                   }}
                 >
                   {mode === 'password' ? 'Use magic link instead' : 'Use password instead'}
-                </Button>
+                </button>
                 <button
                   type="button"
-                  className="text-sm font-medium text-primary hover:underline hover:opacity-80 transition-opacity"
+                  className="mt-2 text-sm font-medium text-primary hover:underline transition-colors"
                   onClick={() => {
                     setMode('sign-up')
                     setStatus('idle')
                     setErrorMessage('')
                   }}
                 >
-                  New here? Create an account
+                  Create an account
                 </button>
               </>
             )}
           </div>
 
-          <div className="flex flex-col items-center gap-3 pt-4">
+          <div className="flex flex-col items-center gap-3 mt-12">
             <p className="text-sm text-muted-foreground">Seamlessly integrates with:</p>
             <div className="flex items-center gap-4">
               <img src="/slack-svgrepo-com.svg" alt="Slack" className="h-6 w-6 grayscale opacity-60" />
