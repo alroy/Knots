@@ -101,9 +101,9 @@ export function SignIn() {
       <div className="mx-auto max-w-xl">
         <div className="flex min-h-[60vh] flex-col items-center justify-center space-y-6">
           <div className="text-center">
-            <h1 className="mb-2 text-3xl font-bold text-foreground">Welcome to Knots</h1>
+            <h1 className="mb-2 text-3xl font-bold text-foreground">Welcome to ZC Knots</h1>
             <p className="text-muted-foreground">
-              Your personal Chief of Staff. Track priorities manually, or let AI extract action items automatically.
+              Your AI-powered to-do list and much more. Track priorities manually, or let AI extract action items automatically.
             </p>
           </div>
 
