@@ -187,10 +187,10 @@ export function SignIn() {
           <div className="flex flex-col items-center gap-3 mt-12">
             <p className="text-sm text-muted-foreground">Seamlessly integrates with:</p>
             <div className="flex items-center gap-4">
-              <img src="/slack-svgrepo-com.svg" alt="Slack" className="h-6 w-6 grayscale opacity-60" />
-              <img src="/granola-icon.svg" alt="Granola" className="h-6 w-6 grayscale opacity-60" />
-              <img src="/gmail.svg" alt="Gmail" className="h-6 w-6 grayscale opacity-60" />
-              <img src="/monday-icon.svg" alt="Monday.com" className="h-6 w-6 grayscale opacity-60" />
+              <img src="/slack-svgrepo-com.svg" alt="Slack" className="h-6 w-6" />
+              <img src="/granola-icon.svg" alt="Granola" className="h-6 w-6" />
+              <img src="/gmail.svg" alt="Gmail" className="h-6 w-6" />
+              <img src="/monday-icon.svg" alt="Monday.com" className="h-6 w-6" />
             </div>
           </div>
         </div>
