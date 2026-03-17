@@ -436,7 +436,7 @@ export function ActionItemsTab({ contentColumnRef, isActive }: ActionItemsTabPro
     }, 300)
   }
 
-  const handleActionItemSnooze = async (id: string) => {
+  const handleActionItemSnooze = async (id: string, until: Date) => {
     const item = items.find(i => i.id === id)
     if (!item || item.origin !== 'action-item' || !user) return
 
@@ -444,18 +444,31 @@ export function ActionItemsTab({ contentColumnRef, isActive }: ActionItemsTabPro
 
     setTimeout(async () => {
       setExitingId(null)
-      setItems(prev => prev.map(i => i.id === id ? { ...i, status: 'dismissed' } : i))
+      setItems(prev => prev.filter(i => i.id !== id))
 
       try {
-        // Mark as dismissed in action_items (acts as "snoozed" since action_items don't have a backlog concept)
-        const { error } = await supabase
+        // Insert into backlog with snooze date
+        const { error: insertError } = await supabase.from('backlog').insert({
+          title: item.title,
+          description: item.rawContext || '',
+          category: 'action',
+          user_id: user.id,
+          position: 0,
+          snoozed_until: until.toISOString(),
+          source_type: item.source === 'manual' ? null : item.source,
+          ...(item.createdAt ? { created_at: item.createdAt } : {}),
+        })
+        if (insertError) throw insertError
+
+        // Delete from action_items
+        const { error: deleteError } = await supabase
           .from('action_items')
-          .update({ status: 'dismissed' })
+          .delete()
           .eq('id', id)
-        if (error) throw error
+        if (deleteError) throw deleteError
       } catch (error) {
         console.error('Error snoozing action item:', error)
-        setItems(prev => prev.map(i => i.id === id ? { ...i, status: item.status } : i))
+        loadAllItems()
       }
     }, 300)
   }
@@ -753,7 +766,7 @@ export function ActionItemsTab({ contentColumnRef, isActive }: ActionItemsTabPro
               onSnooze={
                 item.origin === 'task'
                   ? (until: Date) => handleTaskSnooze(item.id, until)
-                  : () => handleActionItemSnooze(item.id)
+                  : (until: Date) => handleActionItemSnooze(item.id, until)
               }
               onConvertToGoal={() => handleConvertToGoal(item.id, item.origin)}
               onEdit={() => {
@@ -868,7 +881,7 @@ function InboxCard({ item, isExpanded, isExiting, onToggleExpand, onDone, onReop
   onToggleExpand: () => void
   onDone?: () => void
   onReopen?: () => void
-  onSnooze?: ((until: Date) => void) | (() => void)
+  onSnooze?: (until: Date) => void
   onConvertToGoal?: () => void
   onEdit?: () => void
 }) {
@@ -984,11 +997,7 @@ function InboxCard({ item, isExpanded, isExiting, onToggleExpand, onDone, onReop
             <button
               onClick={(e) => {
                 e.stopPropagation()
-                if (item.origin === 'task') {
-                  setShowSnoozeMenu(!showSnoozeMenu)
-                } else {
-                  ;(onSnooze as () => void)()
-                }
+                setShowSnoozeMenu(!showSnoozeMenu)
               }}
               className={cn(
                 cardActionMutedClass,
@@ -1000,9 +1009,9 @@ function InboxCard({ item, isExpanded, isExiting, onToggleExpand, onDone, onReop
             </button>
           )}
 
-          {showSnoozeMenu && item.origin === 'task' && (
+          {showSnoozeMenu && onSnooze && (
             <SnoozeMenu
-              onSnooze={(until) => (onSnooze as (until: Date) => void)(until)}
+              onSnooze={(until) => onSnooze(until)}
               onClose={() => setShowSnoozeMenu(false)}
             />
           )}
