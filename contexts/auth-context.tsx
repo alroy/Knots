@@ -110,14 +110,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         },
       })
 
+      console.log('[Auth] signInWithOAuth result:', { data, error })
+
       if (error) {
+        console.error('[Auth] OAuth error:', error)
         return { success: false, error: error.message }
       }
 
-      if (data.url) {
-        window.location.href = data.url
+      if (!data?.url) {
+        console.error('[Auth] No OAuth URL returned. Is Google provider enabled in Supabase?')
+        return { success: false, error: 'Google sign-in is not configured. Please contact the administrator.' }
       }
 
+      console.log('[Auth] Redirecting to:', data.url)
+      window.location.href = data.url
       return { success: true }
     } catch (err: any) {
       return { success: false, error: err.message || 'An unexpected error occurred' }
