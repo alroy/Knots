@@ -167,16 +167,17 @@ export function SignIn() {
                 >
                   {mode === 'password' ? 'Use magic link instead' : 'Use password instead'}
                 </Button>
-                <Button
-                  variant="ghost"
+                <button
+                  type="button"
+                  className="text-sm font-medium text-primary hover:underline hover:opacity-80 transition-opacity"
                   onClick={() => {
                     setMode('sign-up')
                     setStatus('idle')
                     setErrorMessage('')
                   }}
                 >
-                  Create an account
-                </Button>
+                  New here? Create an account
+                </button>
               </>
             )}
           </div>
