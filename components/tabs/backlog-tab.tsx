@@ -67,6 +67,8 @@ export function BacklogTab({ contentColumnRef, isActive }: BacklogTabProps) {
         createdAt: b.created_at,
         resolvedAt: b.resolved_at,
         snoozedUntil: b.snoozed_until || null,
+        sourceType: b.source_type || null,
+        goalId: b.goal_id || null,
       })))
     } catch (error) {
       console.error('Error loading backlog:', error)
@@ -165,6 +167,8 @@ export function BacklogTab({ contentColumnRef, isActive }: BacklogTabProps) {
           status: 'active',
           user_id: user.id,
           position: 0,
+          source_type: item.sourceType || null,
+          goal_id: item.goalId || null,
           ...(item.createdAt ? { created_at: item.createdAt } : {}),
         })
         if (insertError) throw insertError
