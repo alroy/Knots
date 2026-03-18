@@ -239,3 +239,45 @@ export async function fetchMondayItems(params?: MondayConnectionParams): Promise
 
   return allItems.map(parseMondayItem)
 }
+
+/**
+ * Update the Status column of a Monday.com item.
+ * Fire-and-forget — logs errors but does not throw.
+ */
+export async function updateMondayItemStatus(
+  mondayItemId: string,
+  status: 'Done' | 'Dismissed',
+  params?: MondayConnectionParams
+): Promise<void> {
+  const apiKey = params?.apiKey || process.env.MONDAY_API_KEY
+  if (!apiKey) return
+
+  const boardId = params?.boardId || DEFAULT_BOARD_ID
+
+  const query = `mutation {
+    change_simple_column_value(
+      board_id: ${boardId},
+      item_id: ${mondayItemId},
+      column_id: "${COLUMNS.status}",
+      value: "${status}"
+    ) { id }
+  }`
+
+  try {
+    const res = await fetch('https://api.monday.com/v2', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': apiKey,
+        'API-Version': '2024-10',
+      },
+      body: JSON.stringify({ query }),
+    })
+
+    if (!res.ok) {
+      console.error(`Monday status update failed for item ${mondayItemId}: ${res.status}`)
+    }
+  } catch (err) {
+    console.error(`Monday status update error for item ${mondayItemId}:`, err)
+  }
+}

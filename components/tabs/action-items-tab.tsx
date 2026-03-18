@@ -68,6 +68,7 @@ interface InboxItem {
   position?: number
   // Action-item-specific fields
   rawContext: string | null
+  mondayItemId?: string | null
 }
 
 interface ActionItemsTabProps {
@@ -189,6 +190,7 @@ export function ActionItemsTab({ contentColumnRef, isActive }: ActionItemsTabPro
           messageTimestamp: row.message_timestamp,
           status: row.status,
           rawContext: row.raw_context,
+          mondayItemId: row.monday_item_id || null,
         }
       })
 
@@ -308,17 +310,21 @@ export function ActionItemsTab({ contentColumnRef, isActive }: ActionItemsTabPro
         setExitingId(null)
         setItems(prev => prev.filter(i => i.id !== id))
         try {
-          await supabase
+          const { error } = await supabase
             .from('action_items')
             .update({ status: 'done' })
             .eq('id', id)
-          const { error } = await supabase
-            .from('action_items')
-            .delete()
-            .eq('id', id)
           if (error) throw error
+          // Fire-and-forget Monday status update
+          if (item.mondayItemId) {
+            fetch('/api/monday/update-status', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ mondayItemId: item.mondayItemId, status: 'Done' }),
+            }).catch(err => console.error('Monday status update failed:', err))
+          }
         } catch (error) {
-          console.error('Error deleting completed action item:', error)
+          console.error('Error completing action item:', error)
           loadAllItems()
         }
       }, 300)
@@ -343,6 +349,14 @@ export function ActionItemsTab({ contentColumnRef, isActive }: ActionItemsTabPro
           .update({ status: 'dismissed' })
           .eq('id', id)
         if (error) throw error
+        // Fire-and-forget Monday status update
+        if (item.mondayItemId) {
+          fetch('/api/monday/update-status', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ mondayItemId: item.mondayItemId, status: 'Dismissed' }),
+          }).catch(err => console.error('Monday status update failed:', err))
+        }
       } catch (error) {
         console.error('Error dismissing action item:', error)
         setItems(prev => prev.map(i => i.id === id ? { ...i, status: item.status } : i))
@@ -493,10 +507,20 @@ export function ActionItemsTab({ contentColumnRef, isActive }: ActionItemsTabPro
   }
 
   const handleActionItemDelete = async (id: string) => {
+    const item = items.find(i => i.id === id)
     setItems(prev => prev.filter(i => i.id !== id))
     try {
-      const { error } = await supabase.from('action_items').delete().eq('id', id)
+      // Soft-delete: mark as dismissed so monday_item_id stays for dedup
+      const { error } = await supabase.from('action_items').update({ status: 'dismissed' }).eq('id', id)
       if (error) throw error
+      // Fire-and-forget Monday status update
+      if (item?.mondayItemId) {
+        fetch('/api/monday/update-status', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mondayItemId: item.mondayItemId, status: 'Dismissed' }),
+        }).catch(err => console.error('Monday status update failed:', err))
+      }
     } catch (error) {
       console.error('Error deleting action item:', error)
       loadAllItems()
