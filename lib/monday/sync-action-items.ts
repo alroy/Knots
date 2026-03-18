@@ -7,6 +7,7 @@ export interface SyncResult {
   ok: boolean
   synced: number
   skipped: number
+  failed: number
   message?: string
 }
 
@@ -21,7 +22,7 @@ export async function syncActionItems(userId: string, connectionParams?: MondayC
   const mondayItems = await fetchMondayItems(connectionParams)
 
   if (mondayItems.length === 0) {
-    return { ok: true, synced: 0, skipped: 0, message: 'No items on board' }
+    return { ok: true, synced: 0, skipped: 0, failed: 0, message: 'No items on board' }
   }
 
   const supabase = createAdminClient()
@@ -50,7 +51,7 @@ export async function syncActionItems(userId: string, connectionParams?: MondayC
   })
 
   if (newItems.length === 0) {
-    return { ok: true, synced: 0, skipped: mondayItems.length }
+    return { ok: true, synced: 0, skipped: mondayItems.length, failed: 0 }
   }
 
   const rows = newItems.map(item => ({
@@ -67,11 +68,29 @@ export async function syncActionItems(userId: string, connectionParams?: MondayC
     scan_timestamp: item.scanTimestamp || new Date().toISOString(),
   }))
 
-  const { error: insertError } = await supabase
+  // Try batch insert first; on failure, fall back to individual inserts
+  // so one bad row (e.g. unrecognised source value) doesn't block the rest.
+  let synced = 0
+  let failed = 0
+
+  const { error: batchError } = await supabase
     .from('action_items')
     .insert(rows)
 
-  if (insertError) throw insertError
+  if (batchError) {
+    console.warn('Batch insert failed, falling back to individual inserts:', batchError.message)
+    for (const row of rows) {
+      const { error } = await supabase.from('action_items').insert(row)
+      if (error) {
+        console.error(`Failed to insert item "${row.action_item}" (source: ${row.source}):`, error.message)
+        failed++
+      } else {
+        synced++
+      }
+    }
+  } else {
+    synced = rows.length
+  }
 
   // Record sync completion
   await supabase
@@ -87,8 +106,10 @@ export async function syncActionItems(userId: string, connectionParams?: MondayC
     )
 
   return {
-    ok: true,
-    synced: newItems.length,
+    ok: failed === 0,
+    synced,
     skipped: mondayItems.length - newItems.length,
+    failed,
+    ...(failed > 0 ? { message: `${failed} item(s) failed to insert` } : {}),
   }
 }

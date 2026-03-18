@@ -80,6 +80,7 @@ export function ActionItemsTab({ contentColumnRef, isActive }: ActionItemsTabPro
   const [items, setItems] = useState<InboxItem[]>([])
   const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState(false)
+  const [syncMessage, setSyncMessage] = useState<{ type: 'error' | 'warning'; text: string } | null>(null)
   // filterSource removed — origin is already shown in card metadata footer
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [exitingId, setExitingId] = useState<string | null>(null)
@@ -690,16 +691,23 @@ export function ActionItemsTab({ contentColumnRef, isActive }: ActionItemsTabPro
 
   const handleSync = async () => {
     setSyncing(true)
+    setSyncMessage(null)
     try {
       const res = await fetch('/api/sync/action-items', { method: 'POST' })
       if (!res.ok) {
         const body = await res.json().catch(() => ({}))
         console.error('Sync failed:', body)
+        setSyncMessage({ type: 'error', text: body.error || 'Sync failed' })
       } else {
+        const result = await res.json()
+        if (result.failed > 0) {
+          setSyncMessage({ type: 'warning', text: result.message || `${result.failed} item(s) failed to sync` })
+        }
         await loadAllItems()
       }
     } catch (error) {
       console.error('Sync error:', error)
+      setSyncMessage({ type: 'error', text: 'Could not reach sync service' })
     } finally {
       setSyncing(false)
     }
@@ -753,6 +761,15 @@ export function ActionItemsTab({ contentColumnRef, isActive }: ActionItemsTabPro
           </button>
         }
       />
+
+      {syncMessage && (
+        <div className={cn(
+          "px-3 py-2 rounded-md text-sm mb-2",
+          syncMessage.type === 'error' ? "bg-red-50 text-red-700" : "bg-yellow-50 text-yellow-700"
+        )}>
+          {syncMessage.text}
+        </div>
+      )}
 
       {openItems.length > 0 ? (
         <div className="flex flex-col gap-3">
