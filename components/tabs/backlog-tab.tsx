@@ -112,6 +112,13 @@ export function BacklogTab({ contentColumnRef, isActive }: BacklogTabProps) {
         // Soft-delete resolved items so analytics still counts them
         const { error } = await supabase.from('backlog').update({ deleted_at: new Date().toISOString() }).eq('id', id)
         if (error) throw error
+        // Clean up any orphaned task row left by race condition in completion flow
+        if (user) {
+          await supabase.from('tasks').delete()
+            .eq('user_id', user.id)
+            .eq('title', item.title)
+            .eq('status', 'completed')
+        }
       } else {
         const { error } = await supabase.from('backlog').delete().eq('id', id)
         if (error) throw error

@@ -74,6 +74,7 @@ export function TasksTab({ contentColumnRef }: TasksTabProps) {
 
           if (payload.eventType === 'INSERT') {
             const newTask = payload.new as any
+            if (newTask.status === 'completed') return
             if (locallyCreatedIds.current.has(newTask.id)) {
               locallyCreatedIds.current.delete(newTask.id)
               return
@@ -156,6 +157,7 @@ export function TasksTab({ contentColumnRef }: TasksTabProps) {
         .from('tasks')
         .select('*')
         .eq('user_id', user.id)
+        .neq('status', 'completed')
         .order('position', { ascending: true })
 
       if (error) throw error
