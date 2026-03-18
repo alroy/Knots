@@ -97,32 +97,20 @@ export function MondaySettings() {
     setError("")
 
     try {
-      // Check if connection already exists
-      const { data: existing } = await supabase
+      const { data, error: upsertError } = await supabase
         .from("monday_connections")
-        .select("id")
-        .eq("user_id", user.id)
-        .maybeSingle()
+        .upsert(
+          {
+            user_id: user.id,
+            api_key: "shared",
+            board_id: boardId.trim(),
+          },
+          { onConflict: "user_id" }
+        )
+        .select("id, board_id, created_at")
+        .single()
 
-      let data
-      if (existing) {
-        const { data: updated, error: updateError } = await supabase
-          .from("monday_connections")
-          .update({ board_id: boardId.trim() })
-          .eq("id", existing.id)
-          .select("id, board_id, created_at")
-          .single()
-        if (updateError) throw updateError
-        data = updated
-      } else {
-        const { data: inserted, error: insertError } = await supabase
-          .from("monday_connections")
-          .insert({ user_id: user.id, board_id: boardId.trim() })
-          .select("id, board_id, created_at")
-          .single()
-        if (insertError) throw insertError
-        data = inserted
-      }
+      if (upsertError) throw upsertError
 
       setConnection(data)
       setShowForm(false)

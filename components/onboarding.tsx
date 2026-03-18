@@ -101,8 +101,8 @@ export function Onboarding({ onComplete }: OnboardingProps) {
         .upsert(
           {
             user_id: user.id,
+            api_key: "shared",
             board_id: boardId.trim(),
-            updated_at: new Date().toISOString(),
           },
           { onConflict: 'user_id' }
         )
