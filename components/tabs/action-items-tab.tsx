@@ -157,11 +157,13 @@ export function ActionItemsTab({ contentColumnRef, isActive }: ActionItemsTabPro
           .from('action_items')
           .select('*')
           .eq('user_id', user.id)
+          .eq('status', 'new')
           .order('message_timestamp', { ascending: false, nullsFirst: false }),
         supabase
           .from('tasks')
           .select('*')
           .eq('user_id', user.id)
+          .eq('status', 'active')
           .order('position', { ascending: true }),
       ])
 
@@ -306,6 +308,10 @@ export function ActionItemsTab({ contentColumnRef, isActive }: ActionItemsTabPro
         setExitingId(null)
         setItems(prev => prev.filter(i => i.id !== id))
         try {
+          await supabase
+            .from('action_items')
+            .update({ status: 'done' })
+            .eq('id', id)
           const { error } = await supabase
             .from('action_items')
             .delete()
