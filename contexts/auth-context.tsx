@@ -11,6 +11,7 @@ interface AuthContextType {
   sendMagicLink: (email: string) => Promise<{ success: boolean; error?: string }>
   signInWithPassword: (email: string, password: string) => Promise<{ success: boolean; error?: string }>
   signUp: (email: string, password: string) => Promise<{ success: boolean; error?: string }>
+  resetPassword: (email: string) => Promise<{ success: boolean; error?: string }>
   signOut: () => Promise<void>
   clearPasswordRecovery: () => void
   isApproved: boolean | null
@@ -210,6 +211,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
+  const resetPassword = async (email: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const supabase = createClient()
+
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/auth/callback?type=recovery`,
+      })
+
+      if (error) {
+        return { success: false, error: error.message }
+      }
+
+      return { success: true }
+    } catch (err: any) {
+      return { success: false, error: err.message || 'An unexpected error occurred' }
+    }
+  }
+
   const signOut = async () => {
     const supabase = createClient()
     await supabase.auth.signOut()
@@ -220,7 +239,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, isPasswordRecovery, sendMagicLink, signInWithPassword, signUp, signOut, clearPasswordRecovery, isApproved }}>
+    <AuthContext.Provider value={{ user, loading, isPasswordRecovery, sendMagicLink, signInWithPassword, signUp, resetPassword, signOut, clearPasswordRecovery, isApproved }}>
       {children}
     </AuthContext.Provider>
   )

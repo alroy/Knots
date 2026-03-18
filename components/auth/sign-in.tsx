@@ -5,10 +5,10 @@ import { useAuth } from '@/contexts/auth-context'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 
-type AuthMode = 'password' | 'magic-link' | 'sign-up'
+type AuthMode = 'password' | 'magic-link' | 'sign-up' | 'forgot-password'
 
 export function SignIn() {
-  const { sendMagicLink, signInWithPassword, signUp, loading } = useAuth()
+  const { sendMagicLink, signInWithPassword, signUp, resetPassword, loading } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [mode, setMode] = useState<AuthMode>('password')
@@ -39,7 +39,15 @@ export function SignIn() {
     setStatus('sending')
     setErrorMessage('')
 
-    if (mode === 'magic-link') {
+    if (mode === 'forgot-password') {
+      const result = await resetPassword(email.trim())
+      if (result.success) {
+        setStatus('sent')
+      } else {
+        setStatus('error')
+        setErrorMessage(result.error || 'Failed to send reset link')
+      }
+    } else if (mode === 'magic-link') {
       const result = await sendMagicLink(email.trim())
       if (result.success) {
         setStatus('sent')
@@ -75,10 +83,10 @@ export function SignIn() {
               <div className="mb-4 text-4xl">✉️</div>
               <h1 className="mb-2 text-2xl font-bold text-foreground">Check your email</h1>
               <p className="text-muted-foreground">
-                We sent a {mode === 'sign-up' ? 'confirmation' : 'magic'} link to <strong>{email}</strong>
+                We sent a {mode === 'forgot-password' ? 'password reset' : mode === 'sign-up' ? 'confirmation' : 'magic'} link to <strong>{email}</strong>
               </p>
               <p className="mt-2 text-sm text-muted-foreground">
-                Click the link in the email to {mode === 'sign-up' ? 'confirm your account' : 'sign in'}. You can close this tab.
+                Click the link in the email to {mode === 'forgot-password' ? 'reset your password' : mode === 'sign-up' ? 'confirm your account' : 'sign in'}. You can close this tab.
               </p>
             </div>
             <Button
@@ -119,13 +127,29 @@ export function SignIn() {
             />
 
             {(mode === 'password' || mode === 'sign-up') && (
-              <Input
-                type="password"
-                placeholder="Password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                disabled={status === 'sending' || loading}
-              />
+              <>
+                <Input
+                  type="password"
+                  placeholder="Password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  disabled={status === 'sending' || loading}
+                />
+                {mode === 'password' && (
+                  <button
+                    type="button"
+                    className="self-end text-sm text-gray-500 hover:text-gray-700 transition-colors -mt-2"
+                    onClick={() => {
+                      setMode('forgot-password')
+                      setPassword('')
+                      setStatus('idle')
+                      setErrorMessage('')
+                    }}
+                  >
+                    Forgot password?
+                  </button>
+                )}
+              </>
             )}
 
             {status === 'error' && errorMessage && (
@@ -139,13 +163,25 @@ export function SignIn() {
               className="w-full"
             >
               {status === 'sending'
-                ? (mode === 'sign-up' ? 'Creating account...' : mode === 'password' ? 'Signing in...' : 'Sending...')
-                : (mode === 'sign-up' ? 'Create account' : mode === 'password' ? 'Sign in' : 'Send magic link')}
+                ? (mode === 'sign-up' ? 'Creating account...' : mode === 'password' ? 'Signing in...' : mode === 'forgot-password' ? 'Sending...' : 'Sending...')
+                : (mode === 'sign-up' ? 'Create account' : mode === 'password' ? 'Sign in' : mode === 'forgot-password' ? 'Send reset link' : 'Send magic link')}
             </Button>
           </form>
 
           <div className="flex h-14 flex-col items-center justify-start mt-4">
-            {mode === 'sign-up' ? (
+            {mode === 'forgot-password' ? (
+              <button
+                type="button"
+                className="text-sm text-gray-500 hover:text-gray-700 transition-colors"
+                onClick={() => {
+                  setMode('password')
+                  setStatus('idle')
+                  setErrorMessage('')
+                }}
+              >
+                Back to sign in
+              </button>
+            ) : mode === 'sign-up' ? (
               <button
                 type="button"
                 className="text-sm text-gray-500 hover:text-gray-700 transition-colors"
