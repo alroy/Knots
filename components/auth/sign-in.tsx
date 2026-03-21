@@ -100,6 +100,9 @@ export function SignIn() {
             </Button>
           </div>
         </div>
+        <div className="w-full text-center py-6 text-sm text-slate-500">
+          Powered by <a href="https://knots.bot/" target="_blank" rel="noopener noreferrer" className="font-medium text-slate-600 hover:text-slate-900 hover:underline transition-colors">knots.bot</a>
+        </div>
       </main>
     )
   }
@@ -230,6 +233,9 @@ export function SignIn() {
               <img src="/monday-icon.svg" alt="Monday.com" className="h-6 w-6" />
             </div>
           </div>
+        </div>
+        <div className="w-full text-center py-6 text-sm text-slate-500">
+          Powered by <a href="https://knots.bot/" target="_blank" rel="noopener noreferrer" className="font-medium text-slate-600 hover:text-slate-900 hover:underline transition-colors">knots.bot</a>
         </div>
       </div>
     </main>

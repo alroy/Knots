@@ -155,6 +155,10 @@ function PageContent() {
         </div>
       </div>
 
+      <div className="w-full text-center py-6 text-sm text-slate-500">
+        Powered by <a href="https://knots.bot/" target="_blank" rel="noopener noreferrer" className="font-medium text-slate-600 hover:text-slate-900 hover:underline transition-colors">knots.bot</a>
+      </div>
+
       {/* Bottom tab bar */}
       <TabBar activeTab={activeTab} onTabChange={handleTabChange} />
     </main>
