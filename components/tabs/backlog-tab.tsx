@@ -4,10 +4,9 @@ import { useState, useEffect, useRef } from "react"
 import { createClient } from "@/lib/supabase-browser"
 import { useAuth } from "@/contexts/auth-context"
 import { cn, formatRelativeTime } from "@/lib/utils"
-import { Trash2, Plus, Check, ListTodo, Clock } from "lucide-react"
+import { Trash2, Plus, Check, ListTodo, Clock, Undo2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { CardActionGroup, cardActionMutedClass, cardActionDestructiveClass } from "@/components/ui/card-action-group"
-import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import type { BacklogItem } from "@/lib/chief-of-staff-types"
@@ -325,6 +324,11 @@ export function BacklogTab({ contentColumnRef, isActive }: BacklogTabProps) {
             setEditItem(null)
           }}
           onClose={() => { setIsFormOpen(false); setEditItem(null) }}
+          onRestore={editItem ? () => {
+            handleResolve(editItem.id)
+            setIsFormOpen(false)
+            setEditItem(null)
+          } : undefined}
         />
       )}
     </>
@@ -497,15 +501,18 @@ interface BacklogFormData {
   description: string
 }
 
-function BacklogFormModal({ item, onSubmit, onClose }: {
+function BacklogFormModal({ item, onSubmit, onClose, onRestore }: {
   item: BacklogItem | null
   onSubmit: (data: BacklogFormData) => void
   onClose: () => void
+  onRestore?: () => void
 }) {
+  const isEditMode = !!item
+  const isResolved = item?.status === 'resolved'
   const [title, setTitle] = useState(item?.title || '')
   const [description, setDescription] = useState(item?.description || '')
   const [error, setError] = useState('')
-  const titleRef = useRef<HTMLInputElement>(null)
+  const titleRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
     const t = setTimeout(() => titleRef.current?.focus(), 100)
@@ -514,6 +521,7 @@ function BacklogFormModal({ item, onSubmit, onClose }: {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
+    if (isResolved) { onClose(); return }
     if (!title.trim()) { setError('Please add a title'); return }
     onSubmit({ title: title.trim(), description: description.trim() })
   }
@@ -523,6 +531,11 @@ function BacklogFormModal({ item, onSubmit, onClose }: {
     WebkitBackfaceVisibility: "hidden",
     backfaceVisibility: "hidden",
   }
+
+  const modalTitle = isEditMode ? (isResolved ? "Completed Item" : "Edit Item") : "Add to Backlog"
+  const subtitle = isEditMode
+    ? (isResolved ? "Review completed item details." : "Review and refine this action item.")
+    : "Park an idea, question, or future task."
 
   return (
     <>
@@ -536,33 +549,83 @@ function BacklogFormModal({ item, onSubmit, onClose }: {
       >
         <div className="bg-background rounded-lg shadow-xl p-6">
           <div className="mb-4">
-            <h2 className="text-lg font-bold text-foreground mb-2">{item ? "Edit Item" : "Add to Backlog"}</h2>
-            <p className="text-sm text-muted-foreground">Park an idea, question, or future task.</p>
+            <h2 className="text-lg font-bold text-foreground mb-2">{modalTitle}</h2>
+            <p className="text-sm text-muted-foreground">{subtitle}</p>
           </div>
           <form onSubmit={handleSubmit}>
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="backlog-title" className="text-sm text-muted-foreground">Title</Label>
-                <Input ref={titleRef} id="backlog-title" value={title} onChange={(e) => { setTitle(e.target.value); setError('') }}
-                  placeholder="What needs attention?" className="h-10 bg-card border-border/60 shadow-none" />
+                <Textarea
+                  ref={titleRef}
+                  id="backlog-title"
+                  value={title}
+                  onChange={(e) => { setTitle(e.target.value); setError('') }}
+                  readOnly={isResolved}
+                  placeholder="What needs attention?"
+                  rows={2}
+                  className={cn("bg-card border-border/60 shadow-none resize-none", isResolved && "opacity-70 cursor-default")}
+                />
                 {error && <p className="text-sm text-destructive">{error}</p>}
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="backlog-desc" className="text-sm text-muted-foreground">Description <span className="text-muted-foreground/60">(optional)</span></Label>
-                <Textarea id="backlog-desc" value={description} onChange={(e) => setDescription(e.target.value)}
-                  placeholder="More context..." rows={3} className="bg-card border-border/60 shadow-none resize-none" />
+                <Textarea
+                  id="backlog-desc"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  readOnly={isResolved}
+                  placeholder="More context..."
+                  rows={3}
+                  className={cn("bg-card border-border/60 shadow-none resize-none", isResolved && "opacity-70 cursor-default")}
+                />
               </div>
             </div>
 
-            <div className="flex items-center gap-4 mt-6">
-              <Button type="submit" className="w-full sm:w-auto px-5 h-9 font-medium active:scale-[0.98] transition-transform duration-75">
-                {item ? "Save changes" : "Add to Backlog"}
-              </Button>
-              <button type="button" onClick={onClose} className="text-muted-foreground hover:text-foreground text-sm transition-colors duration-100">
-                Cancel
-              </button>
-            </div>
+            {isEditMode && isResolved ? (
+              <div className="flex flex-row-reverse gap-3 w-full sm:w-auto mt-6">
+                <Button
+                  type="button"
+                  onClick={onClose}
+                  className="flex-1 sm:flex-none px-5 h-9 font-medium active:scale-[0.98] transition-transform duration-75"
+                  style={{ touchAction: "manipulation" }}
+                >
+                  Done
+                </Button>
+                {onRestore && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={onRestore}
+                    className="flex-1 sm:flex-none px-5 h-9 font-medium active:scale-[0.98] transition-transform duration-75 gap-1.5"
+                    style={{ touchAction: "manipulation" }}
+                  >
+                    <Undo2 className="h-3.5 w-3.5" />
+                    Back to Inbox
+                  </Button>
+                )}
+              </div>
+            ) : (
+              <div className="flex flex-row-reverse gap-3 w-full sm:w-auto mt-6">
+                <Button
+                  type="submit"
+                  className="flex-1 sm:flex-none px-5 h-9 font-medium active:scale-[0.98] transition-transform duration-75"
+                  style={{ touchAction: "manipulation" }}
+                >
+                  {isEditMode ? "Save changes" : "Add to Backlog"}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={onClose}
+                  className="flex-1 sm:flex-none px-5 h-9 font-medium active:scale-[0.98] transition-transform duration-75"
+                  style={{ touchAction: "manipulation" }}
+                >
+                  Cancel
+                </Button>
+              </div>
+            )}
           </form>
         </div>
       </div>

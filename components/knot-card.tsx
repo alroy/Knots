@@ -3,14 +3,14 @@
 import React, { useMemo, useState, useCallback, useRef, useEffect } from "react"
 
 import { Checkbox } from "@/components/ui/checkbox"
-import { ProvenanceRow } from "@/components/ui/slack-badge"
+import { ProvenanceRow } from "@/components/ui/provenance-row"
 import { GripVertical, Trash2, Clock } from "lucide-react"
 import { cn, formatRelativeTime } from "@/lib/utils"
 import { TaskMetadata, SlackTaskMetadata, isSlackMetadata, isGranolaMetadata } from "@/lib/types"
 import {
   prepareTaskForListView,
   detectSlackTask,
-} from "@/lib/slack/text-utils"
+} from "@/lib/text-utils"
 
 export interface KnotCardProps {
   id: string

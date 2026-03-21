@@ -4,11 +4,12 @@ import * as React from "react"
 import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
-import { Plus } from "lucide-react"
+import { Plus, Undo2 } from "lucide-react"
+import { cn } from "@/lib/utils"
 import { useSafariPWAFix } from "@/hooks/use-safari-pwa-fix"
 import { TaskMetadata, isSlackMetadata, isGranolaMetadata } from "@/lib/types"
-import { prepareDescriptionForEdit, detectSlackTask } from "@/lib/slack/text-utils"
-import { ProvenanceRow } from "@/components/ui/slack-badge"
+import { prepareDescriptionForEdit, detectSlackTask } from "@/lib/text-utils"
+import { ProvenanceRow } from "@/components/ui/provenance-row"
 import type { ContentColumnRef } from "@/app/page"
 
 // Type for edit mode task data
@@ -20,6 +21,8 @@ export interface EditTask {
   sourceType?: string
   sourceUrl?: string
   goalId?: string | null
+  /** Item status — determines modal mode (edit vs view-completed) */
+  status?: 'active' | 'completed' | 'done' | 'dismissed'
   /** Set when editing an action_item — triggers promotion to tasks table on save */
   _actionItemId?: string
 }
@@ -34,6 +37,7 @@ export interface GoalOption {
 interface KnotFormProps {
   onSubmit: (data: { title: string; description: string; goalId?: string | null }) => void
   onUpdate?: (id: string, data: { title: string; description: string; goalId?: string | null }) => Promise<boolean>
+  onRestore?: (id: string) => Promise<boolean>
   editTask?: EditTask | null
   onEditClose?: () => void
   /** Reference to content column for desktop FAB positioning */
@@ -44,7 +48,7 @@ interface KnotFormProps {
 
 const PRIORITY_LABELS: Record<number, string> = { 1: 'P0', 2: 'P1', 3: 'P2' }
 
-export function KnotForm({ onSubmit, onUpdate, editTask, onEditClose, contentColumnRef, goals }: KnotFormProps) {
+export function KnotForm({ onSubmit, onUpdate, onRestore, editTask, onEditClose, contentColumnRef, goals }: KnotFormProps) {
   const [isCreateOpen, setIsCreateOpen] = React.useState(false)
   const [title, setTitle] = React.useState("")
   const [description, setDescription] = React.useState("")
@@ -87,6 +91,7 @@ export function KnotForm({ onSubmit, onUpdate, editTask, onEditClose, contentCol
 
   // Determine if we're in edit mode based on editTask prop
   const isEditMode = !!editTask
+  const isCompleted = editTask?.status === 'completed' || editTask?.status === 'done' || editTask?.status === 'dismissed'
   const isOpen = isEditMode || isCreateOpen
 
   // Determine provenance context for edit mode - Granola, Slack, metadata, or legacy
@@ -319,8 +324,8 @@ export function KnotForm({ onSubmit, onUpdate, editTask, onEditClose, contentCol
       >
         <div className="bg-background rounded-lg shadow-xl p-6">
           <div className="mb-4">
-            <h2 className="text-lg font-bold text-foreground mb-2">{isEditMode ? "Edit Item" : "Add to Inbox"}</h2>
-            <p className="text-sm text-muted-foreground">{isEditMode ? "Review and refine this action item." : "Manually capture a new action item or task."}</p>
+            <h2 className="text-lg font-bold text-foreground mb-2">{isEditMode ? (isCompleted ? "Completed Item" : "Edit Item") : "Add to Inbox"}</h2>
+            <p className="text-sm text-muted-foreground">{isEditMode ? (isCompleted ? "Review completed item details." : "Review and refine this action item.") : "Park an idea, question, or future task."}</p>
           </div>
           <form onSubmit={handleSubmit}>
             <div className="space-y-2 mb-5">
@@ -334,9 +339,10 @@ export function KnotForm({ onSubmit, onUpdate, editTask, onEditClose, contentCol
                 rows={2}
                 value={title}
                 onChange={handleTitleChange}
+                readOnly={isCompleted}
                 aria-invalid={touched && !!error}
                 aria-describedby={touched && error ? "title-error" : undefined}
-                className="bg-card border-border/60 shadow-none resize-none"
+                className={cn("bg-card border-border/60 shadow-none resize-none", isCompleted && "opacity-70 cursor-default")}
                 style={{ touchAction: "manipulation" }}
               />
               {touched && error && (
@@ -356,7 +362,8 @@ export function KnotForm({ onSubmit, onUpdate, editTask, onEditClose, contentCol
                 rows={3}
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                className="bg-card border-border/60 shadow-none resize-none"
+                readOnly={isCompleted}
+                className={cn("bg-card border-border/60 shadow-none resize-none", isCompleted && "opacity-70 cursor-default")}
                 style={{ touchAction: "manipulation" }}
               />
             </div>
@@ -366,7 +373,7 @@ export function KnotForm({ onSubmit, onUpdate, editTask, onEditClose, contentCol
               const activeGoals = goals.filter((g) => g.status !== 'completed')
               const completedGoal = goals.find((g) => g.status === 'completed' && g.id === selectedGoalId)
               const hasActiveGoals = activeGoals.length > 0
-              const isDisabled = !hasActiveGoals && !completedGoal
+              const isDisabled = isCompleted || (!hasActiveGoals && !completedGoal)
               return (
               <div className="space-y-2 mb-6">
                 <Label htmlFor="goal" className="text-sm text-muted-foreground">
@@ -408,26 +415,60 @@ export function KnotForm({ onSubmit, onUpdate, editTask, onEditClose, contentCol
               </div>
             )}
 
-            <div className="flex flex-row-reverse gap-3 w-full sm:w-auto">
-              <Button
-                type="submit"
-                disabled={isSubmitting}
-                className="flex-1 sm:flex-none px-5 h-9 font-medium active:scale-[0.98] transition-transform duration-75"
-                style={{ touchAction: "manipulation" }}
-              >
-                {isSubmitting ? "Saving..." : isEditMode ? "Save changes" : "Add to Inbox"}
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleClose}
-                disabled={isSubmitting}
-                className="flex-1 sm:flex-none px-5 h-9 font-medium active:scale-[0.98] transition-transform duration-75"
-                style={{ touchAction: "manipulation" }}
-              >
-                Cancel
-              </Button>
-            </div>
+            {isEditMode && isCompleted ? (
+              <div className="flex flex-row-reverse gap-3 w-full sm:w-auto">
+                <Button
+                  type="button"
+                  onClick={handleClose}
+                  className="flex-1 sm:flex-none px-5 h-9 font-medium active:scale-[0.98] transition-transform duration-75"
+                  style={{ touchAction: "manipulation" }}
+                >
+                  Done
+                </Button>
+                {onRestore && editTask && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={isSubmitting}
+                    onClick={async () => {
+                      setIsSubmitting(true)
+                      try {
+                        const success = await onRestore(editTask.id)
+                        if (success) handleClose()
+                      } finally {
+                        setIsSubmitting(false)
+                      }
+                    }}
+                    className="flex-1 sm:flex-none px-5 h-9 font-medium active:scale-[0.98] transition-transform duration-75 gap-1.5"
+                    style={{ touchAction: "manipulation" }}
+                  >
+                    <Undo2 className="h-3.5 w-3.5" />
+                    {isSubmitting ? "Restoring..." : "Mark as Incomplete"}
+                  </Button>
+                )}
+              </div>
+            ) : (
+              <div className="flex flex-row-reverse gap-3 w-full sm:w-auto">
+                <Button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="flex-1 sm:flex-none px-5 h-9 font-medium active:scale-[0.98] transition-transform duration-75"
+                  style={{ touchAction: "manipulation" }}
+                >
+                  {isSubmitting ? "Saving..." : isEditMode ? "Save changes" : "Add to Inbox"}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleClose}
+                  disabled={isSubmitting}
+                  className="flex-1 sm:flex-none px-5 h-9 font-medium active:scale-[0.98] transition-transform duration-75"
+                  style={{ touchAction: "manipulation" }}
+                >
+                  Cancel
+                </Button>
+              </div>
+            )}
           </form>
         </div>
       </div>

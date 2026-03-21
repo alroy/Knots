@@ -347,11 +347,27 @@ export function TasksTab({ contentColumnRef }: TasksTabProps) {
         sourceType: knot.sourceType,
         sourceUrl: knot.sourceUrl,
         goalId: knot.goalId,
+        status: knot.status,
       })
     }
   }, [knots])
 
   const handleEditClose = useCallback(() => { setEditTask(null) }, [])
+
+  const handleRestoreKnot = useCallback(async (id: string): Promise<boolean> => {
+    // Optimistic update
+    setKnots((prev) => prev.map((k) => k.id === id ? { ...k, status: 'active' as const } : k))
+    try {
+      const { error } = await supabase.from('tasks').update({ status: 'active', resolved_at: null }).eq('id', id)
+      if (error) throw error
+      return true
+    } catch (err) {
+      console.error('Error restoring task:', err)
+      // Rollback
+      setKnots((prev) => prev.map((k) => k.id === id ? { ...k, status: 'completed' as const } : k))
+      return false
+    }
+  }, [supabase])
 
   const handleUpdateKnot = useCallback(async (id: string, data: { title: string; description: string; goalId?: string | null }): Promise<boolean> => {
     const knot = knots.find((k) => k.id === id)
@@ -448,6 +464,7 @@ export function TasksTab({ contentColumnRef }: TasksTabProps) {
       <KnotForm
         onSubmit={handleAddKnot}
         onUpdate={handleUpdateKnot}
+        onRestore={handleRestoreKnot}
         editTask={editTask}
         onEditClose={handleEditClose}
         contentColumnRef={contentColumnRef}

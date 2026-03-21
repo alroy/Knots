@@ -6,9 +6,9 @@ import { useAuth } from "@/contexts/auth-context"
 import { cn, formatRelativeTime } from "@/lib/utils"
 import { Check, Target, MessageSquare, Video, RefreshCw, Clock, ClipboardList, Search, ArrowDownNarrowWide, ArrowUpNarrowWide, X } from "lucide-react"
 import { KnotForm, type EditTask, type GoalOption } from "@/components/knot-form"
-import { ProvenanceRow } from "@/components/ui/slack-badge"
+import { ProvenanceRow } from "@/components/ui/provenance-row"
 import { TaskMetadata, isSlackMetadata, isGranolaMetadata } from "@/lib/types"
-import { prepareTaskForListView, detectSlackTask } from "@/lib/slack/text-utils"
+import { prepareTaskForListView, detectSlackTask } from "@/lib/text-utils"
 import { StickyHeader } from "@/components/sticky-header"
 import { CardActionGroup, cardActionMutedClass } from "@/components/ui/card-action-group"
 
@@ -642,6 +642,36 @@ export function ActionItemsTab({ contentColumnRef, isActive }: ActionItemsTabPro
 
   const handleEditClose = useCallback(() => { setEditTask(null) }, [])
 
+  const handleRestoreFromModal = useCallback(async (id: string): Promise<boolean> => {
+    const item = items.find(i => i.id === id)
+    if (!item) return false
+    const oldStatus = item.status
+
+    if (item.origin === 'action-item') {
+      setItems(prev => prev.map(i => i.id === id ? { ...i, status: 'new' } : i))
+      try {
+        const { error } = await supabase.from('action_items').update({ status: 'new' }).eq('id', id)
+        if (error) throw error
+        return true
+      } catch (err) {
+        console.error('Error restoring action item:', err)
+        setItems(prev => prev.map(i => i.id === id ? { ...i, status: oldStatus } : i))
+        return false
+      }
+    } else {
+      setItems(prev => prev.map(i => i.id === id ? { ...i, status: 'active' } : i))
+      try {
+        const { error } = await supabase.from('tasks').update({ status: 'active', resolved_at: null }).eq('id', id)
+        if (error) throw error
+        return true
+      } catch (err) {
+        console.error('Error restoring task:', err)
+        setItems(prev => prev.map(i => i.id === id ? { ...i, status: oldStatus } : i))
+        return false
+      }
+    }
+  }, [items, supabase])
+
   const handleUpdateTask = useCallback(async (id: string, data: { title: string; description: string; goalId?: string | null }): Promise<boolean> => {
     const item = items.find(i => i.id === id)
     if (!item) return false
@@ -786,7 +816,7 @@ export function ActionItemsTab({ contentColumnRef, isActive }: ActionItemsTabPro
     <>
       <StickyHeader
         title="Inbox"
-        byline={!isSearchActive ? (
+        byline={
           <p>
             {(() => {
               const hour = new Date().getHours()
@@ -801,7 +831,7 @@ export function ActionItemsTab({ contentColumnRef, isActive }: ActionItemsTabPro
               return `${greeting}${firstName ? `, ${firstName}` : ''}. ${contextual}`.trim()
             })()}
           </p>
-        ) : undefined}
+        }
       />
 
       {openItems.length > 0 && (
@@ -901,6 +931,7 @@ export function ActionItemsTab({ contentColumnRef, isActive }: ActionItemsTabPro
                     sourceType: item.sourceType,
                     sourceUrl: item.sourceUrl,
                     goalId: item.goalId,
+                    status: item.status as EditTask['status'],
                   })
                 } else {
                   // Action item — open edit form; promotes to tasks table on save
@@ -911,6 +942,7 @@ export function ActionItemsTab({ contentColumnRef, isActive }: ActionItemsTabPro
                     sourceType: item.source === 'manual' ? undefined : item.source,
                     sourceUrl: item.messageLink || undefined,
                     goalId: null,
+                    status: item.status as EditTask['status'],
                     _actionItemId: item.id,
                   })
                 }
@@ -937,6 +969,7 @@ export function ActionItemsTab({ contentColumnRef, isActive }: ActionItemsTabPro
       <KnotForm
         onSubmit={handleAddTask}
         onUpdate={handleUpdateTask}
+        onRestore={handleRestoreFromModal}
         editTask={editTask}
         onEditClose={handleEditClose}
         contentColumnRef={contentColumnRef}

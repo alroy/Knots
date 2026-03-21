@@ -1,7 +1,7 @@
 /**
- * Slack Text Utilities
+ * Text Utilities
  *
- * Functions for normalizing Slack message text for clean display in Knots.
+ * Functions for normalizing message text for clean display in Knots.
  * These are render-time transformations that don't modify stored data.
  */
 
@@ -77,68 +77,6 @@ export function normalizeSlackText(
   normalized = normalized.trim()
 
   return normalized
-}
-
-/**
- * Derive a clean, scannable title from a Slack message
- *
- * Rules:
- * 1. Normalize Slack tokens first
- * 2. Use first sentence if available (up to maxLength)
- * 3. If text is too short, numeric-only, or empty after normalization, use fallback
- * 4. Truncate with ellipsis if needed
- *
- * @param text - Raw Slack message text
- * @param maxLength - Maximum title length (default 120)
- * @param userMap - Optional map for resolving user mentions
- * @returns Clean title string
- */
-export function deriveTitleFromSlackMessage(
-  text: string,
-  maxLength = 120,
-  userMap?: SlackUserMap
-): string {
-  const fallback = 'Slack message'
-
-  if (!text) return fallback
-
-  // Normalize first
-  const normalized = normalizeSlackText(text, userMap)
-
-  // Check for empty or whitespace-only
-  if (!normalized || normalized.trim() === '') {
-    return fallback
-  }
-
-  // Check for numeric-only or very short text (likely not meaningful)
-  const trimmed = normalized.trim()
-  if (trimmed.length < 3 || /^[\d\s.,!?]+$/.test(trimmed)) {
-    return fallback
-  }
-
-  // Check if result is only placeholder text (e.g., "@user" from a mention-only message)
-  if (/^@(user|channel|here|everyone)$/i.test(trimmed)) {
-    return fallback
-  }
-
-  // Try to extract first sentence
-  // Match up to first sentence-ending punctuation followed by space or end
-  const sentenceMatch = trimmed.match(/^(.+?[.!?])(?:\s|$)/)
-  let title = sentenceMatch ? sentenceMatch[1] : trimmed
-
-  // Truncate if needed
-  if (title.length > maxLength) {
-    // Try to break at word boundary
-    const truncated = title.substring(0, maxLength - 3)
-    const lastSpace = truncated.lastIndexOf(' ')
-    if (lastSpace > maxLength * 0.5) {
-      title = truncated.substring(0, lastSpace) + '...'
-    } else {
-      title = truncated + '...'
-    }
-  }
-
-  return title
 }
 
 /**

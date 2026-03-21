@@ -75,9 +75,3 @@ export function ProvenanceRow({ sourceType = 'slack', authorName, permalink, cla
     </div>
   )
 }
-
-/** @deprecated Use ProvenanceRow instead */
-export const SlackProvenanceRow = ProvenanceRow
-
-/** @deprecated Use ProvenanceRow instead */
-export const SlackBadge = ProvenanceRow

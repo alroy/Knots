@@ -100,7 +100,7 @@ Reusable UI components:
 - `input.tsx` - Text input with consistent styling
 - `textarea.tsx` - Multi-line text input
 - `label.tsx` - Form labels
-- `slack-badge.tsx` - Slack source row for task cards (icon + "From [name]" link)
+- `provenance-row.tsx` - Source provenance row for task cards (icon + "View in {source}" link)
 
 ### `/lib/supabase.ts`
 Supabase client configuration for database operations.
@@ -192,11 +192,8 @@ NEXT_PUBLIC_ALLOWED_EMAILS=email1@example.com,email2@example.com  # Comma-separa
 - ✅ Unit tests for cross-tab sync state updates
 - ✅ Task timestamps with relative time display
 - ✅ New tasks appear first in list (position 0)
-- ✅ Slack-created tasks appear in real-time without refresh
-- ✅ Slack mention ingestion with heuristic + LLM pipeline
-- ✅ Actionability scoring to filter non-actionable mentions
 - ✅ Task deduplication based on source_id
-- ✅ Slack source row on task cards (icon + "[name] via Slack" link)
+- ✅ Provenance row on task cards for Slack/Granola/Gmail/Notetaker sources
 - ✅ Snooze exit animation (slide-out-to-right) in Tasks tab
 - ✅ Move-to-tasks exit animation (slide-out-to-left) in Backlog tab
 - ✅ Entrance animation (slide-in-from-right) for tasks arriving from backlog
@@ -251,86 +248,7 @@ When a task is snoozed to backlog and later moved back, the original `created_at
 - Focus states use 1px ring with 20% opacity
 - Cards use accent-hover and accent-subtle variables for states
 - New tasks always appear at top of list (position 0), database trigger handles position shifting
-- Slack-created tasks trigger real-time INSERT events and appear without page refresh
-
-## Slack Task Display
-
-### Source Row on Task Cards
-Slack-origin tasks display a source row at the bottom of the card:
-- **Format:** Slack icon + "[author_name] via Slack" as clickable link
-- **Link behavior:** Opens Slack permalink in new tab (`target="_blank"`)
-- **Fallback:** Shows "Slack" (linked) if author name unavailable
-
-### When Source Row Renders
-The row appears when all conditions are met:
-1. `source_type === 'slack'` (from DB column)
-2. `source_url` is present and non-empty (Slack permalink)
-
-If `source_type === 'slack'` but `source_url` is missing, the row does not render.
-
-### Data Flow for Slack Provenance
-1. **Database columns:** `source_type`, `source_url` stored directly in tasks table
-2. **Knot interface:** Includes `sourceType` and `sourceUrl` fields
-3. **KnotCard:** Receives source fields via props, determines Slack context with priority:
-   - Priority 1: Direct DB columns (`sourceType`, `sourceUrl`)
-   - Priority 2: Metadata field (`metadata.source`)
-   - Priority 3: Legacy detection from description pattern
-4. **SlackBadge:** Renders the source row with icon and linked text
-
-### Description Cleaning
-Descriptions are cleaned before display to remove source URL blocks:
-- `stripSlackSourceBlock()` removes "Source: https://..." patterns
-- Handles both legacy format (`---\nFrom: Name | Source: Slack DM | Link: ...`) and new format (`\n\nSource: https://...`)
-
-## Slack Mention Ingestion Pipeline
-
-### Overview
-The app uses a heuristic + LLM pipeline to intelligently determine which Slack mentions should become tasks.
-
-### Pipeline Flow
-1. **Normalize** - Raw Slack event → `SlackIngestMessage`
-2. **Ensure Permalink** - Fetch via Slack API if not present
-3. **Heuristic Score** - Compute actionability score (0-1)
-4. **Decision Gate** - Skip LLM if score < 0.35
-5. **LLM Classification** - Claude classifies if mention is a task
-6. **Confidence Check** - Apply threshold based on actionability score
-7. **Task Creation** - Insert with deduplication
-
-### Actionability Scoring
-Strong positive signals (direct asks, ownership, deadlines):
-- "can you review", "please fix", "assigned to you", "by EOD"
-
-Strong negative signals (informational routing):
-- "FYI", "for visibility", "looping you in", "heads up"
-
-### Thresholds
-- `score < 0.35`: Drop without LLM call
-- `0.35 <= score < 0.60`: Require LLM confidence >= 0.75
-- `score >= 0.60`: Require LLM confidence >= 0.65
-
-### Key Files
-- `lib/slack/ingest/types.ts` - Data contracts and thresholds
-- `lib/slack/ingest/normalize.ts` - Payload normalization
-- `lib/slack/ingest/actionability.ts` - Heuristic scoring
-- `lib/slack/ingest/classify.ts` - LLM classification
-- `lib/slack/ingest/create-task.ts` - Task creation with dedupe
-- `lib/slack/text-utils.ts` - Text normalization and source block stripping
-- `lib/slack/event-handlers.ts` - Main integration (calls LLM pipeline for mentions)
-- `components/ui/slack-badge.tsx` - Slack source row UI component
-- `app/api/slack/events/route.ts` - Slack webhook endpoint
-
-### Setup Requirements
-1. **Database Migration** - Run `supabase-migration-task-provenance.sql` in Supabase SQL Editor
-2. **Environment Variables** - Add to `.env.local`:
-   ```
-   ANTHROPIC_API_KEY=your-key        # Required for LLM classification
-   STORE_RAW_SLACK_TEXT=false        # Optional: store raw message text
-   ```
-
-### How It Works
-- **DMs** → Always create tasks (no filtering)
-- **Mentions with ANTHROPIC_API_KEY** → Heuristic + LLM filtering (only actionable mentions become tasks)
-- **Mentions without ANTHROPIC_API_KEY** → Falls back to old behavior (creates tasks for all mentions)
+- Monday.com is the sole external source for task ingestion (Slack app removed)
 
 ## Testing
 Run tests with: `npm test`
@@ -338,7 +256,4 @@ Tests include:
 - Cross-tab sync state updates for INSERT, UPDATE, DELETE events
 - Reorder operations and position management
 - Rapid sequential operations handling
-- Slack actionability heuristic scoring
-- LLM JSON schema validation and fallback
-- Task deduplication logic
 # trigger
