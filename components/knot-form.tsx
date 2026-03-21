@@ -1,7 +1,6 @@
 "use client"
 
 import * as React from "react"
-import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
@@ -54,7 +53,7 @@ export function KnotForm({ onSubmit, onUpdate, editTask, onEditClose, contentCol
   const [touched, setTouched] = React.useState(false)
   const [isSubmitting, setIsSubmitting] = React.useState(false)
 
-  const titleInputRef = React.useRef<HTMLInputElement>(null)
+  const titleInputRef = React.useRef<HTMLTextAreaElement>(null)
   const fabRef = React.useRef<HTMLDivElement>(null)
 
   // Track FAB position relative to content column on desktop
@@ -237,7 +236,7 @@ export function KnotForm({ onSubmit, onUpdate, editTask, onEditClose, contentCol
     }
   }
 
-  const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleTitleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setTitle(e.target.value)
     if (error) {
       setError("")
@@ -321,23 +320,23 @@ export function KnotForm({ onSubmit, onUpdate, editTask, onEditClose, contentCol
         <div className="bg-background rounded-lg shadow-xl p-6">
           <div className="mb-4">
             <h2 className="text-lg font-bold text-foreground mb-2">{isEditMode ? "Edit Item" : "Add to Inbox"}</h2>
-            <p className="text-sm text-muted-foreground">Manually capture a new action item or task.</p>
+            <p className="text-sm text-muted-foreground">{isEditMode ? "Review and refine this action item." : "Manually capture a new action item or task."}</p>
           </div>
           <form onSubmit={handleSubmit}>
             <div className="space-y-2 mb-5">
               <Label htmlFor="title" className="text-sm text-muted-foreground">
                 Title
               </Label>
-              <Input
+              <Textarea
                 ref={titleInputRef}
                 id="title"
-                type="text"
                 placeholder="What needs to be untangled?"
+                rows={2}
                 value={title}
                 onChange={handleTitleChange}
                 aria-invalid={touched && !!error}
                 aria-describedby={touched && error ? "title-error" : undefined}
-                className="h-10 bg-card border-border/60 shadow-none"
+                className="bg-card border-border/60 shadow-none resize-none"
                 style={{ touchAction: "manipulation" }}
               />
               {touched && error && (
@@ -409,24 +408,25 @@ export function KnotForm({ onSubmit, onUpdate, editTask, onEditClose, contentCol
               </div>
             )}
 
-            <div className="flex items-center gap-4">
+            <div className="flex flex-row-reverse gap-3 w-full sm:w-auto">
               <Button
                 type="submit"
                 disabled={isSubmitting}
-                className="w-full sm:w-auto px-5 h-9 font-medium active:scale-[0.98] transition-transform duration-75"
+                className="flex-1 sm:flex-none px-5 h-9 font-medium active:scale-[0.98] transition-transform duration-75"
                 style={{ touchAction: "manipulation" }}
               >
                 {isSubmitting ? "Saving..." : isEditMode ? "Save changes" : "Add to Inbox"}
               </Button>
-              <button
+              <Button
                 type="button"
+                variant="outline"
                 onClick={handleClose}
                 disabled={isSubmitting}
-                className="text-muted-foreground hover:text-foreground text-sm transition-colors duration-100"
+                className="flex-1 sm:flex-none px-5 h-9 font-medium active:scale-[0.98] transition-transform duration-75"
                 style={{ touchAction: "manipulation" }}
               >
                 Cancel
-              </button>
+              </Button>
             </div>
           </form>
         </div>
