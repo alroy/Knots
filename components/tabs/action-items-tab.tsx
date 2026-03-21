@@ -1,10 +1,10 @@
 "use client"
 
-import { useState, useEffect, useRef, useCallback } from "react"
+import { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import { createClient } from "@/lib/supabase-browser"
 import { useAuth } from "@/contexts/auth-context"
 import { cn, formatRelativeTime } from "@/lib/utils"
-import { Check, Target, MessageSquare, Video, RefreshCw, Clock, ClipboardList } from "lucide-react"
+import { Check, Target, MessageSquare, Video, RefreshCw, Clock, ClipboardList, Search, ArrowDownNarrowWide, ArrowUpNarrowWide } from "lucide-react"
 import { KnotForm, type EditTask, type GoalOption } from "@/components/knot-form"
 import { ProvenanceRow } from "@/components/ui/slack-badge"
 import { TaskMetadata, isSlackMetadata, isGranolaMetadata } from "@/lib/types"
@@ -87,6 +87,8 @@ export function ActionItemsTab({ contentColumnRef, isActive }: ActionItemsTabPro
   const [exitingId, setExitingId] = useState<string | null>(null)
   const [goals, setGoals] = useState<GoalOption[]>([])
   const [editTask, setEditTask] = useState<EditTask | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc')
   const supabase = createClient()
   const locallyCreatedIds = useRef<Set<string>>(new Set())
   const editTaskRef = useRef<EditTask | null>(null)
@@ -751,6 +753,23 @@ export function ActionItemsTab({ contentColumnRef, isActive }: ActionItemsTabPro
   }
   const openItems = items.filter(isItemOpen)
 
+  const filteredItems = useMemo(() => {
+    let result = openItems
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase()
+      result = result.filter(item =>
+        item.title.toLowerCase().includes(q) ||
+        (item.description && item.description.toLowerCase().includes(q))
+      )
+    }
+    result = [...result].sort((a, b) => {
+      const dateA = new Date(a.createdAt).getTime()
+      const dateB = new Date(b.createdAt).getTime()
+      return sortOrder === 'desc' ? dateB - dateA : dateA - dateB
+    })
+    return result
+  }, [openItems, searchQuery, sortOrder])
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -779,7 +798,27 @@ export function ActionItemsTab({ contentColumnRef, isActive }: ActionItemsTabPro
             })()}
           </p>
         }
-        actions={
+      />
+
+      {openItems.length > 0 && (
+        <div className="flex items-center gap-2 mb-3">
+          <div className="relative flex-1">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <input
+              type="text"
+              placeholder="Search inbox..."
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              className="w-full h-9 pl-9 pr-3 rounded-md border border-input bg-background text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/20"
+            />
+          </div>
+          <button
+            onClick={() => setSortOrder(s => s === 'desc' ? 'asc' : 'desc')}
+            className="shrink-0 p-2 rounded-md text-muted-foreground hover:text-primary transition-colors"
+            aria-label={sortOrder === 'desc' ? 'Sorted newest first' : 'Sorted oldest first'}
+          >
+            {sortOrder === 'desc' ? <ArrowDownNarrowWide className="h-5 w-5" /> : <ArrowUpNarrowWide className="h-5 w-5" />}
+          </button>
           <button
             onClick={handleSync}
             disabled={syncing}
@@ -791,8 +830,8 @@ export function ActionItemsTab({ contentColumnRef, isActive }: ActionItemsTabPro
           >
             <RefreshCw className="h-5 w-5" />
           </button>
-        }
-      />
+        </div>
+      )}
 
       {syncMessage && (
         <div className={cn(
@@ -803,9 +842,9 @@ export function ActionItemsTab({ contentColumnRef, isActive }: ActionItemsTabPro
         </div>
       )}
 
-      {openItems.length > 0 ? (
+      {filteredItems.length > 0 ? (
         <div className="flex flex-col gap-3">
-          {openItems.map((item) => (
+          {filteredItems.map((item) => (
             <InboxCard
               key={`${item.origin}-${item.id}`}
               item={item}
@@ -845,6 +884,11 @@ export function ActionItemsTab({ contentColumnRef, isActive }: ActionItemsTabPro
               }}
             />
           ))}
+        </div>
+      ) : openItems.length > 0 ? (
+        <div className="flex flex-col items-center justify-center py-16 text-center">
+          <Search className="h-10 w-10 text-muted-foreground/30 mb-4" />
+          <p className="text-muted-foreground text-sm">No matching items</p>
         </div>
       ) : (
         <div className="flex flex-col items-center justify-center py-24 text-center">
