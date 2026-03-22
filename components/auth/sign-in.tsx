@@ -14,6 +14,7 @@ export function SignIn() {
   const [mode, setMode] = useState<AuthMode>('password')
   const [status, setStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
   const [errorMessage, setErrorMessage] = useState('')
+  const [agreedToTerms, setAgreedToTerms] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -35,6 +36,8 @@ export function SignIn() {
       setErrorMessage('Password must be at least 6 characters')
       return
     }
+
+    if (mode === 'sign-up' && !agreedToTerms) return
 
     setStatus('sending')
     setErrorMessage('')
@@ -159,9 +162,24 @@ export function SignIn() {
               <p className="text-sm text-red-600">{errorMessage}</p>
             )}
 
+            {mode === 'sign-up' && (
+              <div className="flex items-center gap-2 mb-6 mt-2">
+                <input
+                  type="checkbox"
+                  id="terms"
+                  checked={agreedToTerms}
+                  onChange={(e) => setAgreedToTerms(e.target.checked)}
+                  className="w-4 h-4 rounded border-slate-300 accent-[#5b738b] cursor-pointer"
+                />
+                <label htmlFor="terms" className="text-sm text-slate-600 leading-tight">
+                  I agree to the <a href="https://knots.bot/terms" target="_blank" rel="noopener noreferrer" className="text-slate-900 font-medium hover:underline">Terms of Service</a> and <a href="https://knots.bot/privacy" target="_blank" rel="noopener noreferrer" className="text-slate-900 font-medium hover:underline">Privacy Policy</a>.
+                </label>
+              </div>
+            )}
+
             <Button
               type="submit"
-              disabled={status === 'sending' || loading}
+              disabled={status === 'sending' || loading || (mode === 'sign-up' && !agreedToTerms)}
               size="lg"
               className="w-full"
             >
@@ -192,6 +210,7 @@ export function SignIn() {
                   setMode('password')
                   setStatus('idle')
                   setErrorMessage('')
+                  setAgreedToTerms(false)
                 }}
               >
                 Already have an account? Sign in
