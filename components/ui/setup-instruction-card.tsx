@@ -2,8 +2,7 @@
 
 import { Button } from "@/components/ui/button"
 
-const SETUP_PROMPT_URL =
-  "https://drive.google.com/file/d/1-qUfqqA7VjwKRJGj_a3BUN5eN8VlK3_f/view"
+const SETUP_PROMPT_PATH = "/Action Items Automation Setup.md"
 
 export function SetupInstructionCard() {
   return (
@@ -27,9 +26,9 @@ export function SetupInstructionCard() {
           automatically create your Monday board and schedule the daily scans.
         </li>
       </ol>
-      <a href={SETUP_PROMPT_URL} target="_blank" rel="noopener noreferrer">
+      <a href={SETUP_PROMPT_PATH} download>
         <Button variant="ghost" className="w-full border border-border">
-          Get the Setup Prompt
+          Download the Setup Prompt
         </Button>
       </a>
     </div>
