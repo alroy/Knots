@@ -4,7 +4,7 @@
 ## Project Overview
 This is a Next.js 14 to-do app called "Knots" with Supabase database integration, drag-and-drop functionality, and a refined design system using oklch color space.
 
-**Live URL:** https://v0-knots-taker.vercel.app/
+**Live URL:** https://app.knots.bot/
 **Repository:** https://github.com/alroy/To-Do
 
 ## Tech Stack
@@ -76,17 +76,10 @@ Floating Action Button (FAB) with modal form:
 - Custom KnotIcon SVG component
 
 ### `/components/auth/sign-in.tsx`
-Email/password and magic link sign-in page:
-- Three auth modes: password, magic-link, sign-up
-- Email + password inputs with mode toggle buttons
-- "Check your email" confirmation screen for magic link/sign-up
-- Access controlled via `NEXT_PUBLIC_ALLOWED_EMAILS` env var
-
-### `/components/auth/reset-password.tsx`
-Password recovery form:
-- New password + confirm password inputs
-- Triggered via recovery link in email
-- Success message with auto-redirect
+Google OAuth sign-in page:
+- Single "Sign in with Google" button with Google icon
+- Error display for failed sign-in attempts
+- Integration logos footer (Slack, Granola, Gmail, Monday.com)
 
 ### `/components/sortable-knot-list.tsx`
 Drag-and-drop list using @dnd-kit:
@@ -176,7 +169,7 @@ After profile setup, new users see a second step to connect their Monday board:
 MONDAY_API_KEY=your-shared-monday-api-key   # Required for Monday.com sync
 ADMIN_EMAIL=gil.alroy@gmail.com             # Server-side: admin email for API routes
 NEXT_PUBLIC_ADMIN_EMAIL=gil.alroy@gmail.com # Client-side: admin check in auth context
-NEXT_PUBLIC_ALLOWED_EMAILS=email1@example.com,email2@example.com  # Comma-separated email allowlist
+NEXT_PUBLIC_SITE_URL=https://app.knots.bot  # Site URL for auth redirects
 ```
 
 ## Current State
@@ -204,9 +197,7 @@ NEXT_PUBLIC_ALLOWED_EMAILS=email1@example.com,email2@example.com  # Comma-separa
 - ✅ Monday.com integration with shared API key (env var) and per-user Board ID
 - ✅ Onboarding flow: profile setup → Monday board connection
 - ✅ Morning Brief removed (no longer part of UI)
-- ✅ Email/password + magic link authentication
-- ✅ Email allowlist via NEXT_PUBLIC_ALLOWED_EMAILS env var
-- ✅ Password recovery flow
+- ✅ Google OAuth authentication (replaced email/password + magic link)
 
 ## Animations & Transitions
 

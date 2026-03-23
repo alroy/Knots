@@ -1,135 +1,34 @@
 "use client"
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useAuth } from '@/contexts/auth-context'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 
-type AuthMode = 'password' | 'magic-link' | 'sign-up' | 'forgot-password'
-
-function getModeFromHash(): AuthMode {
-  if (typeof window === 'undefined') return 'password'
-  return window.location.hash === '#/signup' ? 'sign-up' : 'password'
+function GoogleIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg">
+      <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844a4.14 4.14 0 0 1-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615Z" fill="#4285F4"/>
+      <path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18Z" fill="#34A853"/>
+      <path d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.997 8.997 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332Z" fill="#FBBC05"/>
+      <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 6.29C4.672 4.163 6.656 2.58 9 3.58Z" fill="#EA4335"/>
+    </svg>
+  )
 }
 
 export function SignIn() {
-  const { sendMagicLink, signInWithPassword, signUp, resetPassword, loading } = useAuth()
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [mode, setMode] = useState<AuthMode>(getModeFromHash)
-  const [status, setStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
+  const { signInWithGoogle } = useAuth()
+  const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle')
   const [errorMessage, setErrorMessage] = useState('')
-  const [agreedToTerms, setAgreedToTerms] = useState(false)
 
-  // Sync mode with URL hash for shareable sign-up links
-  useEffect(() => {
-    const handleHashChange = () => {
-      const hash = window.location.hash
-      if (hash === '#/signup') {
-        setMode('sign-up')
-      } else {
-        setMode('password')
-      }
-      setStatus('idle')
-      setErrorMessage('')
-    }
-
-    window.addEventListener('hashchange', handleHashChange)
-    return () => window.removeEventListener('hashchange', handleHashChange)
-  }, [])
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-
-    if (!email.trim()) {
-      setStatus('error')
-      setErrorMessage('Please enter your email address')
-      return
-    }
-
-    if ((mode === 'password' || mode === 'sign-up') && !password) {
-      setStatus('error')
-      setErrorMessage('Please enter your password')
-      return
-    }
-
-    if (mode === 'sign-up' && password.length < 6) {
-      setStatus('error')
-      setErrorMessage('Password must be at least 6 characters')
-      return
-    }
-
-    if (mode === 'sign-up' && !agreedToTerms) return
-
-    setStatus('sending')
+  const handleGoogleSignIn = async () => {
+    setStatus('loading')
     setErrorMessage('')
-
-    if (mode === 'forgot-password') {
-      const result = await resetPassword(email.trim())
-      if (result.success) {
-        setStatus('sent')
-      } else {
-        setStatus('error')
-        setErrorMessage(result.error || 'Failed to send reset link')
-      }
-    } else if (mode === 'magic-link') {
-      const result = await sendMagicLink(email.trim())
-      if (result.success) {
-        setStatus('sent')
-      } else {
-        setStatus('error')
-        setErrorMessage(result.error || 'Failed to send magic link')
-      }
-    } else if (mode === 'sign-up') {
-      const result = await signUp(email.trim(), password)
-      if (result.success) {
-        setStatus('sent')
-      } else {
-        setStatus('error')
-        setErrorMessage(result.error || 'Failed to create account')
-      }
-    } else {
-      const result = await signInWithPassword(email.trim(), password)
-      if (result.success) {
-        // Auth state change will handle redirect
-      } else {
-        setStatus('error')
-        setErrorMessage(result.error || 'Failed to sign in')
-      }
+    const result = await signInWithGoogle()
+    if (!result.success) {
+      setStatus('error')
+      setErrorMessage(result.error || 'Failed to sign in')
     }
-  }
-
-  if (status === 'sent') {
-    return (
-      <main className="min-h-screen bg-background px-4 py-12">
-        <div className="mx-auto max-w-xl">
-          <div className="flex min-h-[60vh] flex-col items-center justify-center space-y-6">
-            <div className="text-center">
-              <div className="mb-4 text-4xl">✉️</div>
-              <h1 className="mb-2 text-2xl font-bold text-foreground">Check your email</h1>
-              <p className="text-muted-foreground">
-                We sent a {mode === 'forgot-password' ? 'password reset' : mode === 'sign-up' ? 'confirmation' : 'magic'} link to <strong>{email}</strong>
-              </p>
-              <p className="mt-2 text-sm text-muted-foreground">
-                Click the link in the email to {mode === 'forgot-password' ? 'reset your password' : mode === 'sign-up' ? 'confirm your account' : 'sign in'}. You can close this tab.
-              </p>
-            </div>
-            <Button
-              variant="ghost"
-              onClick={() => {
-                setStatus('idle')
-                setEmail('')
-              }}
-            >
-              Use a different email
-            </Button>
-          </div>
-        </div>
-        <div className="w-full text-center py-6 text-sm text-slate-500">
-          Powered by <a href="https://knots.bot/" target="_blank" rel="noopener noreferrer" className="font-medium text-slate-600 hover:text-slate-900 hover:underline transition-colors">knots.bot</a>
-        </div>
-      </main>
-    )
+    // On success, browser redirects to Google — no need to update state
   }
 
   return (
@@ -144,110 +43,20 @@ export function SignIn() {
             </p>
           </div>
 
-          <form onSubmit={handleSubmit} className="mt-6 w-full max-w-sm space-y-4">
-            <Input
-              type="email"
-              placeholder="your@email.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              disabled={status === 'sending' || loading}
-              autoFocus
-            />
-
-            {(mode === 'password' || mode === 'sign-up') && (
-              <>
-                <Input
-                  type="password"
-                  placeholder="Password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  disabled={status === 'sending' || loading}
-                />
-                {mode === 'password' && (
-                  <button
-                    type="button"
-                    className="self-end text-sm text-gray-500 hover:text-gray-700 transition-colors -mt-2"
-                    onClick={() => {
-                      setMode('forgot-password')
-                      setPassword('')
-                      setStatus('idle')
-                      setErrorMessage('')
-                    }}
-                  >
-                    Forgot password?
-                  </button>
-                )}
-              </>
-            )}
-
+          <div className="mt-6 w-full max-w-sm space-y-4">
             {status === 'error' && errorMessage && (
-              <p className="text-sm text-red-600">{errorMessage}</p>
+              <p className="text-sm text-red-600 text-center">{errorMessage}</p>
             )}
-
-            {mode === 'sign-up' && (
-              <div className="flex items-center gap-2 mb-6 mt-2">
-                <input
-                  type="checkbox"
-                  id="terms"
-                  checked={agreedToTerms}
-                  onChange={(e) => setAgreedToTerms(e.target.checked)}
-                  className="w-4 h-4 rounded border-slate-300 accent-[#5b738b] cursor-pointer"
-                />
-                <label htmlFor="terms" className="text-sm text-slate-600 leading-tight">
-                  I agree to the <a href="https://knots.bot/terms" target="_blank" rel="noopener noreferrer" className="text-slate-900 font-medium hover:underline">Terms of Service</a> and <a href="https://knots.bot/privacy" target="_blank" rel="noopener noreferrer" className="text-slate-900 font-medium hover:underline">Privacy Policy</a>.
-                </label>
-              </div>
-            )}
-
             <Button
-              type="submit"
-              disabled={status === 'sending' || loading || (mode === 'sign-up' && !agreedToTerms)}
+              onClick={handleGoogleSignIn}
+              disabled={status === 'loading'}
               size="lg"
-              className="w-full"
+              variant="outline"
+              className="w-full gap-3"
             >
-              {status === 'sending'
-                ? (mode === 'sign-up' ? 'Creating account...' : mode === 'password' ? 'Signing in...' : mode === 'forgot-password' ? 'Sending...' : 'Sending...')
-                : (mode === 'sign-up' ? 'Create account' : mode === 'password' ? 'Sign in' : mode === 'forgot-password' ? 'Send reset link' : 'Send magic link')}
+              <GoogleIcon />
+              {status === 'loading' ? 'Redirecting...' : 'Sign in with Google'}
             </Button>
-          </form>
-
-          <div className="flex h-14 flex-col items-center justify-start mt-4">
-            {mode === 'forgot-password' ? (
-              <a
-                href="#/login"
-                className="text-sm text-gray-500 hover:text-gray-700 transition-colors"
-              >
-                Back to sign in
-              </a>
-            ) : mode === 'sign-up' ? (
-              <a
-                href="#/login"
-                className="text-sm text-gray-500 hover:text-gray-700 transition-colors"
-                onClick={() => setAgreedToTerms(false)}
-              >
-                Already have an account? Sign in
-              </a>
-            ) : (
-              <>
-                <button
-                  type="button"
-                  className="text-sm text-gray-500 hover:text-gray-700 transition-colors"
-                  onClick={() => {
-                    setMode(mode === 'password' ? 'magic-link' : 'password')
-                    setStatus('idle')
-                    setErrorMessage('')
-                  }}
-                >
-                  {mode === 'password' ? 'Use magic link instead' : 'Use password instead'}
-                </button>
-                <a
-                  href="#/signup"
-                  className="mt-2 text-sm font-medium text-blue-600 hover:underline transition-colors"
-                >
-                  New here? Create an account
-                </a>
-              </>
-            )}
           </div>
 
           <div className="flex flex-col items-center gap-3 mt-12">
