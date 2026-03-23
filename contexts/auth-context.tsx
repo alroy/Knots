@@ -19,7 +19,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true)
   const [isApproved, setIsApproved] = useState<boolean | null>(null)
 
-  // Fetch approval status from user_profile
+  // Fetch approval status from user_profile, creating the row if missing
   const checkApproval = async (userId: string) => {
     const supabase = createClient()
     const { data, error } = await supabase
@@ -28,12 +28,42 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       .eq('user_id', userId)
       .maybeSingle()
 
-    if (error || !data) {
-      // Profile may not exist yet (trigger hasn't fired), treat as not approved
+    if (error) {
       setIsApproved(false)
       return
     }
-    setIsApproved(data.approved)
+
+    if (data) {
+      setIsApproved(data.approved)
+      return
+    }
+
+    // No profile row exists — create one as fallback (DB trigger may not have fired)
+    const { data: { user: authUser } } = await supabase.auth.getUser()
+    const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL?.toLowerCase()
+    const isAdmin = !!(adminEmail && authUser?.email?.toLowerCase() === adminEmail)
+    const name = authUser?.user_metadata?.full_name || ''
+
+    const { error: insertError } = await supabase
+      .from('user_profile')
+      .insert({ user_id: userId, name, approved: isAdmin })
+
+    if (insertError) {
+      // Unique constraint violation — trigger won the race, re-read the row
+      if (insertError.code === '23505') {
+        const { data: retry } = await supabase
+          .from('user_profile')
+          .select('approved')
+          .eq('user_id', userId)
+          .maybeSingle()
+        setIsApproved(retry?.approved ?? false)
+        return
+      }
+      setIsApproved(false)
+      return
+    }
+
+    setIsApproved(isAdmin)
   }
 
   useEffect(() => {
