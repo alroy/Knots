@@ -10,8 +10,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(`${origin}/?error=missing_auth_code`)
   }
 
-  const cookiesSet: string[] = []
-
   const redirectUrl = `${origin}${next}`
   const response = NextResponse.redirect(redirectUrl)
 
@@ -25,7 +23,6 @@ export async function GET(request: NextRequest) {
         },
         setAll(cookiesToSet) {
           cookiesToSet.forEach(({ name, value, options }) => {
-            cookiesSet.push(name)
             response.cookies.set(name, value, options)
           })
         },
@@ -40,30 +37,16 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(`${origin}/?error=${encodeURIComponent(error.message)}`)
     }
 
-    // Temporary debug: show what happened instead of redirecting
-    return new NextResponse(
-      `<html><body style="font-family:monospace;padding:40px">
-        <h2>Auth Callback Debug</h2>
-        <p><b>Exchange:</b> SUCCESS</p>
-        <p><b>User:</b> ${data.user?.email || 'none'}</p>
-        <p><b>Session:</b> ${data.session ? 'yes' : 'no'}</p>
-        <p><b>Cookies set:</b> ${cookiesSet.length} - [${cookiesSet.join(', ')}]</p>
-        <p><b>Origin:</b> ${origin}</p>
-        <p><b>Redirect would go to:</b> ${redirectUrl}</p>
-        <p><a href="/">Click here to continue to app</a></p>
-      </body></html>`,
-      {
-        status: 200,
-        headers: {
-          'content-type': 'text/html',
-          // Copy the cookies from the redirect response
-          ...Object.fromEntries(
-            response.headers.entries()
-          ),
-        },
-      }
-    )
+    // Force session cookies to be written via setAll
+    if (data.session) {
+      await supabase.auth.setSession({
+        access_token: data.session.access_token,
+        refresh_token: data.session.refresh_token,
+      })
+    }
   } catch (err: any) {
     return NextResponse.redirect(`${origin}/?error=${encodeURIComponent(err.message || 'auth_callback_error')}`)
   }
+
+  return response
 }
