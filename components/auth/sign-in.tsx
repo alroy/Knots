@@ -1,20 +1,42 @@
 "use client"
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAuth } from '@/contexts/auth-context'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 
 type AuthMode = 'password' | 'magic-link' | 'sign-up' | 'forgot-password'
 
+function getModeFromHash(): AuthMode {
+  if (typeof window === 'undefined') return 'password'
+  return window.location.hash === '#/signup' ? 'sign-up' : 'password'
+}
+
 export function SignIn() {
   const { sendMagicLink, signInWithPassword, signUp, resetPassword, loading } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [mode, setMode] = useState<AuthMode>('password')
+  const [mode, setMode] = useState<AuthMode>(getModeFromHash)
   const [status, setStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
   const [errorMessage, setErrorMessage] = useState('')
   const [agreedToTerms, setAgreedToTerms] = useState(false)
+
+  // Sync mode with URL hash for shareable sign-up links
+  useEffect(() => {
+    const handleHashChange = () => {
+      const hash = window.location.hash
+      if (hash === '#/signup') {
+        setMode('sign-up')
+      } else {
+        setMode('password')
+      }
+      setStatus('idle')
+      setErrorMessage('')
+    }
+
+    window.addEventListener('hashchange', handleHashChange)
+    return () => window.removeEventListener('hashchange', handleHashChange)
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -191,30 +213,20 @@ export function SignIn() {
 
           <div className="flex h-14 flex-col items-center justify-start mt-4">
             {mode === 'forgot-password' ? (
-              <button
-                type="button"
+              <a
+                href="#/login"
                 className="text-sm text-gray-500 hover:text-gray-700 transition-colors"
-                onClick={() => {
-                  setMode('password')
-                  setStatus('idle')
-                  setErrorMessage('')
-                }}
               >
                 Back to sign in
-              </button>
+              </a>
             ) : mode === 'sign-up' ? (
-              <button
-                type="button"
+              <a
+                href="#/login"
                 className="text-sm text-gray-500 hover:text-gray-700 transition-colors"
-                onClick={() => {
-                  setMode('password')
-                  setStatus('idle')
-                  setErrorMessage('')
-                  setAgreedToTerms(false)
-                }}
+                onClick={() => setAgreedToTerms(false)}
               >
                 Already have an account? Sign in
-              </button>
+              </a>
             ) : (
               <>
                 <button
@@ -228,17 +240,12 @@ export function SignIn() {
                 >
                   {mode === 'password' ? 'Use magic link instead' : 'Use password instead'}
                 </button>
-                <button
-                  type="button"
+                <a
+                  href="#/signup"
                   className="mt-2 text-sm font-medium text-blue-600 hover:underline transition-colors"
-                  onClick={() => {
-                    setMode('sign-up')
-                    setStatus('idle')
-                    setErrorMessage('')
-                  }}
                 >
                   New here? Create an account
-                </button>
+                </a>
               </>
             )}
           </div>
