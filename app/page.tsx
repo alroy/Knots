@@ -6,7 +6,6 @@ import { useAuth } from "@/contexts/auth-context"
 import { createClient } from "@/lib/supabase-browser"
 import { SignIn } from "@/components/auth/sign-in"
 import { PendingApproval } from "@/components/auth/pending-approval"
-import { ResetPassword } from "@/components/auth/reset-password"
 import { Onboarding } from "@/components/onboarding"
 import { TabBar } from "@/components/tab-bar"
 import { GoalsTab } from "@/components/tabs/goals-tab"
@@ -36,7 +35,7 @@ export default function Page() {
 }
 
 function PageContent() {
-  const { user, loading: authLoading, isApproved, isPasswordRecovery, clearPasswordRecovery } = useAuth()
+  const { user, loading: authLoading, isApproved } = useAuth()
   const searchParams = useSearchParams()
   const router = useRouter()
   const [activeTab, setActiveTab] = useState<TabId>(getInitialTab)
@@ -93,11 +92,6 @@ function PageContent() {
   // Show sign-in page if not authenticated
   if (!user) {
     return <SignIn />
-  }
-
-  // Show password reset form if in recovery mode
-  if (isPasswordRecovery) {
-    return <ResetPassword onComplete={clearPasswordRecovery} />
   }
 
   // Show pending approval page if user is not yet approved
