@@ -22,7 +22,7 @@ const FILTER_OPTIONS = [
   { value: 'improvement', label: 'Improvements' },
 ]
 
-const STATUS_OPTIONS = ['new', 'reviewed', 'planned', 'fixed']
+const STATUS_OPTIONS = ['new', 'reviewed', 'planned', 'fixed', 'rejected']
 
 const CATEGORY_STYLES: Record<string, string> = {
   bug: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
