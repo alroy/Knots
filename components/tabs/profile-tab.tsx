@@ -7,9 +7,10 @@ import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Pencil, Check, FileText, Camera, Sparkles, ChevronRight } from "lucide-react"
+import { Pencil, Check, FileText, Camera, Sparkles, ChevronRight, Lightbulb, Bug } from "lucide-react"
 import { MondaySettings } from "@/components/settings/monday-settings"
 import { cn } from "@/lib/utils"
+import { FeedbackModal } from "@/components/feedback-modal"
 import type { UserProfile, PersonLocation } from "@/lib/chief-of-staff-types"
 import { LOCATION_OPTIONS } from "@/lib/chief-of-staff-types"
 
@@ -25,6 +26,7 @@ export function ProfileTab({ contentColumnRef }: ProfileTabProps) {
   const [loading, setLoading] = useState(true)
   const [editingSection, setEditingSection] = useState<string | null>(null)
   const [showTranscript, setShowTranscript] = useState(false)
+  const [feedbackType, setFeedbackType] = useState<'bug' | 'feature' | null>(null)
   const [editName, setEditName] = useState('')
   const nameInputRef = useRef<HTMLInputElement>(null)
   const supabase = createClient()
@@ -307,13 +309,22 @@ export function ProfileTab({ contentColumnRef }: ProfileTabProps) {
         {/* Account actions */}
         <div className="bg-slate-100 dark:bg-slate-800/50 rounded-xl overflow-hidden mt-6">
           {isAdmin && (
-            <a
-              href="/admin"
-              className="flex justify-between items-center w-full p-4 text-slate-800 dark:text-slate-200 font-medium text-sm hover:bg-slate-200/60 dark:hover:bg-slate-700/50 transition-colors border-b border-gray-200/60 dark:border-gray-700/60"
-            >
-              User approvals
-              <ChevronRight className="h-4 w-4 text-slate-400" />
-            </a>
+            <>
+              <a
+                href="/admin"
+                className="flex justify-between items-center w-full p-4 text-slate-800 dark:text-slate-200 font-medium text-sm hover:bg-slate-200/60 dark:hover:bg-slate-700/50 transition-colors border-b border-gray-200/60 dark:border-gray-700/60"
+              >
+                User approvals
+                <ChevronRight className="h-4 w-4 text-slate-400" />
+              </a>
+              <a
+                href="/admin/feedback"
+                className="flex justify-between items-center w-full p-4 text-slate-800 dark:text-slate-200 font-medium text-sm hover:bg-slate-200/60 dark:hover:bg-slate-700/50 transition-colors border-b border-gray-200/60 dark:border-gray-700/60"
+              >
+                Manage Feedback
+                <ChevronRight className="h-4 w-4 text-slate-400" />
+              </a>
+            </>
           )}
           <button
             onClick={() => signOut()}
@@ -327,6 +338,8 @@ export function ProfileTab({ contentColumnRef }: ProfileTabProps) {
       {/* FAB */}
       <ProfileFAB
         onImportTranscript={() => setShowTranscript(true)}
+        onSuggestFeature={() => setFeedbackType('feature')}
+        onReportBug={() => setFeedbackType('bug')}
         contentColumnRef={contentColumnRef}
       />
 
@@ -335,6 +348,13 @@ export function ProfileTab({ contentColumnRef }: ProfileTabProps) {
         <TranscriptImportModal
           onClose={() => setShowTranscript(false)}
           onImported={() => { setShowTranscript(false); loadProfile() }}
+        />
+      )}
+
+      {feedbackType && (
+        <FeedbackModal
+          initialCategory={feedbackType}
+          onClose={() => setFeedbackType(null)}
         />
       )}
     </div>
@@ -451,8 +471,10 @@ function ProfileSection({ sectionKey, label, value, placeholder, isInput, isSele
 
 // --- Profile FAB ---
 
-function ProfileFAB({ onImportTranscript, contentColumnRef }: {
+function ProfileFAB({ onImportTranscript, onSuggestFeature, onReportBug, contentColumnRef }: {
   onImportTranscript: () => void
+  onSuggestFeature: () => void
+  onReportBug: () => void
   contentColumnRef: React.RefObject<HTMLDivElement | null>
 }) {
   const [isOpen, setIsOpen] = useState(false)
@@ -511,6 +533,30 @@ function ProfileFAB({ onImportTranscript, contentColumnRef }: {
       >
         {isOpen && (
           <div className="absolute bottom-16 right-0 flex flex-col items-end gap-3 mb-2 animate-in fade-in slide-in-from-bottom-2 duration-200">
+            <button
+              onClick={() => handleAction(onSuggestFeature)}
+              className="flex items-center gap-3 group min-h-[48px]"
+              style={{ touchAction: "manipulation" }}
+            >
+              <span className="rounded-full bg-background px-3 py-1.5 text-sm font-medium text-foreground shadow-md whitespace-nowrap">
+                Suggest a feature
+              </span>
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-background text-foreground shadow-md">
+                <Lightbulb className="h-5 w-5" />
+              </span>
+            </button>
+            <button
+              onClick={() => handleAction(onReportBug)}
+              className="flex items-center gap-3 group min-h-[48px]"
+              style={{ touchAction: "manipulation" }}
+            >
+              <span className="rounded-full bg-background px-3 py-1.5 text-sm font-medium text-foreground shadow-md whitespace-nowrap">
+                Report a bug
+              </span>
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-background text-foreground shadow-md">
+                <Bug className="h-5 w-5" />
+              </span>
+            </button>
             <button
               onClick={() => handleAction(onImportTranscript)}
               className="flex items-center gap-3 group min-h-[48px]"
