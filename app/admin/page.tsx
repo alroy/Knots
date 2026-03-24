@@ -2,9 +2,11 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { useAuth } from '@/contexts/auth-context'
 import { Button } from '@/components/ui/button'
 import { formatRelativeTime } from '@/lib/utils'
+import { ArrowLeft } from 'lucide-react'
 
 interface PendingUser {
   userId: string
@@ -113,11 +115,15 @@ export default function AdminPage() {
   return (
     <main className="min-h-screen bg-background py-12">
       <div className="mx-auto max-w-xl px-4">
-        <div className="mb-6 flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-foreground">User Approvals</h1>
-          <Button variant="ghost" size="sm" onClick={() => router.push('/')}>
+        <div className="mb-6">
+          <Link
+            href="/"
+            className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-4"
+          >
+            <ArrowLeft className="h-4 w-4" />
             Back to app
-          </Button>
+          </Link>
+          <h1 className="text-2xl font-bold text-foreground">User Approvals</h1>
         </div>
 
         {error && (
