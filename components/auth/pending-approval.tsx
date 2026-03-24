@@ -44,11 +44,11 @@ export function PendingApproval() {
               <h1 className="mb-2 text-2xl font-bold text-foreground">Welcome to Knots</h1>
               <p className="mb-4 text-muted-foreground">
                 Before we continue, please review and accept our{' '}
-                <a href="#" target="_blank" rel="noopener noreferrer" className="text-primary underline">
+                <a href="https://knots.bot/terms" target="_blank" rel="noopener noreferrer" className="text-primary underline">
                   Terms of Service
                 </a>{' '}
                 and{' '}
-                <a href="#" target="_blank" rel="noopener noreferrer" className="text-primary underline">
+                <a href="https://knots.bot/privacy" target="_blank" rel="noopener noreferrer" className="text-primary underline">
                   Privacy Policy
                 </a>
                 .
