@@ -2,9 +2,10 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { useAuth } from '@/contexts/auth-context'
-import { Button } from '@/components/ui/button'
 import { formatRelativeTime } from '@/lib/utils'
+import { ArrowLeft } from 'lucide-react'
 
 interface FeedbackItem {
   id: string
@@ -38,6 +39,7 @@ export default function AdminFeedbackPage() {
   const [feedback, setFeedback] = useState<FeedbackItem[]>([])
   const [fetching, setFetching] = useState(true)
   const [activeFilter, setActiveFilter] = useState('bug')
+  const [counts, setCounts] = useState<Record<string, number>>({})
   const [updatingId, setUpdatingId] = useState<string | null>(null)
   const [error, setError] = useState('')
 
@@ -55,6 +57,28 @@ export default function AdminFeedbackPage() {
     fetchFeedback()
   }, [isAdmin, activeFilter])
 
+  useEffect(() => {
+    if (!isAdmin) return
+    fetchCounts()
+  }, [isAdmin])
+
+  const fetchCounts = async () => {
+    try {
+      const results = await Promise.all(
+        FILTER_OPTIONS.map(async (opt) => {
+          const res = await fetch(`/api/admin/feedback?category=${opt.value}`)
+          const data = await res.json()
+          return { category: opt.value, count: (data.feedback || []).length }
+        })
+      )
+      const newCounts: Record<string, number> = {}
+      results.forEach(({ category, count }) => { newCounts[category] = count })
+      setCounts(newCounts)
+    } catch {
+      // counts are non-critical, ignore errors
+    }
+  }
+
   const fetchFeedback = async () => {
     setFetching(true)
     try {
@@ -65,7 +89,9 @@ export default function AdminFeedbackPage() {
       if (data.error) {
         setError(data.error)
       } else {
-        setFeedback(data.feedback || [])
+        const items = data.feedback || []
+        setFeedback(items)
+        setCounts(prev => ({ ...prev, [activeFilter]: items.length }))
       }
     } catch {
       setError('Failed to load feedback')
@@ -113,11 +139,15 @@ export default function AdminFeedbackPage() {
   return (
     <main className="min-h-screen bg-background py-12">
       <div className="mx-auto max-w-xl px-4">
-        <div className="mb-6 flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-foreground">Feedback</h1>
-          <Button variant="ghost" size="sm" onClick={() => router.push('/')}>
+        <div className="mb-6">
+          <Link
+            href="/"
+            className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-4"
+          >
+            <ArrowLeft className="h-4 w-4" />
             Back to app
-          </Button>
+          </Link>
+          <h1 className="text-2xl font-bold text-foreground">Feedback</h1>
         </div>
 
         {/* Filter pills */}
@@ -132,7 +162,7 @@ export default function AdminFeedbackPage() {
                   : 'bg-accent text-foreground hover:bg-accent-hover'
               }`}
             >
-              {opt.label}
+              {opt.label}{counts[opt.value] !== undefined ? ` ${counts[opt.value]}` : ''}
             </button>
           ))}
         </div>
