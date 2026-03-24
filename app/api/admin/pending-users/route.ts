@@ -35,9 +35,15 @@ export async function GET() {
         name: profile.name || authUser?.user_metadata?.full_name || '',
         avatarUrl: profile.avatar_url || authUser?.user_metadata?.avatar_url || '',
         createdAt: profile.created_at,
+        hasAcceptedTerms: authUser?.user_metadata?.has_accepted_terms === true,
       }
     })
   )
 
-  return NextResponse.json({ users })
+  // Only show users who have accepted terms (exclude those who dropped off before consenting)
+  const filteredUsers = users
+    .filter((u) => u.hasAcceptedTerms)
+    .map(({ hasAcceptedTerms, ...rest }) => rest)
+
+  return NextResponse.json({ users: filteredUsers })
 }
