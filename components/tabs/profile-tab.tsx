@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Pencil, Check, FileText, Camera, Sparkles, ChevronRight, Lightbulb, Bug } from "lucide-react"
+import { Pencil, Check, FileText, Camera, LayoutGrid, X, ChevronRight, Lightbulb, Bug } from "lucide-react"
 import { MondaySettings } from "@/components/settings/monday-settings"
 import { cn } from "@/lib/utils"
 import { FeedbackModal } from "@/components/feedback-modal"
@@ -580,10 +580,11 @@ function ProfileFAB({ onImportTranscript, onSuggestImprovement, onReportBug, con
           aria-label={isOpen ? "Close menu" : "Profile actions"}
           aria-expanded={isOpen}
         >
-          <Sparkles className={cn(
-            "h-6 w-6 md:h-5 md:w-5 transition-transform duration-200",
-            isOpen && "rotate-45"
-          )} />
+          {isOpen ? (
+            <X className="h-6 w-6 md:h-5 md:w-5 transition-transform duration-200" />
+          ) : (
+            <LayoutGrid className="h-6 w-6 md:h-5 md:w-5 transition-transform duration-200" />
+          )}
         </Button>
       </div>
     </>
