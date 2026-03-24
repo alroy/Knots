@@ -3,7 +3,6 @@
 import { useState } from 'react'
 import { useAuth } from '@/contexts/auth-context'
 import { Button } from '@/components/ui/button'
-import { SetupInstructionCard } from '@/components/ui/setup-instruction-card'
 import { createClient } from '@/lib/supabase-browser'
 
 export function PendingApproval() {
@@ -85,32 +84,60 @@ export function PendingApproval() {
   return (
     <main className="min-h-screen bg-background px-4 py-12">
       <div className="mx-auto max-w-xl">
-        <div className="flex min-h-[60vh] flex-col items-center justify-center space-y-6">
-          <div className="text-center">
-            <div className="mb-4 flex justify-center">
-              <img
-                src="/lock.svg"
-                alt="Pending Approval"
-                className="h-16 w-16 opacity-75"
-              />
-            </div>
-            <h1 className="mb-2 text-2xl font-bold text-foreground">Registration Pending</h1>
-            <p className="mb-4 text-muted-foreground">
+        <div className="flex min-h-[60vh] flex-col items-center justify-center space-y-8">
+          <div className="bg-white border border-gray-200 shadow-sm rounded-xl p-8 max-w-lg w-full mx-auto text-center">
+            <img
+              src="/locked.svg"
+              alt="Pending Approval"
+              className="h-14 w-14 mx-auto mb-6"
+            />
+            <h1 className="mb-2 text-2xl font-semibold text-gray-900">Registration Pending</h1>
+            <p className="mb-6 text-sm leading-relaxed text-gray-500">
               Your account is waiting for admin approval. In the meantime, get ready to put your inbox on autopilot.
             </p>
+
+            <hr className="my-6 border-gray-100" />
+
+            <div className="text-left">
+              <h2 className="mb-2 text-lg font-semibold text-foreground">
+                ✨ Set Up Your AI Autopilot
+              </h2>
+              <p className="mb-4 text-sm text-muted-foreground">
+                Knots pulls your action items directly from a Monday.com Tasks board. To
+                put this on autopilot, we use Claude Cowork to scan your Slack, Gmail,
+                and Granola transcripts and write tasks to that board twice a day.
+              </p>
+              <ol className="mb-4 list-decimal space-y-2 pl-5 text-sm text-muted-foreground">
+                <li>
+                  Enable the <strong>Slack</strong>, <strong>Granola</strong>,{" "}
+                  <strong>Gmail</strong>, and <strong>Monday.com</strong> connectors in
+                  your Claude Cowork account.
+                </li>
+                <li>
+                  Copy our setup prompt into a new Cowork session. Claude will
+                  automatically create your Monday board and schedule the daily scans.
+                </li>
+              </ol>
+              <a href="/Action Items Automation Setup.md" download>
+                <Button variant="ghost" className="w-full border border-border">
+                  Download the Setup Prompt
+                </Button>
+              </a>
+            </div>
           </div>
 
-          <SetupInstructionCard />
-
-          <div className="flex flex-col items-center gap-2 pt-2">
+          <div className="flex flex-col items-center gap-2">
             {user?.email && (
               <p className="text-sm text-muted-foreground">
                 Signed in as: <span className="font-medium">{user.email}</span>
               </p>
             )}
-            <Button onClick={signOut}>
+            <button
+              onClick={signOut}
+              className="text-sm text-muted-foreground underline hover:text-foreground transition-colors"
+            >
               Sign out
-            </Button>
+            </button>
           </div>
         </div>
       </div>
