@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Pencil, Check, FileText, Camera, Sparkles, ChevronRight, Lightbulb, Bug } from "lucide-react"
+import { Pencil, Check, FileText, Camera, LayoutGrid, X, ChevronRight, Lightbulb, Bug } from "lucide-react"
 import { MondaySettings } from "@/components/settings/monday-settings"
 import { cn } from "@/lib/utils"
 import { FeedbackModal } from "@/components/feedback-modal"
@@ -26,7 +26,7 @@ export function ProfileTab({ contentColumnRef }: ProfileTabProps) {
   const [loading, setLoading] = useState(true)
   const [editingSection, setEditingSection] = useState<string | null>(null)
   const [showTranscript, setShowTranscript] = useState(false)
-  const [feedbackType, setFeedbackType] = useState<'bug' | 'feature' | null>(null)
+  const [feedbackType, setFeedbackType] = useState<'bug' | 'improvement' | null>(null)
   const [editName, setEditName] = useState('')
   const nameInputRef = useRef<HTMLInputElement>(null)
   const supabase = createClient()
@@ -338,7 +338,7 @@ export function ProfileTab({ contentColumnRef }: ProfileTabProps) {
       {/* FAB */}
       <ProfileFAB
         onImportTranscript={() => setShowTranscript(true)}
-        onSuggestFeature={() => setFeedbackType('feature')}
+        onSuggestImprovement={() => setFeedbackType('improvement')}
         onReportBug={() => setFeedbackType('bug')}
         contentColumnRef={contentColumnRef}
       />
@@ -353,7 +353,7 @@ export function ProfileTab({ contentColumnRef }: ProfileTabProps) {
 
       {feedbackType && (
         <FeedbackModal
-          initialCategory={feedbackType}
+          category={feedbackType}
           onClose={() => setFeedbackType(null)}
         />
       )}
@@ -471,9 +471,9 @@ function ProfileSection({ sectionKey, label, value, placeholder, isInput, isSele
 
 // --- Profile FAB ---
 
-function ProfileFAB({ onImportTranscript, onSuggestFeature, onReportBug, contentColumnRef }: {
+function ProfileFAB({ onImportTranscript, onSuggestImprovement, onReportBug, contentColumnRef }: {
   onImportTranscript: () => void
-  onSuggestFeature: () => void
+  onSuggestImprovement: () => void
   onReportBug: () => void
   contentColumnRef: React.RefObject<HTMLDivElement | null>
 }) {
@@ -534,12 +534,12 @@ function ProfileFAB({ onImportTranscript, onSuggestFeature, onReportBug, content
         {isOpen && (
           <div className="absolute bottom-16 right-0 flex flex-col items-end gap-3 mb-2 animate-in fade-in slide-in-from-bottom-2 duration-200">
             <button
-              onClick={() => handleAction(onSuggestFeature)}
+              onClick={() => handleAction(onSuggestImprovement)}
               className="flex items-center gap-3 group min-h-[48px]"
               style={{ touchAction: "manipulation" }}
             >
               <span className="rounded-full bg-background px-3 py-1.5 text-sm font-medium text-foreground shadow-md whitespace-nowrap">
-                Suggest a feature
+                Suggest an improvement
               </span>
               <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-background text-foreground shadow-md">
                 <Lightbulb className="h-5 w-5" />
@@ -580,10 +580,11 @@ function ProfileFAB({ onImportTranscript, onSuggestFeature, onReportBug, content
           aria-label={isOpen ? "Close menu" : "Profile actions"}
           aria-expanded={isOpen}
         >
-          <Sparkles className={cn(
-            "h-6 w-6 md:h-5 md:w-5 transition-transform duration-200",
-            isOpen && "rotate-45"
-          )} />
+          {isOpen ? (
+            <X className="h-6 w-6 md:h-5 md:w-5 transition-transform duration-200" />
+          ) : (
+            <LayoutGrid className="h-6 w-6 md:h-5 md:w-5 transition-transform duration-200" />
+          )}
         </Button>
       </div>
     </>

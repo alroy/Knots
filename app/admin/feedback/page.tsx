@@ -18,11 +18,8 @@ interface FeedbackItem {
 }
 
 const FILTER_OPTIONS = [
-  { value: 'all', label: 'All' },
   { value: 'bug', label: 'Bugs' },
-  { value: 'feature', label: 'Features' },
   { value: 'improvement', label: 'Improvements' },
-  { value: 'question', label: 'Questions' },
 ]
 
 const STATUS_OPTIONS = ['new', 'reviewed', 'planned', 'fixed']
@@ -40,7 +37,7 @@ export default function AdminFeedbackPage() {
   const router = useRouter()
   const [feedback, setFeedback] = useState<FeedbackItem[]>([])
   const [fetching, setFetching] = useState(true)
-  const [activeFilter, setActiveFilter] = useState('all')
+  const [activeFilter, setActiveFilter] = useState('bug')
   const [updatingId, setUpdatingId] = useState<string | null>(null)
   const [error, setError] = useState('')
 
@@ -62,7 +59,7 @@ export default function AdminFeedbackPage() {
     setFetching(true)
     try {
       const params = new URLSearchParams()
-      if (activeFilter !== 'all') params.set('category', activeFilter)
+      params.set('category', activeFilter)
       const res = await fetch(`/api/admin/feedback?${params}`)
       const data = await res.json()
       if (data.error) {

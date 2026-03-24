@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS feedback (
   user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   user_name text NOT NULL DEFAULT '',
   user_email text NOT NULL DEFAULT '',
-  category text NOT NULL CHECK (category IN ('bug', 'feature', 'improvement', 'question', 'other')),
+  category text NOT NULL CHECK (category IN ('bug', 'improvement')),
   subject text NOT NULL,
   description text NOT NULL DEFAULT '',
   status text NOT NULL DEFAULT 'new' CHECK (status IN ('new', 'reviewed', 'planned', 'fixed')),

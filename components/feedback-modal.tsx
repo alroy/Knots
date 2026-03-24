@@ -8,32 +8,22 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Heart, Loader2 } from "lucide-react"
-import { cn } from "@/lib/utils"
-
-const CATEGORIES = [
-  { value: "bug", label: "Bug" },
-  { value: "feature", label: "Feature" },
-  { value: "improvement", label: "Improvement" },
-  { value: "question", label: "Question" },
-  { value: "other", label: "Other" },
-] as const
-
-type Category = (typeof CATEGORIES)[number]["value"]
 
 interface FeedbackModalProps {
-  initialCategory: "bug" | "feature"
+  category: "bug" | "improvement"
   onClose: () => void
 }
 
-export function FeedbackModal({ initialCategory, onClose }: FeedbackModalProps) {
+export function FeedbackModal({ category, onClose }: FeedbackModalProps) {
   const { user } = useAuth()
-  const [category, setCategory] = useState<Category>(initialCategory)
   const [subject, setSubject] = useState("")
   const [description, setDescription] = useState("")
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [error, setError] = useState("")
   const subjectRef = useRef<HTMLInputElement>(null)
+
+  const isBug = category === "bug"
 
   useEffect(() => {
     setTimeout(() => subjectRef.current?.focus(), 100)
@@ -108,32 +98,13 @@ export function FeedbackModal({ initialCategory, onClose }: FeedbackModalProps) 
           ) : (
             <>
               <h2 className="text-lg font-bold text-foreground mb-1">
-                {initialCategory === "bug" ? "Report a bug" : "Suggest a new feature"}
+                {isBug ? "Report a bug" : "Suggest an improvement"}
               </h2>
               <p className="text-sm text-muted-foreground mb-5">
-                {initialCategory === "bug"
+                {isBug
                   ? "Help us squash it. Describe what happened and how to reproduce it."
                   : "Tell us what would make Knots better for you."}
               </p>
-
-              {/* Category pills */}
-              <div className="flex flex-wrap gap-2 mb-5">
-                {CATEGORIES.map((cat) => (
-                  <button
-                    key={cat.value}
-                    type="button"
-                    onClick={() => setCategory(cat.value)}
-                    className={cn(
-                      "rounded-full px-3 py-1.5 text-sm font-medium transition-colors",
-                      category === cat.value
-                        ? "bg-foreground text-background"
-                        : "bg-accent text-foreground hover:bg-accent-hover"
-                    )}
-                  >
-                    {cat.label}
-                  </button>
-                ))}
-              </div>
 
               <form onSubmit={handleSubmit}>
                 <div className="space-y-2 mb-4">
@@ -160,9 +131,9 @@ export function FeedbackModal({ initialCategory, onClose }: FeedbackModalProps) 
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
                     placeholder={
-                      category === "bug"
+                      isBug
                         ? "Steps to reproduce, what you expected, and what happened instead..."
-                        : "Describe the feature and why it would be useful..."
+                        : "Describe the improvement and why it would be useful..."
                     }
                     rows={5}
                     className="bg-card border-border/60 shadow-none resize-none"
