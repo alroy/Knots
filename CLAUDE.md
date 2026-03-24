@@ -34,7 +34,7 @@ Table: `tasks`
 
 **Required migrations:**
 - `supabase-migration-cross-tab-sync.sql` - Position column and REPLICA IDENTITY FULL
-- `supabase-migration-task-provenance.sql` - Source tracking columns and ingest log table
+- `supabase-migration-task-provenance.sql` - Source tracking columns
 - `supabase-migration-user-approval.sql` - User approval column and auto-approve trigger
 
 ## Design System
