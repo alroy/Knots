@@ -957,6 +957,12 @@ export function ActionItemsTab({ contentColumnRef, isActive }: ActionItemsTabPro
         </div>
       )}
 
+      {openItems.length > 0 && (
+        <p className="text-center text-xs text-slate-400 mt-8 mb-4">
+          Powered by knots.bot
+        </p>
+      )}
+
       <KnotForm
         onSubmit={handleAddTask}
         onUpdate={handleUpdateTask}
