@@ -8,7 +8,7 @@ import { cn, formatRelativeTime, groupByPriority } from "@/lib/utils"
 import { Target, Trash2, LayoutGrid, X, FileUp, Archive, BarChart3 } from "lucide-react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { CardActionGroup } from "@/components/ui/card-action-group"
+import { CardActionGroup, cardActionDestructiveClass } from "@/components/ui/card-action-group"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
@@ -371,7 +371,7 @@ function GoalCard({ goal, taskCount, isArchiving, onView, onDelete, onArchive }:
           {!confirmingDelete && (
             <button
               onClick={handleDeleteClick}
-              className="shrink-0 flex items-center justify-center w-11 h-11 rounded-md transition-[color,opacity] text-slate-200 hover:text-slate-400 opacity-60 sm:opacity-0 sm:group-hover:opacity-60 sm:group-hover:hover:opacity-100 hover:opacity-100"
+              className={cardActionDestructiveClass}
               aria-label="Delete goal"
             >
               <Trash2 className="h-5 w-5" />
