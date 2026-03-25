@@ -897,7 +897,7 @@ export function ActionItemsTab({ contentColumnRef, isActive }: ActionItemsTabPro
       )}
 
       {filteredItems.length > 0 ? (
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-3 max-w-3xl">
           {filteredItems.map((item) => (
             <InboxCard
               key={`${item.origin}-${item.id}`}

@@ -18,7 +18,7 @@ export const cardActionButtonClass =
   "shrink-0 flex items-center justify-center w-11 h-11 rounded-md transition-[color,opacity] opacity-50 sm:opacity-0 sm:group-hover:opacity-50 sm:group-hover:hover:opacity-100 hover:opacity-100"
 
 /** Muted icon style (non-destructive actions). */
-export const cardActionMutedClass = `${cardActionButtonClass} text-muted-foreground/50 hover:text-primary`
+export const cardActionMutedClass = `${cardActionButtonClass} text-slate-400 hover:text-slate-600`
 
 /** Destructive icon style (delete). */
 export const cardActionDestructiveClass = `${cardActionButtonClass} text-muted-foreground/50 hover:text-destructive`

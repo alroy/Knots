@@ -177,7 +177,7 @@
  * Creates a centered reading surface with controlled max-width
  */
 .content-column {
-  --content-max-width: 680px;
+  --content-max-width: 768px;
   --content-gutter: 1rem;
 
   max-width: var(--content-max-width);
