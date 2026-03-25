@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react"
 import { createClient } from "@/lib/supabase-browser"
 import { useAuth } from "@/contexts/auth-context"
+import { useRealtimeChannel } from "@/hooks/use-realtime-channel"
 import { cn, formatRelativeTime, groupByPriority } from "@/lib/utils"
 import { Target, Trash2, Pencil, LayoutGrid, X, FileUp, Archive, BarChart3 } from "lucide-react"
 import Link from "next/link"
@@ -40,18 +41,12 @@ export function GoalsTab({ contentColumnRef }: GoalsTabProps) {
     }
   }, [user])
 
-  // Real-time subscription
-  useEffect(() => {
-    if (!user) return
-    const channel = supabase
-      .channel('goals-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'goals', filter: `user_id=eq.${user.id}` }, () => {
-        // Skip reload while an archive animation + DB update is in flight
-        if (!archivingIdRef.current) loadGoals()
-      })
-      .subscribe()
-    return () => { supabase.removeChannel(channel) }
-  }, [user])
+  // Real-time subscription (pauses when tab is hidden to avoid inflated iOS Screen Time)
+  useRealtimeChannel(
+    'goals-changes',
+    { table: 'goals', filter: `user_id=eq.${user?.id}` },
+    () => { if (!archivingIdRef.current) loadGoals() },
+  )
 
   const loadTaskCounts = async () => {
     if (!user) return

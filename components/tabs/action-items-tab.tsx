@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import { createClient } from "@/lib/supabase-browser"
 import { useAuth } from "@/contexts/auth-context"
+import { useRealtimeChannel } from "@/hooks/use-realtime-channel"
 import { cn, formatRelativeTime } from "@/lib/utils"
 import { Check, Target, MessageSquare, Video, RefreshCw, Clock, ClipboardList, Search, ArrowDownNarrowWide, ArrowUpNarrowWide, X } from "lucide-react"
 import { KnotForm, type EditTask, type GoalOption } from "@/components/knot-form"
@@ -115,43 +116,33 @@ export function ActionItemsTab({ contentColumnRef, isActive }: ActionItemsTabPro
     }
   }, [editTask])
 
-  // Real-time subscriptions for both tables
-  useEffect(() => {
-    if (!user) return
-    const actionChannel = supabase
-      .channel('inbox-action-items-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'action_items', filter: `user_id=eq.${user.id}` }, () => {
-        loadAllItems()
-      })
-      .subscribe()
+  // Real-time subscriptions (pause when tab is hidden to avoid inflated iOS Screen Time)
+  useRealtimeChannel(
+    'inbox-action-items-changes',
+    { table: 'action_items', filter: `user_id=eq.${user?.id}` },
+    () => { loadAllItems() },
+  )
 
-    const tasksChannel = supabase
-      .channel('inbox-tasks-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks', filter: `user_id=eq.${user.id}` }, (payload) => {
-        if (payload.eventType === 'INSERT') {
-          const newTask = payload.new as any
-          if (locallyCreatedIds.current.has(newTask.id)) {
-            locallyCreatedIds.current.delete(newTask.id)
-            return
-          }
+  useRealtimeChannel(
+    'inbox-tasks-changes',
+    { table: 'tasks', filter: `user_id=eq.${user?.id}` },
+    (payload: any) => {
+      if (payload?.eventType === 'INSERT') {
+        const newTask = payload.new as any
+        if (locallyCreatedIds.current.has(newTask.id)) {
+          locallyCreatedIds.current.delete(newTask.id)
+          return
         }
-        loadAllItems()
-      })
-      .subscribe()
+      }
+      loadAllItems()
+    },
+  )
 
-    const goalsChannel = supabase
-      .channel('inbox-goals-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'goals', filter: `user_id=eq.${user.id}` }, () => {
-        loadGoals(editTaskRef.current?.goalId)
-      })
-      .subscribe()
-
-    return () => {
-      supabase.removeChannel(actionChannel)
-      supabase.removeChannel(tasksChannel)
-      supabase.removeChannel(goalsChannel)
-    }
-  }, [user])
+  useRealtimeChannel(
+    'inbox-goals-changes',
+    { table: 'goals', filter: `user_id=eq.${user?.id}` },
+    () => { loadGoals(editTaskRef.current?.goalId) },
+  )
 
   const loadAllItems = async () => {
     if (!user) return

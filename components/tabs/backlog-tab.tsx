@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react"
 import { createClient } from "@/lib/supabase-browser"
 import { useAuth } from "@/contexts/auth-context"
+import { useRealtimeChannel } from "@/hooks/use-realtime-channel"
 import { cn, formatRelativeTime } from "@/lib/utils"
 import { Trash2, Plus, Check, ListTodo, Clock, Undo2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -35,16 +36,12 @@ export function BacklogTab({ contentColumnRef, isActive }: BacklogTabProps) {
     if (isActive && user) loadItems()
   }, [isActive])
 
-  useEffect(() => {
-    if (!user) return
-    const channel = supabase
-      .channel('backlog-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'backlog', filter: `user_id=eq.${user.id}` }, () => {
-        loadItems()
-      })
-      .subscribe()
-    return () => { supabase.removeChannel(channel) }
-  }, [user])
+  // Real-time subscription (pauses when tab is hidden to avoid inflated iOS Screen Time)
+  useRealtimeChannel(
+    'backlog-changes',
+    { table: 'backlog', filter: `user_id=eq.${user?.id}` },
+    () => { loadItems() },
+  )
 
   const loadItems = async () => {
     if (!user) return

@@ -5,6 +5,7 @@ import { SortableKnotList } from "@/components/sortable-knot-list"
 import { KnotForm, type EditTask, type GoalOption } from "@/components/knot-form"
 import { createClient } from "@/lib/supabase-browser"
 import { useAuth } from "@/contexts/auth-context"
+import { useRealtimeChannel } from "@/hooks/use-realtime-channel"
 import { TaskMetadata } from "@/lib/types"
 
 interface Knot {
@@ -55,100 +56,91 @@ export function TasksTab({ contentColumnRef }: TasksTabProps) {
     }
   }, [editTask])
 
-  // Subscribe to real-time changes
-  useEffect(() => {
-    if (!user) return
+  // Subscribe to real-time changes (pauses when tab is hidden to avoid inflated iOS Screen Time)
+  useRealtimeChannel(
+    'tasks-changes',
+    { table: 'tasks', filter: `user_id=eq.${user?.id}` },
+    (payload: any) => {
+      // null payload = catch-up refetch after tab becomes visible again
+      if (!payload) {
+        loadKnots()
+        return
+      }
 
-    const channel = supabase
-      .channel('tasks-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'tasks',
-          filter: `user_id=eq.${user.id}`,
-        },
-        (payload) => {
-          if (isBatchOperation.current) return
+      if (isBatchOperation.current) return
 
-          if (payload.eventType === 'INSERT') {
-            const newTask = payload.new as any
-            if (newTask.status === 'completed') return
-            if (locallyCreatedIds.current.has(newTask.id)) {
-              locallyCreatedIds.current.delete(newTask.id)
-              return
-            }
-
-            const newKnot: Knot = {
-              id: newTask.id,
-              title: newTask.title,
-              description: newTask.description || '',
-              status: newTask.status,
-              position: newTask.position ?? 0,
-              metadata: newTask.metadata || undefined,
-              createdAt: newTask.created_at,
-              sourceType: newTask.source_type || undefined,
-              sourceUrl: newTask.source_url || undefined,
-              goalId: newTask.goal_id || null,
-            }
-
-            // Play slide-in animation for items arriving via realtime (e.g. from backlog)
-            setEnteringId(newKnot.id)
-            setTimeout(() => setEnteringId((cur) => cur === newKnot.id ? null : cur), 400)
-
-            setKnots((prev) => {
-              if (prev.some((k) => k.id === newKnot.id)) return prev
-              const hasPositionConflict = prev.some(k => k.position === newKnot.position)
-              if (hasPositionConflict) {
-                const updated = prev.map(k =>
-                  k.position >= newKnot.position ? { ...k, position: k.position + 1 } : k
-                )
-                return [newKnot, ...updated].sort((a, b) => a.position - b.position)
-              } else {
-                return [...prev, newKnot].sort((a, b) => a.position - b.position)
-              }
-            })
-          } else if (payload.eventType === 'UPDATE') {
-            const updatedTask = payload.new as any
-            if (locallyModifiedIds.current.has(updatedTask.id)) {
-              locallyModifiedIds.current.delete(updatedTask.id)
-              return
-            }
-            setKnots((prev) => {
-              const updated = prev.map((k) =>
-                k.id === updatedTask.id
-                  ? {
-                      ...k,
-                      title: updatedTask.title,
-                      description: updatedTask.description || '',
-                      status: updatedTask.status,
-                      position: updatedTask.position ?? k.position,
-                      metadata: updatedTask.metadata ?? k.metadata,
-                      sourceType: updatedTask.source_type ?? k.sourceType,
-                      sourceUrl: updatedTask.source_url ?? k.sourceUrl,
-                    }
-                  : k
-              )
-              return updated.sort((a, b) => a.position - b.position)
-            })
-          } else if (payload.eventType === 'DELETE') {
-            const deletedTask = payload.old as any
-            setKnots((prev) => prev.filter((k) => k.id !== deletedTask.id))
-          }
+      if (payload.eventType === 'INSERT') {
+        const newTask = payload.new as any
+        if (newTask.status === 'completed') return
+        if (locallyCreatedIds.current.has(newTask.id)) {
+          locallyCreatedIds.current.delete(newTask.id)
+          return
         }
-      )
-      .subscribe()
 
-    const goalsChannel = supabase
-      .channel('tasks-goals-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'goals', filter: `user_id=eq.${user.id}` }, () => {
-        loadGoals(editTaskRef.current?.goalId)
-      })
-      .subscribe()
+        const newKnot: Knot = {
+          id: newTask.id,
+          title: newTask.title,
+          description: newTask.description || '',
+          status: newTask.status,
+          position: newTask.position ?? 0,
+          metadata: newTask.metadata || undefined,
+          createdAt: newTask.created_at,
+          sourceType: newTask.source_type || undefined,
+          sourceUrl: newTask.source_url || undefined,
+          goalId: newTask.goal_id || null,
+        }
 
-    return () => { supabase.removeChannel(channel); supabase.removeChannel(goalsChannel) }
-  }, [user])
+        // Play slide-in animation for items arriving via realtime (e.g. from backlog)
+        setEnteringId(newKnot.id)
+        setTimeout(() => setEnteringId((cur) => cur === newKnot.id ? null : cur), 400)
+
+        setKnots((prev) => {
+          if (prev.some((k) => k.id === newKnot.id)) return prev
+          const hasPositionConflict = prev.some(k => k.position === newKnot.position)
+          if (hasPositionConflict) {
+            const updated = prev.map(k =>
+              k.position >= newKnot.position ? { ...k, position: k.position + 1 } : k
+            )
+            return [newKnot, ...updated].sort((a, b) => a.position - b.position)
+          } else {
+            return [...prev, newKnot].sort((a, b) => a.position - b.position)
+          }
+        })
+      } else if (payload.eventType === 'UPDATE') {
+        const updatedTask = payload.new as any
+        if (locallyModifiedIds.current.has(updatedTask.id)) {
+          locallyModifiedIds.current.delete(updatedTask.id)
+          return
+        }
+        setKnots((prev) => {
+          const updated = prev.map((k) =>
+            k.id === updatedTask.id
+              ? {
+                  ...k,
+                  title: updatedTask.title,
+                  description: updatedTask.description || '',
+                  status: updatedTask.status,
+                  position: updatedTask.position ?? k.position,
+                  metadata: updatedTask.metadata ?? k.metadata,
+                  sourceType: updatedTask.source_type ?? k.sourceType,
+                  sourceUrl: updatedTask.source_url ?? k.sourceUrl,
+                }
+              : k
+          )
+          return updated.sort((a, b) => a.position - b.position)
+        })
+      } else if (payload.eventType === 'DELETE') {
+        const deletedTask = payload.old as any
+        setKnots((prev) => prev.filter((k) => k.id !== deletedTask.id))
+      }
+    },
+  )
+
+  useRealtimeChannel(
+    'tasks-goals-changes',
+    { table: 'goals', filter: `user_id=eq.${user?.id}` },
+    () => { loadGoals(editTaskRef.current?.goalId) },
+  )
 
   const loadKnots = async () => {
     if (!user) return

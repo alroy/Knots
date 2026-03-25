@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react"
 import { createClient } from "@/lib/supabase-browser"
 import { useAuth } from "@/contexts/auth-context"
+import { useRealtimeChannel } from "@/hooks/use-realtime-channel"
 import { cn } from "@/lib/utils"
 import { Trash2, Plus, ChevronRight, ArrowLeft, Moon } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -32,16 +33,12 @@ export function PeopleTab({ contentColumnRef }: PeopleTabProps) {
     if (user) loadPeople()
   }, [user])
 
-  useEffect(() => {
-    if (!user) return
-    const channel = supabase
-      .channel('people-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'people', filter: `user_id=eq.${user.id}` }, () => {
-        loadPeople()
-      })
-      .subscribe()
-    return () => { supabase.removeChannel(channel) }
-  }, [user])
+  // Real-time subscription (pauses when tab is hidden to avoid inflated iOS Screen Time)
+  useRealtimeChannel(
+    'people-changes',
+    { table: 'people', filter: `user_id=eq.${user?.id}` },
+    () => { loadPeople() },
+  )
 
   const loadPeople = async () => {
     if (!user) return
