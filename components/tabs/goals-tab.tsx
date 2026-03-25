@@ -221,12 +221,6 @@ export function GoalsTab({ contentColumnRef }: GoalsTabProps) {
         </div>
       ) : null}
 
-      {goals.length > 0 && (
-        <p className="text-center text-xs text-slate-400 mt-8 mb-4">
-          Powered by knots.bot
-        </p>
-      )}
-
       {goals.length === 0 && (
         <div className="flex flex-col items-center justify-center py-24 text-center">
           <img src="/goals.svg" alt="" aria-hidden="true" className="h-20 w-20 opacity-40 mb-5" />
