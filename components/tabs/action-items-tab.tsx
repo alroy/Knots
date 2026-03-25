@@ -897,7 +897,7 @@ export function ActionItemsTab({ contentColumnRef, isActive }: ActionItemsTabPro
       )}
 
       {filteredItems.length > 0 ? (
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-3 max-w-3xl">
           {filteredItems.map((item) => (
             <InboxCard
               key={`${item.origin}-${item.id}`}
@@ -1077,7 +1077,7 @@ function InboxCard({ item, isExpanded, isExiting, onToggleExpand, onDone, onReop
   return (
     <div
       className={cn(
-        "group relative rounded-lg bg-card p-4 transition-[background-color,opacity,transform] duration-200",
+        "group relative rounded-lg bg-card px-6 py-4 transition-[background-color,opacity,transform] duration-200",
         !isExiting && "animate-in fade-in duration-300",
         !isDone && "hover:bg-accent-hover",
         isDone && "bg-accent-subtle opacity-75",
@@ -1085,7 +1085,7 @@ function InboxCard({ item, isExpanded, isExiting, onToggleExpand, onDone, onReop
         showSnoozeMenu && "z-10",
       )}
     >
-      <div className="flex items-start gap-3">
+      <div className="flex items-start gap-4">
         {/* Done/Reopen button */}
         {isDone ? (
           <button
@@ -1105,7 +1105,7 @@ function InboxCard({ item, isExpanded, isExiting, onToggleExpand, onDone, onReop
 
         {/* Content */}
         <div
-          className="min-w-0 flex-1 cursor-pointer"
+          className="min-w-0 flex-1 pr-6 cursor-pointer"
           onClick={() => {
             if (onEdit) {
               onEdit()
@@ -1115,7 +1115,7 @@ function InboxCard({ item, isExpanded, isExiting, onToggleExpand, onDone, onReop
           }}
         >
           <p className={cn(
-            "text-base font-semibold text-foreground break-words",
+            "text-base font-semibold leading-snug text-foreground break-words",
             isDone && "text-muted-foreground line-through decoration-muted-foreground/50"
           )}>
             {item.title}
@@ -1200,7 +1200,7 @@ function InboxMetadataRow({ item }: { item: InboxItem }) {
   if (item.source === 'manual') {
     // Manual tasks: clipboard icon + "Manually created" + timestamp
     return (
-      <div className="flex items-center gap-1.5 mt-3 flex-wrap">
+      <div className="flex items-center gap-1.5 mt-2 flex-wrap">
         <ClipboardList className="h-3 w-3 text-muted-foreground/70 shrink-0" />
         <span className="text-xs text-muted-foreground/70">Manually created</span>
         {item.createdAt && (
@@ -1223,7 +1223,7 @@ function InboxMetadataRow({ item }: { item: InboxItem }) {
           ? '/monday-icon.svg'
           : '/granola-icon.svg'
     return (
-      <div className="flex items-center gap-1.5 mt-3 flex-wrap">
+      <div className="flex items-center gap-1.5 mt-2 flex-wrap">
         <img src={sourceIcon} alt="" className="h-3 w-3 shrink-0" aria-hidden="true" />
         {item.messageFrom && (
           <span className="text-xs text-muted-foreground">{item.messageFrom}</span>
@@ -1258,7 +1258,7 @@ function InboxMetadataRow({ item }: { item: InboxItem }) {
         sourceType={item.source}
         authorName={authorName}
         permalink={item.sourceUrl || item.messageLink || undefined}
-        className="mt-3"
+        className="mt-2"
       />
     )
   }
