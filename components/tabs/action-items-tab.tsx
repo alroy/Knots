@@ -1142,8 +1142,8 @@ function InboxCard({ item, isExpanded, isExiting, onToggleExpand, onDone, onReop
           )}
 
           {/* Metadata row + mobile action icons */}
-          <div className="flex items-center mt-2">
-            <div className="flex-1 min-w-0">
+          <div className="flex items-start mt-2">
+            <div className="flex-1 min-w-0 pr-8 md:pr-0">
               <InboxMetadataRow item={item} />
             </div>
             {/* Mobile inline icons — sit on metadata row, hidden on desktop */}
@@ -1256,13 +1256,13 @@ function InboxMetadataRow({ item }: { item: InboxItem }) {
   if (item.source === 'manual') {
     // Manual tasks: clipboard icon + "Manually created" + timestamp
     return (
-      <div className="flex items-center gap-1.5 flex-wrap">
-        <ClipboardList className="h-3 w-3 text-muted-foreground/70 shrink-0" />
-        <span className="text-xs text-muted-foreground/70">Manually created</span>
+      <div className="flex items-center gap-1.5">
+        <ClipboardList className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+        <span className="text-[13px] text-slate-500 dark:text-slate-400">Manually created</span>
         {item.createdAt && (
           <>
-            <span className="text-xs text-muted-foreground/40">&middot;</span>
-            <span className="text-xs text-muted-foreground/70">{formatRelativeTime(item.createdAt)}</span>
+            <span className="text-[13px] text-slate-400 dark:text-slate-500">&middot;</span>
+            <span className="text-[13px] text-slate-500 dark:text-slate-400">{formatRelativeTime(item.createdAt)}</span>
           </>
         )}
       </div>
@@ -1270,7 +1270,8 @@ function InboxMetadataRow({ item }: { item: InboxItem }) {
   }
 
   if (item.origin === 'action-item') {
-    // Action items from Slack/Granola/Gmail: use inline icon + from + channel + time
+    // Action items from Slack/Granola/Gmail: two-line stacked layout on mobile
+    // Line 1: icon + name · time | Line 2: in {channel}
     const sourceIcon = item.source === 'slack'
       ? '/slack-svgrepo-com.svg'
       : item.source === 'gmail'
@@ -1279,21 +1280,27 @@ function InboxMetadataRow({ item }: { item: InboxItem }) {
           ? '/monday-icon.svg'
           : '/granola-icon.svg'
     return (
-      <div className="flex items-center gap-1.5 flex-wrap">
-        <img src={sourceIcon} alt="" className="h-3 w-3 shrink-0" aria-hidden="true" />
-        {item.messageFrom && (
-          <span className="text-xs text-muted-foreground">{item.messageFrom}</span>
-        )}
+      <div className="flex flex-col gap-0.5">
+        {/* Line 1: Icon + Name · Time */}
+        <div className="flex items-center gap-1.5 min-w-0">
+          <img src={sourceIcon} alt="" className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          {item.messageFrom && (
+            <span className="text-[13px] text-slate-600 dark:text-slate-400 truncate">{item.messageFrom}</span>
+          )}
+          {item.messageTimestamp && (
+            <>
+              <span className="text-[13px] text-slate-400 dark:text-slate-500 shrink-0">&middot;</span>
+              <span className="text-[13px] text-slate-500 dark:text-slate-400 shrink-0 whitespace-nowrap">
+                {formatRelativeTime(item.messageTimestamp)}
+              </span>
+            </>
+          )}
+        </div>
+        {/* Line 2: Channel (more muted) */}
         {item.sourceChannel && (
-          <span className="text-xs text-muted-foreground">
-            {item.messageFrom ? 'in' : ''} {item.sourceChannel}
+          <span className="text-[13px] text-slate-400 dark:text-slate-500 truncate pl-5">
+            in {item.sourceChannel}
           </span>
-        )}
-        {item.messageTimestamp && (
-          <>
-            <span className="text-xs text-muted-foreground/50">&middot;</span>
-            <span className="text-xs text-muted-foreground">{formatRelativeTime(item.messageTimestamp)}</span>
-          </>
         )}
       </div>
     )
