@@ -115,6 +115,14 @@ export function DeleteAccountModal({ onClose }: DeleteAccountModalProps) {
                       key={r}
                       className="flex items-center gap-3 cursor-pointer group"
                     >
+                      <input
+                        type="radio"
+                        name="churn-reason"
+                        value={r}
+                        checked={reason === r}
+                        onChange={() => setReason(r)}
+                        className="sr-only"
+                      />
                       <span
                         className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${
                           reason === r
