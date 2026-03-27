@@ -3,7 +3,7 @@ import { cn } from '@/lib/utils'
 
 interface ButtonProps extends React.ComponentProps<'button'> {
   size?: 'default' | 'sm' | 'lg' | 'icon'
-  variant?: 'default' | 'ghost' | 'outline'
+  variant?: 'default' | 'ghost' | 'outline' | 'destructive'
 }
 
 function Button({
@@ -23,6 +23,7 @@ function Button({
           'bg-primary text-primary-foreground hover:bg-primary/90': variant === 'default',
           'bg-transparent text-foreground hover:bg-accent': variant === 'ghost',
           'border border-border bg-transparent text-foreground hover:bg-accent': variant === 'outline',
+          'bg-red-600 text-white hover:bg-red-700': variant === 'destructive',
         },
         {
           'h-10 px-4 py-2': size === 'default',

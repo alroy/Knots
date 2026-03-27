@@ -11,6 +11,7 @@ import { Pencil, Check, FileText, Camera, LayoutGrid, X, ChevronRight, Lightbulb
 import { MondaySettings } from "@/components/settings/monday-settings"
 import { cn } from "@/lib/utils"
 import { FeedbackModal } from "@/components/feedback-modal"
+import { DeleteAccountModal } from "@/components/delete-account-modal"
 import type { UserProfile, PersonLocation } from "@/lib/chief-of-staff-types"
 import { LOCATION_OPTIONS } from "@/lib/chief-of-staff-types"
 
@@ -27,6 +28,7 @@ export function ProfileTab({ contentColumnRef }: ProfileTabProps) {
   const [editingSection, setEditingSection] = useState<string | null>(null)
   const [showTranscript, setShowTranscript] = useState(false)
   const [feedbackType, setFeedbackType] = useState<'bug' | 'improvement' | null>(null)
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [editName, setEditName] = useState('')
   const nameInputRef = useRef<HTMLInputElement>(null)
   const supabase = createClient()
@@ -328,9 +330,15 @@ export function ProfileTab({ contentColumnRef }: ProfileTabProps) {
           )}
           <button
             onClick={() => signOut()}
-            className="flex items-center w-full p-4 text-red-600 dark:text-red-400 font-medium text-sm hover:bg-slate-200/60 dark:hover:bg-slate-700/50 transition-colors"
+            className="flex items-center w-full p-4 text-red-600 dark:text-red-400 font-medium text-sm hover:bg-slate-200/60 dark:hover:bg-slate-700/50 transition-colors border-b border-gray-200/60 dark:border-gray-700/60"
           >
             Sign out
+          </button>
+          <button
+            onClick={() => setShowDeleteModal(true)}
+            className="flex items-center w-full p-4 text-red-600/70 dark:text-red-400/70 font-medium text-sm hover:bg-slate-200/60 dark:hover:bg-slate-700/50 transition-colors"
+          >
+            Delete Account
           </button>
         </div>
       </div>
@@ -356,6 +364,10 @@ export function ProfileTab({ contentColumnRef }: ProfileTabProps) {
           category={feedbackType}
           onClose={() => setFeedbackType(null)}
         />
+      )}
+
+      {showDeleteModal && (
+        <DeleteAccountModal onClose={() => setShowDeleteModal(false)} />
       )}
     </div>
   )
