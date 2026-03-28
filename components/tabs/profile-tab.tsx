@@ -327,15 +327,15 @@ export function ProfileTab({ contentColumnRef }: ProfileTabProps) {
                 href="/admin"
                 className="flex justify-between items-center w-full p-4 text-slate-800 dark:text-slate-200 font-medium text-sm hover:bg-slate-200/60 dark:hover:bg-slate-700/50 transition-colors border-b border-gray-200/60 dark:border-gray-700/60"
               >
+                User approvals
                 <span className="flex items-center gap-2">
-                  User approvals
                   {pendingCount > 0 && (
-                    <span className="bg-[#F0F4F8] text-slate-600 font-semibold text-[11px] px-2 py-0.5 rounded-full">
+                    <span className="inline-flex items-center justify-center h-5 min-w-[20px] px-1.5 rounded-full bg-rose-100 dark:bg-rose-900/40 text-rose-600 dark:text-rose-400 text-[10px] font-bold leading-none">
                       {pendingCount}
                     </span>
                   )}
+                  <ChevronRight className="h-4 w-4 text-slate-400" />
                 </span>
-                <ChevronRight className="h-4 w-4 text-slate-400" />
               </a>
               <a
                 href="/admin/feedback"
