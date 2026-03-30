@@ -999,6 +999,10 @@ function SnoozeMenu({ onSnooze, onClose }: {
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
+    // Skip when inside a display:none responsive container to avoid the hidden
+    // instance's handler closing the visible menu before click events fire.
+    if (ref.current && ref.current.offsetParent === null) return
+
     const handler = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) {
         onClose()
