@@ -222,3 +222,29 @@ export function prepareDescriptionForEdit(description: string): string {
   // Strip legacy source block but keep everything else
   return stripSlackSourceBlock(description)
 }
+
+/**
+ * Compute word-overlap (Jaccard) similarity between two strings.
+ * Returns a value between 0 (no overlap) and 1 (identical word sets).
+ * Ignores case and common stop-words for better matching of action-item titles.
+ */
+const STOP_WORDS = new Set([
+  'a', 'an', 'the', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for',
+  'of', 'with', 'by', 'from', 'is', 'are', 'was', 'were', 'be', 'been',
+])
+
+export function titleSimilarity(a: string, b: string): number {
+  const tokenize = (s: string) => {
+    const words = s.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter(w => w && !STOP_WORDS.has(w))
+    return new Set(words)
+  }
+  const setA = tokenize(a)
+  const setB = tokenize(b)
+  if (setA.size === 0 && setB.size === 0) return 1
+  if (setA.size === 0 || setB.size === 0) return 0
+  let intersection = 0
+  for (const w of setA) {
+    if (setB.has(w)) intersection++
+  }
+  return intersection / (setA.size + setB.size - intersection)
+}
