@@ -9,7 +9,7 @@ import { Check, Target, MessageSquare, Video, RefreshCw, Clock, ClipboardList, S
 import { KnotForm, type EditTask, type GoalOption } from "@/components/knot-form"
 import { ProvenanceRow } from "@/components/ui/provenance-row"
 import { TaskMetadata, isSlackMetadata, isGranolaMetadata } from "@/lib/types"
-import { prepareTaskForListView, detectSlackTask } from "@/lib/text-utils"
+import { prepareTaskForListView, detectSlackTask, titleSimilarity } from "@/lib/text-utils"
 import { StickyHeader } from "@/components/sticky-header"
 import { CardActionGroup, cardActionMutedClass } from "@/components/ui/card-action-group"
 
@@ -240,8 +240,22 @@ export function ActionItemsTab({ contentColumnRef, isActive }: ActionItemsTabPro
         return true
       })
 
+      // Fuzzy dedup: within the same sender, drop near-duplicate titles
+      const SIMILARITY_THRESHOLD = 0.6
+      const fuzzyDedupedItems: InboxItem[] = []
+      for (const item of dedupedActionItems) {
+        const isDuplicate = fuzzyDedupedItems.some(
+          kept =>
+            kept.messageFrom &&
+            item.messageFrom &&
+            kept.messageFrom === item.messageFrom &&
+            titleSimilarity(kept.title, item.title) >= SIMILARITY_THRESHOLD
+        )
+        if (!isDuplicate) fuzzyDedupedItems.push(item)
+      }
+
       // Merge: tasks first (they have explicit positions), then deduplicated action items
-      setItems([...taskItems, ...dedupedActionItems])
+      setItems([...taskItems, ...fuzzyDedupedItems])
     } catch (error) {
       console.error('Error loading inbox items:', error)
     } finally {
