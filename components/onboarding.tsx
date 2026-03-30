@@ -27,6 +27,23 @@ export function Onboarding({ onComplete }: OnboardingProps) {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
+  const handleAcceptTerms = async () => {
+    setSaving(true)
+    setError('')
+    try {
+      const supabase = createClient()
+      const { error: updateError } = await supabase.auth.updateUser({
+        data: { has_accepted_terms: true },
+      })
+      if (updateError) throw updateError
+      setStep('profile')
+    } catch {
+      setError('Something went wrong. Please try again.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const handleProfileSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
@@ -142,8 +159,12 @@ export function Onboarding({ onComplete }: OnboardingProps) {
                 .
               </p>
 
-              <Button className="w-full" onClick={() => setStep('profile')}>
-                I Accept
+              {error && (
+                <p className="mb-4 text-center text-sm text-red-600">{error}</p>
+              )}
+
+              <Button className="w-full" onClick={handleAcceptTerms} disabled={saving}>
+                {saving ? 'Accepting…' : 'I Accept'}
               </Button>
             </div>
           </div>
