@@ -17,7 +17,7 @@ interface OnboardingProps {
 
 export function Onboarding({ onComplete }: OnboardingProps) {
   const { user } = useAuth()
-  const [step, setStep] = useState<'setup' | 'profile' | 'monday'>('setup')
+  const [step, setStep] = useState<'welcome' | 'profile' | 'monday'>('welcome')
   const [name, setName] = useState('')
   const [roleTitle, setRoleTitle] = useState('')
   const [location, setLocation] = useState<PersonLocation | null>(null)
@@ -116,25 +116,36 @@ export function Onboarding({ onComplete }: OnboardingProps) {
     }
   }
 
-  if (step === 'setup') {
+  if (step === 'welcome') {
     return (
       <main className="min-h-screen bg-background px-4 py-12">
         <div className="mx-auto max-w-xl">
-          <div className="flex min-h-[60vh] flex-col items-center justify-center space-y-6">
-            <div className="text-center">
-              <h1 className="mb-2 text-3xl font-bold text-foreground">Set up your autopilot</h1>
-              <p className="text-muted-foreground">
-                Connect your tools so Knots can surface your action items automatically.
+          <div className="flex min-h-[60vh] flex-col items-center justify-center space-y-8">
+            <div className="bg-white border border-gray-200 shadow-sm rounded-xl p-8 max-w-md w-full mx-auto text-center">
+              <div className="mb-6 flex justify-center">
+                <img
+                  src="/welcome.svg"
+                  alt="Welcome"
+                  className="h-14 w-14"
+                />
+              </div>
+              <h1 className="mb-2 text-2xl font-semibold text-gray-900">Welcome to Knots</h1>
+              <p className="mb-8 text-sm leading-relaxed text-gray-500">
+                Before we continue, please review and accept our{' '}
+                <a href="https://knots.bot/terms" target="_blank" rel="noopener noreferrer" className="text-primary underline">
+                  Terms of Service
+                </a>{' '}
+                and{' '}
+                <a href="https://knots.bot/privacy" target="_blank" rel="noopener noreferrer" className="text-primary underline">
+                  Privacy Policy
+                </a>
+                .
               </p>
-            </div>
 
-            <div className="w-full max-w-sm">
-              <SetupInstructionCard />
+              <Button className="w-full" onClick={() => setStep('profile')}>
+                I Accept
+              </Button>
             </div>
-
-            <Button size="lg" className="w-full max-w-sm" onClick={() => setStep('profile')}>
-              Continue
-            </Button>
           </div>
         </div>
       </main>
