@@ -111,6 +111,11 @@ function PageContent() {
     return <PendingApproval />
   }
 
+  // Even approved users must accept TOS and see setup instructions
+  if (user?.user_metadata?.has_accepted_terms !== true) {
+    return <PendingApproval approved />
+  }
+
   // Show onboarding for new users (profile name not yet set)
   if (needsOnboarding === null) {
     return (
