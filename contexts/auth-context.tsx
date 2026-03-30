@@ -41,12 +41,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // No profile row exists — create one as fallback (DB trigger may not have fired)
     const { data: { user: authUser } } = await supabase.auth.getUser()
     const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL?.toLowerCase()
-    const isAdmin = !!(adminEmail && authUser?.email?.toLowerCase() === adminEmail)
+    const userEmail = authUser?.email?.toLowerCase()
+    const isAutoApproved = !!(
+      (adminEmail && userEmail === adminEmail) ||
+      userEmail?.endsWith('@zencity.io')
+    )
     const name = authUser?.user_metadata?.full_name || ''
 
     const { error: insertError } = await supabase
       .from('user_profile')
-      .insert({ user_id: userId, name, approved: isAdmin })
+      .insert({ user_id: userId, name, approved: isAutoApproved })
 
     if (insertError) {
       // Unique constraint violation — trigger won the race, re-read the row
@@ -63,7 +67,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return
     }
 
-    setIsApproved(isAdmin)
+    setIsApproved(isAutoApproved)
   }
 
   useEffect(() => {
