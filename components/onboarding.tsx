@@ -17,7 +17,7 @@ interface OnboardingProps {
 
 export function Onboarding({ onComplete }: OnboardingProps) {
   const { user } = useAuth()
-  const [step, setStep] = useState<'profile' | 'monday'>('profile')
+  const [step, setStep] = useState<'setup' | 'profile' | 'monday'>('setup')
   const [name, setName] = useState('')
   const [roleTitle, setRoleTitle] = useState('')
   const [location, setLocation] = useState<PersonLocation | null>(null)
@@ -114,6 +114,31 @@ export function Onboarding({ onComplete }: OnboardingProps) {
       setError('Something went wrong. Please try again.')
       setSaving(false)
     }
+  }
+
+  if (step === 'setup') {
+    return (
+      <main className="min-h-screen bg-background px-4 py-12">
+        <div className="mx-auto max-w-xl">
+          <div className="flex min-h-[60vh] flex-col items-center justify-center space-y-6">
+            <div className="text-center">
+              <h1 className="mb-2 text-3xl font-bold text-foreground">Set up your autopilot</h1>
+              <p className="text-muted-foreground">
+                Connect your tools so Knots can surface your action items automatically.
+              </p>
+            </div>
+
+            <div className="w-full max-w-sm">
+              <SetupInstructionCard />
+            </div>
+
+            <Button size="lg" className="w-full max-w-sm" onClick={() => setStep('profile')}>
+              Continue
+            </Button>
+          </div>
+        </div>
+      </main>
+    )
   }
 
   if (step === 'monday') {

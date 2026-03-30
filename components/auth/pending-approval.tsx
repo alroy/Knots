@@ -3,15 +3,9 @@
 import { useState } from 'react'
 import { useAuth } from '@/contexts/auth-context'
 import { Button } from '@/components/ui/button'
-import { SetupInstructionCard } from '@/components/ui/setup-instruction-card'
 import { createClient } from '@/lib/supabase-browser'
 
-interface PendingApprovalProps {
-  /** When true the user is already approved — show setup instructions + Continue instead of the waiting screen */
-  approved?: boolean
-}
-
-export function PendingApproval({ approved = false }: PendingApprovalProps) {
+export function PendingApproval() {
   const { signOut, user } = useAuth()
   const [accepting, setAccepting] = useState(false)
   const [error, setError] = useState('')
@@ -67,44 +61,6 @@ export function PendingApproval({ approved = false }: PendingApprovalProps) {
                 {accepting ? 'Accepting…' : 'I Accept'}
               </Button>
             </div>
-
-            <div className="flex flex-col items-center gap-2">
-              {user?.email && (
-                <p className="text-sm text-muted-foreground">
-                  Signed in as: <span className="font-medium">{user.email}</span>
-                </p>
-              )}
-              <button
-                onClick={signOut}
-                className="text-sm text-muted-foreground underline hover:text-foreground transition-colors"
-              >
-                Sign out
-              </button>
-            </div>
-          </div>
-        </div>
-      </main>
-    )
-  }
-
-  // Approved users: show setup instructions with a Continue button
-  if (approved) {
-    return (
-      <main className="min-h-screen bg-background px-4 py-12">
-        <div className="mx-auto max-w-xl">
-          <div className="flex min-h-[60vh] flex-col items-center justify-center space-y-8">
-            <div className="text-center">
-              <h1 className="mb-2 text-2xl font-semibold text-gray-900">Get started with Knots</h1>
-              <p className="text-sm leading-relaxed text-gray-500">
-                Before you dive in, here&apos;s how to connect your tools so Knots can surface your action items automatically.
-              </p>
-            </div>
-
-            <SetupInstructionCard />
-
-            <Button className="w-full max-w-sm" size="lg" onClick={handleAccept} disabled={accepting}>
-              {accepting ? 'Setting up…' : 'Continue'}
-            </Button>
 
             <div className="flex flex-col items-center gap-2">
               {user?.email && (
