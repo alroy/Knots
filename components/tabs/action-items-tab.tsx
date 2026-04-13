@@ -493,12 +493,13 @@ export function ActionItemsTab({ contentColumnRef, isActive }: ActionItemsTabPro
         })
         if (insertError) throw insertError
 
-        // Delete from action_items
-        const { error: deleteError } = await supabase
+        // Soft-delete: mark as dismissed so monday_item_id stays for dedup
+        // on the next Monday.com sync (prevents re-ingestion into Inbox).
+        const { error: updateError } = await supabase
           .from('action_items')
-          .delete()
+          .update({ status: 'dismissed' })
           .eq('id', id)
-        if (deleteError) throw deleteError
+        if (updateError) throw updateError
       } catch (error) {
         console.error('Error snoozing action item:', error)
         loadAllItems()
@@ -587,12 +588,14 @@ export function ActionItemsTab({ contentColumnRef, isActive }: ActionItemsTabPro
         })
         if (goalError) throw goalError
 
-        // Delete original item from its source table
+        // Remove original item from its source table.
+        // For action_items, soft-delete (status='dismissed') so monday_item_id
+        // stays for dedup and the next Monday.com sync won't re-ingest it.
         if (origin === 'task') {
           const { error } = await supabase.from('tasks').delete().eq('id', id)
           if (error) throw error
         } else {
-          const { error } = await supabase.from('action_items').delete().eq('id', id)
+          const { error } = await supabase.from('action_items').update({ status: 'dismissed' }).eq('id', id)
           if (error) throw error
         }
 
