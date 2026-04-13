@@ -588,12 +588,14 @@ export function ActionItemsTab({ contentColumnRef, isActive }: ActionItemsTabPro
         })
         if (goalError) throw goalError
 
-        // Delete original item from its source table
+        // Remove original item from its source table.
+        // For action_items, soft-delete (status='dismissed') so monday_item_id
+        // stays for dedup and the next Monday.com sync won't re-ingest it.
         if (origin === 'task') {
           const { error } = await supabase.from('tasks').delete().eq('id', id)
           if (error) throw error
         } else {
-          const { error } = await supabase.from('action_items').delete().eq('id', id)
+          const { error } = await supabase.from('action_items').update({ status: 'dismissed' }).eq('id', id)
           if (error) throw error
         }
 
